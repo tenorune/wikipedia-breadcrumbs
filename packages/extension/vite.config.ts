@@ -11,6 +11,7 @@ export default defineConfig({
       additionalInputs: ["src/offscreen/index.html"],
     }),
   ],
+  publicDir: "static",
   build: {
     outDir: "dist",
     emptyOutDir: true,
