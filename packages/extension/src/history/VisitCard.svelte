@@ -16,8 +16,9 @@
   async function handleTitleClick(e: MouseEvent) {
     e.preventDefault();
     if (trailStatus === "active" && trailTabId != null) {
+      // Switch to the trail's tab and navigate to the clicked page
       try {
-        await chrome.tabs.update(trailTabId, { active: true });
+        await chrome.tabs.update(trailTabId, { active: true, url: visit.url });
         const tab = await chrome.tabs.get(trailTabId);
         if (tab.windowId != null) {
           await chrome.windows.update(tab.windowId, { focused: true });
@@ -26,18 +27,13 @@
         chrome.tabs.create({ url: visit.url });
       }
     } else {
-      // Finalized trail — open new tab and resume the trail
-      const tab = await chrome.tabs.create({ url: visit.url });
-      if (tab.id != null) {
-        await chrome.runtime.sendMessage({
-          type: "resumeTrail",
-          trailId,
-          tabId: tab.id,
-          windowId: tab.windowId ?? 0,
-          url: visit.url,
-        });
-        onResumed?.();
-      }
+      // Finalized trail — background creates tab and resumes trail atomically
+      await chrome.runtime.sendMessage({
+        type: "resumeTrailInNewTab",
+        trailId,
+        url: visit.url,
+      });
+      onResumed?.();
     }
   }
 

@@ -18,16 +18,9 @@ async function initialize() {
   // has restored its session.
 }
 
-// Reconcile once after browser has had time to restore tabs.
-// onStartup fires before tabs are restored, so we listen for the first
-// onCompleted event (any URL) as a signal that the session is ready.
-let reconciled = false;
-chrome.webNavigation.onCompleted.addListener(async function onFirstLoad() {
-  if (reconciled) return;
-  reconciled = true;
-  chrome.webNavigation.onCompleted.removeListener(onFirstLoad);
-  await reconcileActiveTrails();
-});
+// Reconcile after browser has had time to restore tabs.
+// Use an alarm to delay — this survives SW termination unlike setTimeout.
+chrome.alarms.create("reconcile-trails", { delayInMinutes: 0.1 }); // ~6 seconds
 
 // On startup, match active trails to currently open tabs by URL.
 // Tab IDs change across browser restarts, so we match by the last visit's URL
@@ -145,7 +138,11 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
   }
 });
 
-chrome.alarms.onAlarm.addListener((alarm) => {
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === "reconcile-trails") {
+    await reconcileActiveTrails();
+    return;
+  }
   const tabId = parseTabIdFromAlarm(alarm.name);
   if (tabId !== null) trailManager.removeTab(tabId);
 });
@@ -199,8 +196,9 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
       sendResponse({ ok: true });
       break;
     }
-    case "resumeTrail": {
-      // Reactivate a finalized trail and associate it with a new tab
+    case "resumeTrailInNewTab": {
+      // Reactivate a finalized trail: set up trail manager FIRST, then create tab.
+      // This prevents the race where onCommitted fires before the trail is registered.
       await sendToOffscreen({
         type: "updateTrail",
         trailId: message.trailId,
@@ -208,14 +206,19 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
       });
       const visitsResult = await sendToOffscreen({ type: "getVisitsByTrailId", trailId: message.trailId });
       const visitCount = visitsResult.success ? (visitsResult.data as any[]).length : 0;
-      trailManager.setActive(message.tabId, {
-        trailId: message.trailId,
-        tabId: message.tabId,
-        windowId: message.windowId,
-        lastVisitTimestamp: Date.now(),
-        lastVisitPosition: visitCount,
-        lastVisitUrl: message.url,
-      });
+
+      // Create the tab
+      const newTab = await chrome.tabs.create({ url: message.url });
+      if (newTab.id != null) {
+        trailManager.setActive(newTab.id, {
+          trailId: message.trailId,
+          tabId: newTab.id,
+          windowId: newTab.windowId ?? 0,
+          lastVisitTimestamp: Date.now(),
+          lastVisitPosition: visitCount,
+          lastVisitUrl: message.url,
+        });
+      }
       sendResponse({ ok: true });
       break;
     }
