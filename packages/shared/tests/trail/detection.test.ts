@@ -32,11 +32,11 @@ describe("shouldStartNewTrail", () => {
   it("starts new trail for external referrer", () => {
     expect(shouldStartNewTrail(ctx({ referrerUrl: "https://google.com/search?q=test", transitionType: "typed" }))).toEqual({ isNew: true, reason: StartReason.AutoExternal });
   });
-  it("starts new trail for Wikipedia search result", () => {
-    expect(shouldStartNewTrail(ctx({ isFromSearch: true }))).toEqual({ isNew: true, reason: StartReason.AutoSearch });
+  it("continues trail for same-tab Wikipedia search", () => {
+    expect(shouldStartNewTrail(ctx({ isFromSearch: true }))).toEqual({ isNew: false });
   });
-  it("starts new trail for Main Page visit", () => {
-    expect(shouldStartNewTrail(ctx({ isMainPage: true }))).toEqual({ isNew: true, reason: StartReason.AutoMainPage });
+  it("continues trail for same-tab Main Page visit", () => {
+    expect(shouldStartNewTrail(ctx({ isMainPage: true }))).toEqual({ isNew: false });
   });
   it("starts new trail when no current trail exists (null tab)", () => {
     expect(shouldStartNewTrail(ctx({ currentTrailTabId: null, currentTrailWindowId: null }))).toEqual({ isNew: true, reason: StartReason.AutoNewTab });
