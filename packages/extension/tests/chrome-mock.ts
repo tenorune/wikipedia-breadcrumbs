@@ -24,7 +24,7 @@ export const chromeMock = {
   runtime: { sendMessage: vi.fn() },
   tabs: { sendMessage: vi.fn(), query: vi.fn(), get: vi.fn() },
   alarms: { create: vi.fn(), clear: vi.fn(), onAlarm: { addListener: vi.fn() } },
-  webNavigation: { onCompleted: { addListener: vi.fn() } },
+  webNavigation: { onCompleted: { addListener: vi.fn() }, onCommitted: { addListener: vi.fn() } },
   offscreen: { createDocument: vi.fn(), hasDocument: vi.fn(async () => false), Reason: { WORKERS: "WORKERS" } },
 };
 

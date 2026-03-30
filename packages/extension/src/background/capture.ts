@@ -3,31 +3,48 @@ import type { TrailDetectionContext } from "@wikipedia-breadcrumbs/shared";
 import { sendToOffscreen } from "./offscreen.js";
 import { TrailManager } from "./trail-manager.js";
 import { resetIdleAlarm } from "./alarm-manager.js";
-import type { ContentResponse } from "../shared/messaging.js";
 
-interface NavigationDetails {
+export interface NavigationDetails {
   tabId: number;
   url: string;
   frameId: number;
   windowId: number;
+  transitionType: string;
+  transitionQualifiers: string[];
 }
 
-async function getClickContext(tabId: number): Promise<{ clickedLinkText: string | null; referrerUrl: string | null }> {
-  try {
-    const response: ContentResponse = await Promise.race([
-      chrome.tabs.sendMessage(tabId, { type: "getClickContext" }),
-      new Promise<ContentResponse>((_, reject) => setTimeout(() => reject(new Error("timeout")), 500)),
-    ]);
-    if ("clickedLinkText" in response) return response;
-  } catch { /* content script not ready */ }
-  return { clickedLinkText: null, referrerUrl: null };
+function inferSourceType(transitionType: string, transitionQualifiers: string[]): SourceType {
+  // Chrome transition types: https://developer.chrome.com/docs/extensions/reference/api/webNavigation#type-TransitionType
+  switch (transitionType) {
+    case "link":
+      return SourceType.Link;
+    case "typed":
+    case "auto_bookmark":
+    case "keyword":
+    case "keyword_generated":
+      return SourceType.External;
+    case "generated": // e.g. search suggestions, omnibox
+      return SourceType.Search;
+    case "reload":
+    case "auto_toplevel":
+      return SourceType.Link; // treat reloads/redirects as link
+    default:
+      return SourceType.Link;
+  }
 }
 
-function inferSourceType(clickedLinkText: string | null, referrerUrl: string | null, isFromSearch: boolean): SourceType {
-  if (isFromSearch) return SourceType.Search;
-  if (referrerUrl && !referrerUrl.includes("wikipedia.org")) return SourceType.External;
-  if (clickedLinkText) return SourceType.Link;
-  return SourceType.External;
+function inferSourceDetail(transitionType: string, transitionQualifiers: string[]): string | null {
+  if (transitionQualifiers.includes("from_address_bar")) return "address bar";
+  if (transitionType === "typed") return "typed URL";
+  if (transitionType === "auto_bookmark") return "bookmark";
+  if (transitionType === "generated") return "omnibox suggestion";
+  return null;
+}
+
+function isExternalTransition(transitionType: string, transitionQualifiers: string[]): boolean {
+  return transitionType === "typed"
+    || transitionType === "auto_bookmark"
+    || transitionQualifiers.includes("from_address_bar");
 }
 
 export async function handleNavigation(
@@ -37,12 +54,12 @@ export async function handleNavigation(
   const parsed = parseWikipediaUrl(details.url);
   if (!parsed) return;
 
-  const { tabId } = details;
-  const { clickedLinkText, referrerUrl } = await getClickContext(tabId);
+  const { tabId, transitionType, transitionQualifiers } = details;
 
   const current = trailManager.getActive(tabId);
   const isMainPage = parsed.title === "Main Page";
-  const isFromSearch = referrerUrl?.includes("wikipedia.org/w/index.php?search=") ?? false;
+  const isFromSearch = transitionType === "generated";
+  const isExternal = isExternalTransition(transitionType, transitionQualifiers);
 
   const context: TrailDetectionContext = {
     currentTrailTabId: current?.tabId ?? null,
@@ -50,8 +67,8 @@ export async function handleNavigation(
     newTabId: tabId,
     newWindowId: details.windowId,
     isNewTab: current === undefined,
-    transitionType: clickedLinkText ? "link" : "typed",
-    referrerUrl,
+    transitionType,
+    referrerUrl: isExternal ? "external" : null,
     newUrl: details.url,
     msSinceLastVisit: current ? Date.now() - current.lastVisitTimestamp : Infinity,
     idleTimeoutMs: idleTimeoutMinutes * 60 * 1000,
@@ -60,6 +77,8 @@ export async function handleNavigation(
   };
 
   const detection = shouldStartNewTrail(context);
+  const sourceType = inferSourceType(transitionType, transitionQualifiers);
+  const sourceDetail = inferSourceDetail(transitionType, transitionQualifiers);
 
   if (detection.isNew || !current) {
     const trail = createTrail({
@@ -70,8 +89,7 @@ export async function handleNavigation(
 
     const visit = createVisit({
       trailId: trail.id, url: parsed.cleanUrl, title: parsed.title, position: 1,
-      sourceType: inferSourceType(clickedLinkText, referrerUrl, isFromSearch),
-      sourceDetail: clickedLinkText, language: parsed.language,
+      sourceType, sourceDetail, language: parsed.language,
       articleId: parsed.cleanUrl.split("/wiki/")[1] ?? parsed.title, tabId,
     });
     await sendToOffscreen({ type: "addVisit", visit });
@@ -84,8 +102,7 @@ export async function handleNavigation(
     const position = trailManager.incrementPosition(tabId);
     const visit = createVisit({
       trailId: current.trailId, url: parsed.cleanUrl, title: parsed.title, position,
-      sourceType: inferSourceType(clickedLinkText, referrerUrl, isFromSearch),
-      sourceDetail: clickedLinkText, language: parsed.language,
+      sourceType, sourceDetail, language: parsed.language,
       articleId: parsed.cleanUrl.split("/wiki/")[1] ?? parsed.title, tabId,
     });
     await sendToOffscreen({ type: "addVisit", visit });

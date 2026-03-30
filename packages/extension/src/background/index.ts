@@ -24,11 +24,21 @@ chrome.storage.onChanged.addListener((changes) => {
   if (changes.captureEnabled) settings.captureEnabled = changes.captureEnabled.newValue;
 });
 
-chrome.webNavigation.onCompleted.addListener(async (details) => {
+chrome.webNavigation.onCommitted.addListener(async (details) => {
   if (!settings.captureEnabled) return;
   let windowId = 0;
   try { windowId = (await chrome.tabs.get(details.tabId)).windowId; } catch {}
-  await handleNavigation({ ...details, windowId }, trailManager, deviceId, settings.idleTimeoutMinutes);
+  await handleNavigation(
+    {
+      tabId: details.tabId,
+      url: details.url,
+      frameId: details.frameId,
+      windowId,
+      transitionType: details.transitionType,
+      transitionQualifiers: details.transitionQualifiers,
+    },
+    trailManager, deviceId, settings.idleTimeoutMinutes
+  );
 });
 
 chrome.tabs.onRemoved.addListener(async (tabId) => {
