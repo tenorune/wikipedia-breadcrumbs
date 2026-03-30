@@ -4,6 +4,7 @@ export interface ActiveTrailEntry {
   windowId: number;
   lastVisitTimestamp: number;
   lastVisitPosition: number;
+  lastVisitUrl: string | null;
 }
 
 export class TrailManager {
@@ -30,11 +31,12 @@ export class TrailManager {
     }
     return tabs;
   }
-  incrementPosition(tabId: number): number {
+  incrementPosition(tabId: number, url: string): number {
     const entry = this.activeTrails.get(tabId);
     if (!entry) throw new Error(`No active trail for tab ${tabId}`);
     entry.lastVisitPosition += 1;
     entry.lastVisitTimestamp = Date.now();
+    entry.lastVisitUrl = url;
     return entry.lastVisitPosition;
   }
 }

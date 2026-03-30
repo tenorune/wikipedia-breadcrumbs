@@ -69,10 +69,14 @@ export async function handleNavigation(
         windowId: details.windowId,
         lastVisitTimestamp: new Date(lastVisit.timestamp).getTime(),
         lastVisitPosition: visitCount,
+        lastVisitUrl: lastVisit.url,
       };
       trailManager.setActive(tabId, current);
     }
   }
+
+  // Skip if this is the same URL as the last visit (e.g. reload, tab switch)
+  if (current?.lastVisitUrl === parsed.cleanUrl) return;
 
   const isMainPage = parsed.title === "Main Page";
   const isFromSearch = transitionType === "generated";
@@ -114,9 +118,10 @@ export async function handleNavigation(
     trailManager.setActive(tabId, {
       trailId: trail.id, tabId, windowId: details.windowId,
       lastVisitTimestamp: Date.now(), lastVisitPosition: 1,
+      lastVisitUrl: parsed.cleanUrl,
     });
   } else {
-    const position = trailManager.incrementPosition(tabId);
+    const position = trailManager.incrementPosition(tabId, parsed.cleanUrl);
     const visit = createVisit({
       trailId: current.trailId, url: parsed.cleanUrl, title: parsed.title, position,
       sourceType, sourceDetail, language: parsed.language,

@@ -76,6 +76,7 @@ async function reconcileActiveTrails() {
           windowId: matchTab.windowId ?? 0,
           lastVisitTimestamp: new Date(lastVisit.timestamp).getTime(),
           lastVisitPosition: visits.length,
+          lastVisitUrl: lastVisit.url,
         });
         urlToTab.delete(matchTab.url!);
       } else {
@@ -172,6 +173,7 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
           trailManager.setActive(message.tabId, {
             trailId: trail.id, tabId: message.tabId, windowId: winId,
             lastVisitTimestamp: new Date(lastVisit.timestamp).getTime(), lastVisitPosition: visitCount,
+            lastVisitUrl: lastVisit.url,
           });
           const visits = await sendToOffscreen({ type: "getVisitsByTrailId", trailId: trail.id });
           sendResponse({ trail, visits: visits.success ? visits.data : [] });
