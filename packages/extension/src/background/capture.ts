@@ -60,7 +60,12 @@ export async function handleNavigation(
   // Try in-memory first, then recover from DB if SW was restarted
   let current = trailManager.getActive(tabId);
   if (!current) {
-    const recovered = await sendToOffscreen({ type: "getActiveTrailForTab", tabId });
+    // Try by tabId first (SW restart, same session)
+    let recovered = await sendToOffscreen({ type: "getActiveTrailForTab", tabId });
+    // Fall back to URL match (browser restart, tab IDs changed)
+    if ((!recovered.success || !recovered.data) && parsed) {
+      recovered = await sendToOffscreen({ type: "getActiveTrailByUrl", url: parsed.cleanUrl });
+    }
     if (recovered.success && recovered.data) {
       const { trail, lastVisit, visitCount } = recovered.data as any;
       current = {

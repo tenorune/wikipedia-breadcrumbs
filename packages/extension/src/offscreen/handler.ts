@@ -31,6 +31,17 @@ export async function handleOffscreenMessage(db: BreadcrumbsDB, message: Offscre
         }
         return { success: true, data: null };
       }
+      case "getActiveTrailByUrl": {
+        const activeByUrl = await trails.getActive();
+        for (const trail of activeByUrl) {
+          const trailVisits = await visits.getByTrailId(trail.id);
+          if (trailVisits.some((v) => v.url === message.url)) {
+            const lastVisit = trailVisits[trailVisits.length - 1];
+            return { success: true, data: { trail, lastVisit, visitCount: trailVisits.length } };
+          }
+        }
+        return { success: true, data: null };
+      }
       case "getActiveTrails": {
         const result = await trails.getActive();
         return { success: true, data: result };

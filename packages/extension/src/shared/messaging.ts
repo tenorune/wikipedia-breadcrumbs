@@ -13,7 +13,8 @@ export type OffscreenRequest =
   | { type: "softDeleteTrail"; trailId: string }
   | { type: "searchVisits"; query: string }
   | { type: "getActiveTrails" }
-  | { type: "findVisitByUrl"; trailId: string; url: string };
+  | { type: "findVisitByUrl"; trailId: string; url: string }
+  | { type: "getActiveTrailByUrl"; url: string };
 
 export type OffscreenResponse<T = unknown> =
   | { success: true; data: T }
