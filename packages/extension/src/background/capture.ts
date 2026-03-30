@@ -131,12 +131,13 @@ export async function handleNavigation(
       url: parsed.cleanUrl,
     });
 
+    const now = new Date().toISOString();
     if (existing.success && existing.data) {
       // Revisit — update timestamp on the existing visit, don't create a new entry
       await sendToOffscreen({
         type: "updateVisit",
         visitId: (existing.data as any).id,
-        changes: { timestamp: new Date().toISOString() },
+        changes: { timestamp: now },
       });
     } else {
       // New page — append to trail
@@ -150,6 +151,13 @@ export async function handleNavigation(
       });
       await sendToOffscreen({ type: "addVisit", visit });
     }
+
+    // Bump trail's updatedAt so "Most Recent" sort reflects activity
+    await sendToOffscreen({
+      type: "updateTrail",
+      trailId: current.trailId,
+      changes: { updatedAt: now } as any,
+    });
 
     // Update last visit URL regardless
     current.lastVisitUrl = parsed.cleanUrl;
