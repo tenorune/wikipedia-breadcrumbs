@@ -7,10 +7,11 @@
     trailId: string;
     trailStatus: string;
     onUpdateNote: (visitId: string, note: string) => void;
+    onDelete: (visitId: string) => void;
     onResumed?: () => void;
   }
 
-  let { visit, trailId, trailStatus, onUpdateNote, onResumed }: Props = $props();
+  let { visit, trailId, trailStatus, onUpdateNote, onDelete, onResumed }: Props = $props();
 
   async function handleTitleClick(e: MouseEvent) {
     e.preventDefault();
@@ -89,6 +90,7 @@
       </button>
     {/if}
     <button class="cite-btn" onclick={() => showCitation = !showCitation}>Cite</button>
+    <button class="delete-btn" onclick={() => onDelete(visit.id)}>Delete</button>
   </div>
   {#if showCitation}
     <div class="citation-picker">
@@ -107,7 +109,8 @@
   .badge { background: #e8f0fe; color: #1a73e8; padding: 1px 6px; border-radius: 3px; font-size: 11px; }
   .detail { font-style: italic; }
   .actions { display: flex; gap: 8px; margin-top: 6px; }
-  .note-btn, .cite-btn { font-size: 12px; padding: 2px 8px; border: 1px solid #ddd; border-radius: 3px; background: white; cursor: pointer; }
+  .note-btn, .cite-btn, .delete-btn { font-size: 12px; padding: 2px 8px; border: 1px solid #ddd; border-radius: 3px; background: white; cursor: pointer; }
+  .delete-btn:hover { border-color: #dc3545; color: #dc3545; }
   .note-edit { display: flex; gap: 4px; }
   .note-edit input { font-size: 12px; padding: 2px 6px; border: 1px solid #ccc; border-radius: 3px; width: 200px; }
   .citation-picker { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }

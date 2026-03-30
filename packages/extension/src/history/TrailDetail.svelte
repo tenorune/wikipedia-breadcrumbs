@@ -77,6 +77,11 @@
     await loadVisits();
   }
 
+  async function handleDeleteVisit(visitId: string) {
+    await visitOps.softDelete(visitId);
+    await loadVisits();
+  }
+
   function formatDate(iso: string): string {
     return new Date(iso).toLocaleDateString();
   }
@@ -123,7 +128,7 @@
 
   <div class="timeline">
     {#each visits as visit, i}
-      <VisitCard {visit} trailId={trail.id} trailStatus={trail.status} onUpdateNote={handleUpdateNote} onResumed={onMutated} />
+      <VisitCard {visit} trailId={trail.id} trailStatus={trail.status} onUpdateNote={handleUpdateNote} onDelete={handleDeleteVisit} onResumed={onMutated} />
       {#if i < visits.length - 1}
         <button class="split-btn" onclick={() => handleSplit(visit.position)}>
           Split here
