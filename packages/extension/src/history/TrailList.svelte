@@ -50,10 +50,12 @@
         s.lastTitle.toLowerCase().includes(q)
       );
     }
-    if (sortBy === "starred") {
-      result = [...result].sort((a, b) => (b.trail.isStarred ? 1 : 0) - (a.trail.isStarred ? 1 : 0));
+    if (sortBy === "recent") {
+      result = [...result].sort((a, b) => b.trail.updatedAt.localeCompare(a.trail.updatedAt));
     } else if (sortBy === "oldest") {
-      result = [...result].reverse();
+      result = [...result].sort((a, b) => a.trail.startedAt.localeCompare(b.trail.startedAt));
+    } else if (sortBy === "starred") {
+      result = [...result].sort((a, b) => (b.trail.isStarred ? 1 : 0) - (a.trail.isStarred ? 1 : 0));
     }
     return result;
   });
