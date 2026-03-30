@@ -19,6 +19,12 @@ export class TrailManager {
   removeTab(tabId: number): void {
     this.activeTrails.delete(tabId);
   }
+  getByTrailId(trailId: string): ActiveTrailEntry | undefined {
+    for (const entry of this.activeTrails.values()) {
+      if (entry.trailId === trailId) return entry;
+    }
+    return undefined;
+  }
   removeByTrailId(trailId: string): void {
     for (const [tabId, entry] of this.activeTrails) {
       if (entry.trailId === trailId) this.activeTrails.delete(tabId);

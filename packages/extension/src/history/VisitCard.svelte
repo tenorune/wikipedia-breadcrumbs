@@ -6,26 +6,21 @@
     visit: Visit;
     trailId: string;
     trailStatus: string;
-    trailTabId: number | null;
     onUpdateNote: (visitId: string, note: string) => void;
     onResumed?: () => void;
   }
 
-  let { visit, trailId, trailStatus, trailTabId, onUpdateNote, onResumed }: Props = $props();
+  let { visit, trailId, trailStatus, onUpdateNote, onResumed }: Props = $props();
 
   async function handleTitleClick(e: MouseEvent) {
     e.preventDefault();
-    if (trailStatus === "active" && trailTabId != null) {
-      // Switch to the trail's tab and navigate to the clicked page
-      try {
-        await chrome.tabs.update(trailTabId, { active: true, url: visit.url });
-        const tab = await chrome.tabs.get(trailTabId);
-        if (tab.windowId != null) {
-          await chrome.windows.update(tab.windowId, { focused: true });
-        }
-      } catch {
-        chrome.tabs.create({ url: visit.url });
-      }
+    if (trailStatus === "active") {
+      // Let the background handle navigation — it knows the real tab ID
+      await chrome.runtime.sendMessage({
+        type: "navigateActiveTrail",
+        trailId,
+        url: visit.url,
+      });
     } else {
       // Finalized trail — background creates tab and resumes trail atomically
       await chrome.runtime.sendMessage({

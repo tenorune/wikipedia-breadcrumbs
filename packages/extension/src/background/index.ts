@@ -222,6 +222,50 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
       sendResponse({ ok: true });
       break;
     }
+    case "navigateActiveTrail": {
+      // Background knows the real tab ID — use it to navigate
+      const entry = trailManager.getByTrailId(message.trailId);
+      if (entry) {
+        try {
+          await chrome.tabs.update(entry.tabId, { active: true, url: message.url });
+          await chrome.windows.update(entry.windowId, { focused: true });
+        } catch {
+          // Tab gone — open new tab and reassociate
+          const newTab = await chrome.tabs.create({ url: message.url });
+          if (newTab.id != null) {
+            trailManager.removeTab(entry.tabId);
+            trailManager.setActive(newTab.id, {
+              ...entry,
+              tabId: newTab.id,
+              windowId: newTab.windowId ?? 0,
+              lastVisitUrl: message.url,
+            });
+          }
+        }
+      } else {
+        // Not in memory — treat as resume
+        await sendToOffscreen({
+          type: "updateTrail",
+          trailId: message.trailId,
+          changes: { status: "active" as any, endedAt: null as any },
+        });
+        const visitsResult = await sendToOffscreen({ type: "getVisitsByTrailId", trailId: message.trailId });
+        const visitCount = visitsResult.success ? (visitsResult.data as any[]).length : 0;
+        const newTab = await chrome.tabs.create({ url: message.url });
+        if (newTab.id != null) {
+          trailManager.setActive(newTab.id, {
+            trailId: message.trailId,
+            tabId: newTab.id,
+            windowId: newTab.windowId ?? 0,
+            lastVisitTimestamp: Date.now(),
+            lastVisitPosition: visitCount,
+            lastVisitUrl: message.url,
+          });
+        }
+      }
+      sendResponse({ ok: true });
+      break;
+    }
     case "trailMutated": {
       trailManager.removeByTrailId(message.trailId);
       sendResponse({ ok: true });
