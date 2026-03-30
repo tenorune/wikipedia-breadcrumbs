@@ -1,1 +1,3 @@
-document.getElementById("app")!.textContent = "Wikipedia Breadcrumbs Popup";
+import { mount } from "svelte";
+import App from "./App.svelte";
+mount(App, { target: document.getElementById("app")! });
