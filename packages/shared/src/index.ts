@@ -3,3 +3,5 @@
 
 export const version = "0.1.0";
 export * from "./models/index.js";
+export * from "./wikipedia/index.js";
+export * from "./db/index.js";
