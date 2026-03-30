@@ -181,7 +181,37 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
       break;
     }
     case "startNewTrail": {
-      trailManager.removeTab(message.tabId);
+      // End any existing trail on this tab
+      const existing = trailManager.getActive(message.tabId);
+      if (existing) {
+        await sendToOffscreen({ type: "finalizeTrail", trailId: existing.trailId });
+        trailManager.removeTab(message.tabId);
+      }
+      // Create a new trail immediately from the tab's current page
+      try {
+        const tab = await chrome.tabs.get(message.tabId);
+        if (tab.url) {
+          const { parseWikipediaUrl, createTrail, createVisit, StartReason, SourceType } = await import("@wikipedia-breadcrumbs/shared");
+          const parsed = parseWikipediaUrl(tab.url);
+          if (parsed) {
+            const trail = createTrail({ startReason: StartReason.Manual, deviceId });
+            await sendToOffscreen({ type: "addTrail", trail });
+            const visit = createVisit({
+              trailId: trail.id, url: parsed.cleanUrl, title: parsed.title, position: 1,
+              sourceType: SourceType.Manual, language: parsed.language,
+              articleId: parsed.cleanUrl.split("/wiki/")[1] ?? parsed.title,
+              tabId: message.tabId,
+            });
+            await sendToOffscreen({ type: "addVisit", visit });
+            trailManager.setActive(message.tabId, {
+              trailId: trail.id, tabId: message.tabId,
+              windowId: tab.windowId ?? 0,
+              lastVisitTimestamp: Date.now(), lastVisitPosition: 1,
+              lastVisitUrl: parsed.cleanUrl,
+            });
+          }
+        }
+      } catch { /* tab may not be a Wikipedia page */ }
       sendResponse({ ok: true });
       break;
     }

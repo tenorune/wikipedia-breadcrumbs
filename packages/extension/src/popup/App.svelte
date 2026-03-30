@@ -20,8 +20,8 @@
 
   async function startNewTrail() {
     await chrome.runtime.sendMessage({ type: "startNewTrail", tabId });
-    trail = null;
-    visits = [];
+    // Reload to show the new trail created from the current page
+    await loadCurrentTrail();
   }
 
   async function endTrail() {
