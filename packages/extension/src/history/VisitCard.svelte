@@ -76,7 +76,10 @@
   <div class="main">
     <a href={visit.url} onclick={handleTitleClick} class="title">{visit.title}</a>
     <div class="meta">
-      <span class="time">{formatTime(visit.timestamp)}</span>
+      <span class="time">Discovered {formatTime(visit.timestamp)}</span>
+      {#if visit.lastVisitedAt && visit.lastVisitedAt !== visit.timestamp}
+        <span class="time">Last visited {formatTime(visit.lastVisitedAt)}</span>
+      {/if}
     </div>
   </div>
   <div class="actions">

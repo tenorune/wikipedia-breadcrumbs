@@ -20,13 +20,50 @@
   let mergeOptions: { trail: Trail; label: string }[] = $state([]);
   let editingNote = $state(false);
   let trailNote = $state(trail.note ?? "");
-  let sortBy: "discovery" | "recent" = $state("discovery");
+  // Persist sort preferences across trail detail views
+  function loadSortPrefs() {
+    try {
+      const saved = localStorage.getItem("trailDetailSort");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return { field: "discovery", discoveryAsc: true, visitedAsc: true };
+  }
+
+  function saveSortPrefs() {
+    localStorage.setItem("trailDetailSort", JSON.stringify({
+      field: sortField,
+      discoveryAsc,
+      visitedAsc,
+    }));
+  }
+
+  const prefs = loadSortPrefs();
+  let sortField: "discovery" | "visited" = $state(prefs.field);
+  let discoveryAsc: boolean = $state(prefs.discoveryAsc);
+  let visitedAsc: boolean = $state(prefs.visitedAsc);
+
+  const sortAsc = $derived(sortField === "discovery" ? discoveryAsc : visitedAsc);
+
+  function toggleSort(field: "discovery" | "visited") {
+    if (sortField === field) {
+      if (field === "discovery") discoveryAsc = !discoveryAsc;
+      else visitedAsc = !visitedAsc;
+    } else {
+      sortField = field;
+    }
+    saveSortPrefs();
+  }
 
   const sortedVisits = $derived.by(() => {
-    if (sortBy === "recent") {
-      return [...visits].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+    let result: Visit[];
+    if (sortField === "visited") {
+      result = [...visits].sort((a, b) => (a.lastVisitedAt ?? a.timestamp).localeCompare(b.lastVisitedAt ?? b.timestamp));
+    } else {
+      // Discovery order — by position (which reflects order of first encounter)
+      result = [...visits];
     }
-    return visits;
+    if (!sortAsc) result = result.reverse();
+    return result;
   });
 
   const db = new BreadcrumbsDB();
@@ -148,8 +185,9 @@
 
   <div class="sort-bar">
     <span>Sort by:</span>
-    <button class:active={sortBy === "discovery"} onclick={() => sortBy = "discovery"}>Discovery</button>
-    <button class:active={sortBy === "recent"} onclick={() => sortBy = "recent"}>Visited</button>
+    <button class:active={sortField === "discovery"} onclick={() => toggleSort("discovery")}>Discovery {sortField === "discovery" ? (sortAsc ? "▲" : "▼") : ""}</button>
+    <button class:active={sortField === "visited"} onclick={() => toggleSort("visited")}>Visited {sortField === "visited" ? (sortAsc ? "▲" : "▼") : ""}</button>
+    <span class="sort-hint">{sortAsc ? "oldest to newest" : "newest to oldest"}</span>
   </div>
 
   <div class="timeline">
@@ -160,7 +198,7 @@
         trailStatus={trail.status}
         onUpdateNote={handleUpdateNote}
         onDelete={handleDeleteVisit}
-        onSplit={sortBy === "discovery" && i < sortedVisits.length - 1 ? handleSplit : undefined}
+        onSplit={sortField === "discovery" && sortAsc && i < sortedVisits.length - 1 ? handleSplit : undefined}
         onResumed={onMutated}
       />
     {/each}
@@ -190,6 +228,7 @@
   .sort-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; font-size: 13px; color: #666; }
   .sort-bar button { padding: 3px 10px; border: 1px solid #ddd; border-radius: 3px; background: white; cursor: pointer; font-size: 12px; }
   .sort-bar button.active { background: #e8f0fe; border-color: #1a73e8; color: #1a73e8; }
+  .sort-hint { font-style: italic; color: #999; }
   .meta { font-size: 13px; color: #666; margin: 8px 0 12px; }
   .note-section { margin-bottom: 16px; }
   .trail-note { margin: 0; padding: 8px 12px; background: #f8f8f8; border-radius: 4px; cursor: pointer; font-size: 14px; color: #333; white-space: pre-wrap; }

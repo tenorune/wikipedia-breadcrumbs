@@ -7,6 +7,7 @@ export interface Visit {
   url: string;
   title: string;
   timestamp: string;
+  lastVisitedAt: string;
   position: number;
   sourceType: SourceType;
   sourceDetail: string | null;
@@ -46,6 +47,7 @@ export function createVisit(input: CreateVisitInput): Visit {
     url: input.url,
     title: input.title,
     timestamp: now,
+    lastVisitedAt: now,
     position: input.position,
     sourceType: input.sourceType,
     sourceDetail: input.sourceDetail ?? null,

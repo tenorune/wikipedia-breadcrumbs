@@ -133,11 +133,11 @@ export async function handleNavigation(
 
     const now = new Date().toISOString();
     if (existing.success && existing.data) {
-      // Revisit — update timestamp on the existing visit, don't create a new entry
+      // Revisit — update lastVisitedAt, preserve original discovery timestamp
       await sendToOffscreen({
         type: "updateVisit",
         visitId: (existing.data as any).id,
-        changes: { timestamp: now },
+        changes: { lastVisitedAt: now },
       });
     } else {
       // New page — append to trail
