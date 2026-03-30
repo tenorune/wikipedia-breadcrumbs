@@ -33,7 +33,11 @@
   }
 
   const recentVisits = $derived(visits.slice(-5).reverse());
-  const trailName = $derived(trail?.name ?? `Trail (${visits.length} pages)`);
+  const trailName = $derived(
+    trail?.name ?? (visits.length > 0
+      ? `${visits[0].title} → ${visits[visits.length - 1].title}`
+      : "New trail")
+  );
 
   async function openTrailDetail() {
     if (!trail) return;
@@ -69,7 +73,7 @@
       {/each}
     </ul>
     <a class="see-all" href="#" onclick={(e) => { e.preventDefault(); openTrailDetail(); }}>
-      {visits.length > 5 ? `See full trail (${visits.length} pages)` : "View trail details"}
+      {visits.length > 5 ? "See full trail" : "View trail details"}
     </a>
   </div>
 {:else}
