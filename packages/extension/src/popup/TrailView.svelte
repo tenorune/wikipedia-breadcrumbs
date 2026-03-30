@@ -34,6 +34,19 @@
 
   const recentVisits = $derived(visits.slice(-5).reverse());
   const trailName = $derived(trail?.name ?? `Trail (${visits.length} pages)`);
+
+  async function openTrailDetail() {
+    if (!trail) return;
+    const historyUrl = chrome.runtime.getURL("src/history/index.html");
+    const tabs = await chrome.tabs.query({ url: historyUrl + "*" });
+    const targetUrl = `${historyUrl}?trail=${trail.id}`;
+    if (tabs.length > 0 && tabs[0].id != null) {
+      chrome.tabs.update(tabs[0].id, { active: true, url: targetUrl });
+      chrome.windows.update(tabs[0].windowId!, { focused: true });
+    } else {
+      chrome.tabs.create({ url: targetUrl });
+    }
+  }
 </script>
 
 {#if trail}
@@ -55,11 +68,9 @@
         </li>
       {/each}
     </ul>
-    {#if visits.length > 5}
-      <a class="see-all" href={chrome.runtime.getURL(`src/history/index.html?trail=${trail.id}`)} target="_blank">
-        See full trail ({visits.length} pages)
-      </a>
-    {/if}
+    <a class="see-all" href="#" onclick={(e) => { e.preventDefault(); openTrailDetail(); }}>
+      {visits.length > 5 ? `See full trail (${visits.length} pages)` : "View trail details"}
+    </a>
   </div>
 {:else}
   <div class="empty">
