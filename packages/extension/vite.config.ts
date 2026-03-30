@@ -8,7 +8,10 @@ export default defineConfig({
     svelte(),
     webExtension({
       manifest: "manifest.json",
-      additionalInputs: ["src/offscreen/index.html"],
+      additionalInputs: [
+        "src/offscreen/index.html",
+        "src/history/index.html",
+      ],
     }),
   ],
   publicDir: "static",
