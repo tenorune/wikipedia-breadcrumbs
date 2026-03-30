@@ -9,8 +9,15 @@
 
   let { hasActiveTrail, trailId, tabId, onStartNew, onEndTrail }: Props = $props();
 
-  function openHistory() {
-    chrome.tabs.create({ url: chrome.runtime.getURL("src/history/index.html") });
+  async function openHistory() {
+    const historyUrl = chrome.runtime.getURL("src/history/index.html");
+    const tabs = await chrome.tabs.query({ url: historyUrl + "*" });
+    if (tabs.length > 0 && tabs[0].id != null) {
+      chrome.tabs.update(tabs[0].id, { active: true });
+      chrome.windows.update(tabs[0].windowId!, { focused: true });
+    } else {
+      chrome.tabs.create({ url: historyUrl });
+    }
   }
 
   function openOptions() {
