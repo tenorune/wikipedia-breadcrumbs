@@ -9,12 +9,32 @@
 
   function selectTrail(trail: Trail) {
     selectedTrail = trail;
+    const url = new URL(window.location.href);
+    url.searchParams.set("trail", trail.id);
+    history.pushState(null, "", url.toString());
   }
 
   function backToList() {
     selectedTrail = null;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("trail");
+    history.pushState(null, "", url.toString());
     trailListRef?.refresh();
   }
+
+  // Handle browser back/forward
+  window.addEventListener("popstate", () => {
+    const id = new URLSearchParams(window.location.search).get("trail");
+    if (id) {
+      const db = new BreadcrumbsDB();
+      trailStore(db).getById(id).then((trail) => {
+        selectedTrail = trail ?? null;
+      });
+    } else {
+      selectedTrail = null;
+      trailListRef?.refresh();
+    }
+  });
 
   // Refresh data when the tab becomes visible (user switches back to it)
   document.addEventListener("visibilitychange", () => {
