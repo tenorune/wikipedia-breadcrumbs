@@ -51,10 +51,6 @@
   <div class="main">
     <a href={visit.url} target="_blank" class="title">{visit.title}</a>
     <div class="meta">
-      <span class="badge">{sourceLabel(visit.sourceType)}</span>
-      {#if visit.sourceDetail}
-        <span class="detail">via "{visit.sourceDetail}"</span>
-      {/if}
       <span class="time">{formatTime(visit.timestamp)}</span>
     </div>
   </div>
