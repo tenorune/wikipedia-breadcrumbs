@@ -53,6 +53,7 @@ export async function handleNavigation(
   if (details.frameId !== 0) return;
   const parsed = parseWikipediaUrl(details.url);
   if (!parsed) return;
+  if (parsed.title.endsWith("(disambiguation)")) return;
 
   const { tabId, transitionType, transitionQualifiers } = details;
 
