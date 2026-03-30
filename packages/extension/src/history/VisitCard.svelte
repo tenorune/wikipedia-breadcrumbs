@@ -4,10 +4,31 @@
 
   interface Props {
     visit: Visit;
+    trailStatus: string;
+    trailTabId: number | null;
     onUpdateNote: (visitId: string, note: string) => void;
   }
 
-  let { visit, onUpdateNote }: Props = $props();
+  let { visit, trailStatus, trailTabId, onUpdateNote }: Props = $props();
+
+  async function handleTitleClick(e: MouseEvent) {
+    e.preventDefault();
+    if (trailStatus === "active" && trailTabId != null) {
+      // Switch to the tab that has this trail
+      try {
+        await chrome.tabs.update(trailTabId, { active: true });
+        const tab = await chrome.tabs.get(trailTabId);
+        if (tab.windowId != null) {
+          await chrome.windows.update(tab.windowId, { focused: true });
+        }
+      } catch {
+        // Tab no longer exists — open new tab
+        chrome.tabs.create({ url: visit.url });
+      }
+    } else {
+      chrome.tabs.create({ url: visit.url });
+    }
+  }
 
   let showCitation = $state(false);
   let editingNote = $state(false);
@@ -49,7 +70,7 @@
 
 <div class="visit-card">
   <div class="main">
-    <a href={visit.url} target="_blank" class="title">{visit.title}</a>
+    <a href={visit.url} onclick={handleTitleClick} class="title">{visit.title}</a>
     <div class="meta">
       <span class="time">{formatTime(visit.timestamp)}</span>
     </div>

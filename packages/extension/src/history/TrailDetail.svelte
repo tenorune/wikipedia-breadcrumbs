@@ -25,6 +25,8 @@
   const visitOps = visitStore(db);
   const trailOps = trailStore(db);
 
+  const lastTabId = $derived(visits.length > 0 ? visits[visits.length - 1].tabId : null);
+
   async function loadVisits() {
     visits = await visitOps.getByTrailId(trail.id);
   }
@@ -118,7 +120,7 @@
 
   <div class="timeline">
     {#each visits as visit, i}
-      <VisitCard {visit} onUpdateNote={handleUpdateNote} />
+      <VisitCard {visit} trailStatus={trail.status} trailTabId={lastTabId} onUpdateNote={handleUpdateNote} />
       {#if i < visits.length - 1}
         <button class="split-btn" onclick={() => handleSplit(visit.position)}>
           Split here
