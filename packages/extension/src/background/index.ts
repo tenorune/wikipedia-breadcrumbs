@@ -13,6 +13,35 @@ let settings = { idleTimeoutMinutes: 30, captureEnabled: true };
 async function initialize() {
   deviceId = await getDeviceId();
   settings = await getSettings();
+  await finalizeOrphanedTrails();
+}
+
+// Finalize any active trails whose tabs no longer exist.
+// This handles the case where the SW was terminated and missed tab close events.
+async function finalizeOrphanedTrails() {
+  try {
+    const result = await sendToOffscreen({ type: "getActiveTrails" });
+    if (!result.success || !result.data) return;
+    const activeTrails = result.data as any[];
+    if (activeTrails.length === 0) return;
+
+    // Get all currently open tab IDs
+    const tabs = await chrome.tabs.query({});
+    const openTabIds = new Set(tabs.map((t) => t.id));
+
+    // For each active trail, check if its tab still exists
+    for (const trail of activeTrails) {
+      const visitsResult = await sendToOffscreen({ type: "getVisitsByTrailId", trailId: trail.id });
+      if (!visitsResult.success) continue;
+      const visits = visitsResult.data as any[];
+      const lastVisit = visits[visits.length - 1];
+      if (!lastVisit?.tabId || !openTabIds.has(lastVisit.tabId)) {
+        await sendToOffscreen({ type: "finalizeTrail", trailId: trail.id });
+      }
+    }
+  } catch {
+    // Best-effort — don't block startup if this fails
+  }
 }
 
 chrome.runtime.onInstalled.addListener(initialize);

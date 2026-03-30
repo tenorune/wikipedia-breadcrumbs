@@ -31,6 +31,10 @@ export async function handleOffscreenMessage(db: BreadcrumbsDB, message: Offscre
         }
         return { success: true, data: null };
       }
+      case "getActiveTrails": {
+        const result = await trails.getActive();
+        return { success: true, data: result };
+      }
       case "getTrailsAll": {
         const result = await trails.getAll();
         return { success: true, data: result };
