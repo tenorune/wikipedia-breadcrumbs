@@ -94,6 +94,7 @@ wikipedia-breadcrumbs/
 | `id` | UUID | |
 | `user_id` | UUID | Nullable (anonymous users have local-only trails) |
 | `name` | string | Nullable — auto-generated default, user can rename |
+| `created_at` | ISO 8601 | When the trail record was created (may differ from `started_at` for split/merge or pre-created empty trails) |
 | `started_at` | ISO 8601 | Timestamp of first visit |
 | `ended_at` | ISO 8601 | Timestamp of last visit, updated on each addition |
 | `status` | enum | `active`, `finalized` — `active` means trail is still receiving visits; `finalized` means explicitly ended by user or tab close |
@@ -149,7 +150,7 @@ Citations are generated on-the-fly from Visit fields (`url`, `title`, `timestamp
 
 1. `webNavigation.onCompleted` fires for a Wikipedia page
 2. Background service worker receives the event with `tabId`, `windowId`, `transitionType`
-3. Content script messages back with: link text clicked (if applicable), referrer info, page metadata
+3. Content script messages back with: link text clicked (if applicable), referrer info, page metadata. Link click capture uses event delegation on the document body to handle dynamically loaded content
 4. Trail detection logic (from `packages/shared`) decides:
    - Same trail → append visit with incremented `position`
    - New trail → triggered by: new tab, external referrer, Wikipedia search, idle timeout, Wikipedia Main Page, or **user explicit action**
@@ -169,6 +170,7 @@ The timer is implemented using `chrome.alarms` API (not `setTimeout`) because th
 - Trails keyed by `(tab_id, window_id)` while active
 - When a tab closes, its active trail is finalized (`ended_at` set)
 - If user opens a link in a new tab from an existing trail, the new trail stores `forked_from_visit_id`
+- **SW restart recovery:** The active-trail-to-tab mapping is held in memory. If the service worker terminates and restarts, the mapping is rebuilt by querying IndexedDB for trails with `status: active` and looking at the most recent visit's `tab_id` for each
 
 ### Explicit Trail Controls
 
@@ -211,6 +213,8 @@ Manual starts override auto-detection. Trails record `start_reason` for context.
 | `/shared/[id]` | Public/unlisted trail viewer (no auth required, SSR for SEO) |
 | `/add` | Manual capture — paste a Wikipedia URL or multiple URLs to add visits. Distinct from the JSON/CSV file import on `/settings` which is for backup restore and migration |
 | `/settings` | Account, sync status, export/import, preferences |
+
+**Out of scope for v1:** Public profile page (`/user/[name]`) — deferred as a stretch goal. The data model supports it via `visibility: public` on trails.
 
 ### Share Target
 
@@ -269,7 +273,7 @@ Manual starts override auto-detection. Trails record `start_reason` for context.
 2. Push: local `pending_sync` records → upsert to Supabase
 3. Pull: remote records with `updated_at` > last sync timestamp → upsert to IndexedDB
 4. Conflicts: last `updated_at` wins; losing version stored in `conflict_log` table for user review
-5. Deletes: soft-delete with `deleted_at`, propagated on sync, hard-deleted after 30 days
+5. Deletes: soft-delete with `deleted_at`, propagated on sync, hard-deleted after 30 days via a Supabase scheduled function (pg_cron) that purges records where `deleted_at` is older than 30 days. Client-side cleanup runs on sync: any local soft-deleted records older than 30 days are removed from IndexedDB
 
 ### Conflict Log
 
@@ -283,7 +287,7 @@ Manual starts override auto-detection. Trails record `start_reason` for context.
 | `resolved_at` | ISO 8601 | Nullable — set when user acknowledges or resolves |
 | `created_at` | ISO 8601 | When the conflict was detected |
 
-Conflicts surface in the PWA settings page and extension options as a notification badge. User can review side-by-side and either accept the winner or restore the losing version.
+The conflict log lives in IndexedDB locally and is synced to Supabase (with RLS: user can only access their own conflicts). This ensures conflict history is preserved across devices. Conflicts surface in the PWA settings page and extension options as a notification badge. User can review side-by-side and either accept the winner or restore the losing version.
 
 ### Sync Error Handling
 
@@ -305,7 +309,7 @@ Conflicts surface in the PWA settings page and extension options as a notificati
 
 - JSON export of full history (trails + visits) — portable, human-readable
 - CSV export option for visits (spreadsheet-friendly)
-- Import accepts same JSON format — supports migration from v0.3
+- Import accepts same JSON format — supports migration from the prior prototype (v0.3), which stored history in `chrome.storage.local` as a JSON array of `{url, title, timestamp, isNewTrail}` objects under the key `'history'`. The importer maps these to the new Visit/Trail schema, inferring trails from `isNewTrail` boundaries
 
 ---
 
