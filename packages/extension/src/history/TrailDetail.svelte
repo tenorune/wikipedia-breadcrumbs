@@ -18,6 +18,8 @@
   let displayName = $state(trail.name);
   let showMergePicker = $state(false);
   let allTrails: Trail[] = $state([]);
+  let editingNote = $state(false);
+  let trailNote = $state(trail.note ?? "");
 
   const db = new BreadcrumbsDB();
   const visitOps = visitStore(db);
@@ -45,6 +47,11 @@
     await splitTrail(db, trail.id, afterPosition);
     chrome.runtime.sendMessage({ type: "trailMutated", trailId: trail.id });
     onMutated();
+  }
+
+  async function saveNote() {
+    await trailOps.update(trail.id, { note: trailNote.trim() || null });
+    editingNote = false;
   }
 
   async function openMergePicker() {
@@ -95,6 +102,20 @@
     <span class="status">{trail.status}</span>
   </div>
 
+  <div class="note-section">
+    {#if editingNote}
+      <textarea bind:value={trailNote} placeholder="Add a note about this trail..." rows="3"></textarea>
+      <div class="note-actions">
+        <button onclick={saveNote}>Save</button>
+        <button class="cancel-note" onclick={() => { editingNote = false; trailNote = trail.note ?? ""; }}>Cancel</button>
+      </div>
+    {:else if trailNote}
+      <p class="trail-note" onclick={() => editingNote = true}>{trailNote}</p>
+    {:else}
+      <button class="add-note" onclick={() => editingNote = true}>+ Add note</button>
+    {/if}
+  </div>
+
   <div class="timeline">
     {#each visits as visit, i}
       <VisitCard {visit} onUpdateNote={handleUpdateNote} />
@@ -127,7 +148,15 @@
   .header h2:hover { color: #0066cc; }
   .star { background: none; border: none; font-size: 20px; cursor: pointer; }
   .merge-btn { background: none; border: 1px solid #ddd; border-radius: 3px; padding: 4px 10px; cursor: pointer; font-size: 13px; }
-  .meta { font-size: 13px; color: #666; margin: 8px 0 16px; }
+  .meta { font-size: 13px; color: #666; margin: 8px 0 12px; }
+  .note-section { margin-bottom: 16px; }
+  .trail-note { margin: 0; padding: 8px 12px; background: #f8f8f8; border-radius: 4px; cursor: pointer; font-size: 14px; color: #333; white-space: pre-wrap; }
+  .trail-note:hover { background: #f0f0f0; }
+  .add-note { background: none; border: 1px dashed #ccc; border-radius: 4px; padding: 6px 12px; cursor: pointer; color: #999; font-size: 13px; }
+  .add-note:hover { border-color: #0066cc; color: #0066cc; }
+  textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; font-family: inherit; resize: vertical; box-sizing: border-box; }
+  .note-actions { display: flex; gap: 8px; margin-top: 6px; }
+  .cancel-note { background: none; border: 1px solid #ddd; border-radius: 3px; padding: 4px 10px; cursor: pointer; color: #666; }
   .status { background: #e8f0fe; padding: 1px 6px; border-radius: 3px; font-size: 11px; }
   .split-btn { display: block; width: 100%; text-align: center; padding: 4px; border: 1px dashed #ddd; background: none; cursor: pointer; font-size: 12px; color: #999; margin: 2px 0; }
   .split-btn:hover { border-color: #0066cc; color: #0066cc; }

@@ -11,6 +11,7 @@ export interface Trail {
   status: TrailStatus;
   isStarred: boolean;
   tags: string[];
+  note: string | null;
   visibility: Visibility;
   deviceId: string;
   forkedFromVisitId: string | null;
@@ -50,6 +51,7 @@ export function createTrail(input: CreateTrailInput): Trail {
     status: TrailStatusEnum.Active,
     isStarred: false,
     tags: input.tags ?? [],
+    note: null,
     visibility: VisibilityEnum.Private,
     deviceId: input.deviceId,
     forkedFromVisitId: input.forkedFromVisitId ?? null,
