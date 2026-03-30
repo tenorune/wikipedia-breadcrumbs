@@ -57,7 +57,23 @@ export async function handleNavigation(
 
   const { tabId, transitionType, transitionQualifiers } = details;
 
-  const current = trailManager.getActive(tabId);
+  // Try in-memory first, then recover from DB if SW was restarted
+  let current = trailManager.getActive(tabId);
+  if (!current) {
+    const recovered = await sendToOffscreen({ type: "getActiveTrailForTab", tabId });
+    if (recovered.success && recovered.data) {
+      const { trail, lastVisit, visitCount } = recovered.data as any;
+      current = {
+        trailId: trail.id,
+        tabId,
+        windowId: details.windowId,
+        lastVisitTimestamp: new Date(lastVisit.timestamp).getTime(),
+        lastVisitPosition: visitCount,
+      };
+      trailManager.setActive(tabId, current);
+    }
+  }
+
   const isMainPage = parsed.title === "Main Page";
   const isFromSearch = transitionType === "generated";
   const isExternal = isExternalTransition(transitionType, transitionQualifiers);
