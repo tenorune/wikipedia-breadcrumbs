@@ -142,12 +142,15 @@
 
   <div class="timeline">
     {#each sortedVisits as visit, i}
-      <VisitCard {visit} trailId={trail.id} trailStatus={trail.status} onUpdateNote={handleUpdateNote} onDelete={handleDeleteVisit} onResumed={onMutated} />
-      {#if sortBy === "discovery" && i < sortedVisits.length - 1}
-        <button class="split-btn" onclick={() => handleSplit(visit.position)}>
-          Split here
-        </button>
-      {/if}
+      <VisitCard
+        {visit}
+        trailId={trail.id}
+        trailStatus={trail.status}
+        onUpdateNote={handleUpdateNote}
+        onDelete={handleDeleteVisit}
+        onSplit={sortBy === "discovery" && i < sortedVisits.length - 1 ? handleSplit : undefined}
+        onResumed={onMutated}
+      />
     {/each}
   </div>
 
@@ -185,8 +188,6 @@
   .note-actions { display: flex; gap: 8px; margin-top: 6px; }
   .cancel-note { background: none; border: 1px solid #ddd; border-radius: 3px; padding: 4px 10px; cursor: pointer; color: #666; }
   .status { background: #e8f0fe; padding: 1px 6px; border-radius: 3px; font-size: 11px; }
-  .split-btn { display: block; width: 100%; text-align: center; padding: 4px; border: 1px dashed #ddd; background: none; cursor: pointer; font-size: 12px; color: #999; margin: 2px 0; }
-  .split-btn:hover { border-color: #0066cc; color: #0066cc; }
   .merge-picker { margin-top: 16px; padding: 12px; border: 1px solid #ddd; border-radius: 4px; }
   .merge-picker h3 { margin: 0 0 8px; font-size: 14px; }
   .merge-picker button { display: block; width: 100%; text-align: left; padding: 6px 10px; margin: 4px 0; border: 1px solid #eee; border-radius: 3px; background: white; cursor: pointer; }
