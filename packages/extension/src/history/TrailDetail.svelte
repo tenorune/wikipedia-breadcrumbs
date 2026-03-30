@@ -20,6 +20,14 @@
   let allTrails: Trail[] = $state([]);
   let editingNote = $state(false);
   let trailNote = $state(trail.note ?? "");
+  let sortBy: "discovery" | "recent" = $state("discovery");
+
+  const sortedVisits = $derived.by(() => {
+    if (sortBy === "recent") {
+      return [...visits].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+    }
+    return visits;
+  });
 
   const db = new BreadcrumbsDB();
   const visitOps = visitStore(db);
@@ -126,10 +134,16 @@
     {/if}
   </div>
 
+  <div class="sort-bar">
+    <span>Sort:</span>
+    <button class:active={sortBy === "discovery"} onclick={() => sortBy = "discovery"}>Discovery order</button>
+    <button class:active={sortBy === "recent"} onclick={() => sortBy = "recent"}>Recently visited</button>
+  </div>
+
   <div class="timeline">
-    {#each visits as visit, i}
+    {#each sortedVisits as visit, i}
       <VisitCard {visit} trailId={trail.id} trailStatus={trail.status} onUpdateNote={handleUpdateNote} onDelete={handleDeleteVisit} onResumed={onMutated} />
-      {#if i < visits.length - 1}
+      {#if sortBy === "discovery" && i < sortedVisits.length - 1}
         <button class="split-btn" onclick={() => handleSplit(visit.position)}>
           Split here
         </button>
@@ -158,6 +172,9 @@
   .header h2:hover { color: #0066cc; }
   .star { background: none; border: none; font-size: 20px; cursor: pointer; }
   .merge-btn { background: none; border: 1px solid #ddd; border-radius: 3px; padding: 4px 10px; cursor: pointer; font-size: 13px; }
+  .sort-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; font-size: 13px; color: #666; }
+  .sort-bar button { padding: 3px 10px; border: 1px solid #ddd; border-radius: 3px; background: white; cursor: pointer; font-size: 12px; }
+  .sort-bar button.active { background: #e8f0fe; border-color: #1a73e8; color: #1a73e8; }
   .meta { font-size: 13px; color: #666; margin: 8px 0 12px; }
   .note-section { margin-bottom: 16px; }
   .trail-note { margin: 0; padding: 8px 12px; background: #f8f8f8; border-radius: 4px; cursor: pointer; font-size: 14px; color: #333; white-space: pre-wrap; }
