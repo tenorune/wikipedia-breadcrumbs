@@ -17,7 +17,7 @@
   let isStarred = $state(trail.isStarred);
   let displayName = $state(trail.name);
   let showMergePicker = $state(false);
-  let allTrails: Trail[] = $state([]);
+  let mergeOptions: { trail: Trail; label: string }[] = $state([]);
   let editingNote = $state(false);
   let trailNote = $state(trail.note ?? "");
   let sortBy: "discovery" | "recent" = $state("discovery");
@@ -68,7 +68,19 @@
   }
 
   async function openMergePicker() {
-    allTrails = (await trailOps.getAll()).filter((t) => t.id !== trail.id);
+    const others = (await trailOps.getAll()).filter((t) => t.id !== trail.id);
+    const options: { trail: Trail; label: string }[] = [];
+    for (const t of others) {
+      if (t.name) {
+        options.push({ trail: t, label: t.name });
+      } else {
+        const v = await visitOps.getByTrailId(t.id);
+        const first = v[0]?.title ?? "";
+        const last = v[v.length - 1]?.title ?? "";
+        options.push({ trail: t, label: first ? `${first} → ${last}` : "Empty trail" });
+      }
+    }
+    mergeOptions = options;
     showMergePicker = true;
   }
 
@@ -157,9 +169,9 @@
   {#if showMergePicker}
     <div class="merge-picker">
       <h3>Merge with another trail:</h3>
-      {#each allTrails as other}
-        <button onclick={() => handleMerge(other.id)}>
-          {other.name ?? `Trail from ${new Date(other.startedAt).toLocaleDateString()}`}
+      {#each mergeOptions as option}
+        <button onclick={() => handleMerge(option.trail.id)}>
+          {option.label}
         </button>
       {/each}
       <button class="cancel" onclick={() => showMergePicker = false}>Cancel</button>
