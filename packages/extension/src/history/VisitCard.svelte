@@ -87,14 +87,14 @@
       </div>
     {:else}
       <button class="note-btn" onclick={() => { editingNote = true; }}>
-        {visit.note ? `Note: ${visit.note}` : "Add note"}
+        {visit.note ? `Note: ${visit.note}` : "Add Note"}
       </button>
     {/if}
     <button class="cite-btn" onclick={() => showCitation = !showCitation}>Cite</button>
+    <button class="delete-btn" onclick={() => onDelete(visit.id)}>Delete</button>
     {#if onSplit}
       <button class="split-btn" onclick={() => onSplit(visit.position)}>Split</button>
     {/if}
-    <button class="delete-btn" onclick={() => onDelete(visit.id)}>Delete</button>
   </div>
   {#if showCitation}
     <div class="citation-picker">
