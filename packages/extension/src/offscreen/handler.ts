@@ -59,6 +59,11 @@ export async function handleOffscreenMessage(db: BreadcrumbsDB, message: Offscre
         await trails.softDelete(message.trailId);
         return { success: true, data: null };
       }
+      case "findVisitByUrl": {
+        const trailVisits = await visits.getByTrailId(message.trailId);
+        const match = trailVisits.find((v) => v.url === message.url);
+        return { success: true, data: match ?? null };
+      }
       case "searchVisits": {
         const query = message.query.toLowerCase();
         const allTrailsList = await trails.getAll();

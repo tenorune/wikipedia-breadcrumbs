@@ -75,9 +75,6 @@ export async function handleNavigation(
     }
   }
 
-  // Skip if this is the same URL as the last visit (e.g. reload, tab switch)
-  if (current?.lastVisitUrl === parsed.cleanUrl) return;
-
   const isMainPage = parsed.title === "Main Page";
   const isFromSearch = transitionType === "generated";
   const isExternal = isExternalTransition(transitionType, transitionQualifiers);
@@ -98,10 +95,9 @@ export async function handleNavigation(
   };
 
   const detection = shouldStartNewTrail(context);
-  const sourceType = inferSourceType(transitionType, transitionQualifiers);
-  const sourceDetail = inferSourceDetail(transitionType, transitionQualifiers);
 
   if (detection.isNew || !current) {
+    // New trail
     const trail = createTrail({
       startReason: detection.isNew ? detection.reason : StartReason.AutoNewTab,
       deviceId,
@@ -110,7 +106,9 @@ export async function handleNavigation(
 
     const visit = createVisit({
       trailId: trail.id, url: parsed.cleanUrl, title: parsed.title, position: 1,
-      sourceType, sourceDetail, language: parsed.language,
+      sourceType: inferSourceType(transitionType, transitionQualifiers),
+      sourceDetail: inferSourceDetail(transitionType, transitionQualifiers),
+      language: parsed.language,
       articleId: parsed.cleanUrl.split("/wiki/")[1] ?? parsed.title, tabId,
     });
     await sendToOffscreen({ type: "addVisit", visit });
@@ -121,13 +119,36 @@ export async function handleNavigation(
       lastVisitUrl: parsed.cleanUrl,
     });
   } else {
-    const position = trailManager.incrementPosition(tabId, parsed.cleanUrl);
-    const visit = createVisit({
-      trailId: current.trailId, url: parsed.cleanUrl, title: parsed.title, position,
-      sourceType, sourceDetail, language: parsed.language,
-      articleId: parsed.cleanUrl.split("/wiki/")[1] ?? parsed.title, tabId,
+    // Same trail — check if this URL is already in the trail
+    const existing = await sendToOffscreen({
+      type: "findVisitByUrl",
+      trailId: current.trailId,
+      url: parsed.cleanUrl,
     });
-    await sendToOffscreen({ type: "addVisit", visit });
+
+    if (existing.success && existing.data) {
+      // Revisit — update timestamp on the existing visit, don't create a new entry
+      await sendToOffscreen({
+        type: "updateVisit",
+        visitId: (existing.data as any).id,
+        changes: { timestamp: new Date().toISOString() },
+      });
+    } else {
+      // New page — append to trail
+      const position = trailManager.incrementPosition(tabId, parsed.cleanUrl);
+      const visit = createVisit({
+        trailId: current.trailId, url: parsed.cleanUrl, title: parsed.title, position,
+        sourceType: inferSourceType(transitionType, transitionQualifiers),
+        sourceDetail: inferSourceDetail(transitionType, transitionQualifiers),
+        language: parsed.language,
+        articleId: parsed.cleanUrl.split("/wiki/")[1] ?? parsed.title, tabId,
+      });
+      await sendToOffscreen({ type: "addVisit", visit });
+    }
+
+    // Update last visit URL regardless
+    current.lastVisitUrl = parsed.cleanUrl;
+    current.lastVisitTimestamp = Date.now();
   }
 
   await resetIdleAlarm(tabId, idleTimeoutMinutes);

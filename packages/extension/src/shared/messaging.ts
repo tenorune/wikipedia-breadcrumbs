@@ -12,7 +12,8 @@ export type OffscreenRequest =
   | { type: "updateVisit"; visitId: string; changes: Partial<Visit> }
   | { type: "softDeleteTrail"; trailId: string }
   | { type: "searchVisits"; query: string }
-  | { type: "getActiveTrails" };
+  | { type: "getActiveTrails" }
+  | { type: "findVisitByUrl"; trailId: string; url: string };
 
 export type OffscreenResponse<T = unknown> =
   | { success: true; data: T }
