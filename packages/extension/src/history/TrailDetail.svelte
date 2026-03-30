@@ -106,7 +106,7 @@
       <button onclick={saveName}>Save</button>
     {:else}
       <h2 onclick={() => { editingName = true; nameText = displayName ?? ""; }}>
-        {displayName ?? `Trail (${visits.length} pages)`}
+        {displayName ?? (visits.length > 0 ? `${visits[0].title} → ${visits[visits.length - 1].title}` : "New trail")}
       </h2>
     {/if}
     <button class="star" onclick={toggleStar}>{isStarred ? "★" : "☆"}</button>
