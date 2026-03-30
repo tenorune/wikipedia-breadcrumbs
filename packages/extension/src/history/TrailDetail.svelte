@@ -147,9 +147,9 @@
   </div>
 
   <div class="sort-bar">
-    <span>Sort:</span>
-    <button class:active={sortBy === "discovery"} onclick={() => sortBy = "discovery"}>Discovery order</button>
-    <button class:active={sortBy === "recent"} onclick={() => sortBy = "recent"}>Recently visited</button>
+    <span>Sort by:</span>
+    <button class:active={sortBy === "discovery"} onclick={() => sortBy = "discovery"}>Discovery</button>
+    <button class:active={sortBy === "recent"} onclick={() => sortBy = "recent"}>Visited</button>
   </div>
 
   <div class="timeline">

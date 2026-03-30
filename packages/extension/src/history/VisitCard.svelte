@@ -114,6 +114,7 @@
   .detail { font-style: italic; }
   .actions { display: flex; gap: 8px; margin-top: 6px; }
   .note-btn, .cite-btn, .delete-btn, .split-btn { font-size: 12px; padding: 2px 8px; border: 1px solid #ddd; border-radius: 3px; background: white; cursor: pointer; }
+  .split-btn { margin-left: auto; }
   .split-btn:hover { border-color: #0066cc; color: #0066cc; }
   .delete-btn:hover { border-color: #dc3545; color: #dc3545; }
   .note-edit { display: flex; gap: 4px; }
