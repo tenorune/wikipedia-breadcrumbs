@@ -29,6 +29,11 @@
     visits = await visitOps.getByTrailId(trail.id);
   }
 
+  // Refresh when tab becomes visible
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") loadVisits();
+  });
+
   async function saveName() {
     if (nameText.trim()) {
       await trailOps.update(trail.id, { name: nameText.trim() });

@@ -16,6 +16,21 @@
     trailListRef?.refresh();
   }
 
+  // Refresh data when the tab becomes visible (user switches back to it)
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      if (selectedTrail) {
+        // Re-fetch the trail in case status changed
+        const db = new BreadcrumbsDB();
+        trailStore(db).getById(selectedTrail.id).then((trail) => {
+          if (trail) selectedTrail = trail;
+        });
+      } else {
+        trailListRef?.refresh();
+      }
+    }
+  });
+
   // Check URL params for direct trail link from popup
   const params = new URLSearchParams(window.location.search);
   const directTrailId = params.get("trail");
