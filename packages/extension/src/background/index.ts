@@ -13,29 +13,56 @@ let settings = { idleTimeoutMinutes: 30, captureEnabled: true };
 async function initialize() {
   deviceId = await getDeviceId();
   settings = await getSettings();
-  await finalizeOrphanedTrails();
+  await reconcileActiveTrails();
 }
 
-// Finalize any active trails whose tabs no longer exist.
-// This handles the case where the SW was terminated and missed tab close events.
-async function finalizeOrphanedTrails() {
+// On startup, match active trails to currently open tabs by URL.
+// Tab IDs change across browser restarts, so we match by the last visit's URL
+// against what's currently open. Matched trails get re-associated with the new
+// tab ID. Unmatched trails get finalized.
+async function reconcileActiveTrails() {
   try {
     const result = await sendToOffscreen({ type: "getActiveTrails" });
     if (!result.success || !result.data) return;
     const activeTrails = result.data as any[];
     if (activeTrails.length === 0) return;
 
-    // Get all currently open tab IDs
-    const tabs = await chrome.tabs.query({});
-    const openTabIds = new Set(tabs.map((t) => t.id));
+    // Build a map of open Wikipedia tabs: URL -> tab
+    const tabs = await chrome.tabs.query({ url: "*://*.wikipedia.org/*" });
+    const urlToTab = new Map<string, chrome.tabs.Tab>();
+    for (const tab of tabs) {
+      if (tab.url && tab.id != null) {
+        urlToTab.set(tab.url, tab);
+      }
+    }
 
-    // For each active trail, check if its tab still exists
     for (const trail of activeTrails) {
       const visitsResult = await sendToOffscreen({ type: "getVisitsByTrailId", trailId: trail.id });
       if (!visitsResult.success) continue;
       const visits = visitsResult.data as any[];
       const lastVisit = visits[visits.length - 1];
-      if (!lastVisit?.tabId || !openTabIds.has(lastVisit.tabId)) {
+      if (!lastVisit) {
+        await sendToOffscreen({ type: "finalizeTrail", trailId: trail.id });
+        continue;
+      }
+
+      // Try to match by exact URL first, then by clean URL
+      const matchTab = urlToTab.get(lastVisit.url)
+        ?? [...urlToTab.entries()].find(([url]) => url.includes(lastVisit.articleId))?.[1];
+
+      if (matchTab && matchTab.id != null) {
+        // Re-associate trail with the current tab
+        trailManager.setActive(matchTab.id, {
+          trailId: trail.id,
+          tabId: matchTab.id,
+          windowId: matchTab.windowId ?? 0,
+          lastVisitTimestamp: new Date(lastVisit.timestamp).getTime(),
+          lastVisitPosition: visits.length,
+        });
+        // Remove from map so we don't match another trail to the same tab
+        urlToTab.delete(matchTab.url!);
+      } else {
+        // No matching tab — finalize the trail
         await sendToOffscreen({ type: "finalizeTrail", trailId: trail.id });
       }
     }
