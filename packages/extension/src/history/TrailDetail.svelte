@@ -94,8 +94,31 @@
   }
 
   async function handleSplit(afterPosition: number) {
-    await splitTrail(db, trail.id, afterPosition);
-    chrome.runtime.sendMessage({ type: "trailMutated", trailId: trail.id });
+    const [originalId, newTrailId] = await splitTrail(db, trail.id, afterPosition);
+
+    // Navigate the old trail's tab to its new last page
+    const oldVisits = await visitOps.getByTrailId(originalId);
+    const oldLastVisit = oldVisits[oldVisits.length - 1];
+    if (oldLastVisit) {
+      await chrome.runtime.sendMessage({
+        type: "navigateActiveTrail",
+        trailId: originalId,
+        url: oldLastVisit.url,
+      });
+    }
+    chrome.runtime.sendMessage({ type: "trailMutated", trailId: originalId });
+
+    // Open the new trail's last page in a new tab
+    const newVisits = await visitOps.getByTrailId(newTrailId);
+    const newLastVisit = newVisits[newVisits.length - 1];
+    if (newLastVisit) {
+      await chrome.runtime.sendMessage({
+        type: "resumeTrailInNewTab",
+        trailId: newTrailId,
+        url: newLastVisit.url,
+      });
+    }
+
     onMutated();
   }
 
