@@ -25,7 +25,8 @@ export type PopupMessage =
   | { type: "getCurrentTrail"; tabId: number }
   | { type: "startNewTrail"; tabId: number }
   | { type: "endTrail"; trailId: string }
-  | { type: "renameTrail"; trailId: string; name: string };
+  | { type: "renameTrail"; trailId: string; name: string }
+  | { type: "resumeTrail"; trailId: string; tabId: number; windowId: number; url: string };
 
 export type TrailMutationMessage =
   | { type: "trailMutated"; trailId: string }

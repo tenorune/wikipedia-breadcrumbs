@@ -4,17 +4,18 @@
 
   interface Props {
     visit: Visit;
+    trailId: string;
     trailStatus: string;
     trailTabId: number | null;
     onUpdateNote: (visitId: string, note: string) => void;
+    onResumed?: () => void;
   }
 
-  let { visit, trailStatus, trailTabId, onUpdateNote }: Props = $props();
+  let { visit, trailId, trailStatus, trailTabId, onUpdateNote, onResumed }: Props = $props();
 
   async function handleTitleClick(e: MouseEvent) {
     e.preventDefault();
     if (trailStatus === "active" && trailTabId != null) {
-      // Switch to the tab that has this trail
       try {
         await chrome.tabs.update(trailTabId, { active: true });
         const tab = await chrome.tabs.get(trailTabId);
@@ -22,11 +23,21 @@
           await chrome.windows.update(tab.windowId, { focused: true });
         }
       } catch {
-        // Tab no longer exists — open new tab
         chrome.tabs.create({ url: visit.url });
       }
     } else {
-      chrome.tabs.create({ url: visit.url });
+      // Finalized trail — open new tab and resume the trail
+      const tab = await chrome.tabs.create({ url: visit.url });
+      if (tab.id != null) {
+        await chrome.runtime.sendMessage({
+          type: "resumeTrail",
+          trailId,
+          tabId: tab.id,
+          windowId: tab.windowId ?? 0,
+          url: visit.url,
+        });
+        onResumed?.();
+      }
     }
   }
 

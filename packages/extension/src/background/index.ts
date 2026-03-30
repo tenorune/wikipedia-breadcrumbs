@@ -199,6 +199,26 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
       sendResponse({ ok: true });
       break;
     }
+    case "resumeTrail": {
+      // Reactivate a finalized trail and associate it with a new tab
+      await sendToOffscreen({
+        type: "updateTrail",
+        trailId: message.trailId,
+        changes: { status: "active" as any, endedAt: null as any },
+      });
+      const visitsResult = await sendToOffscreen({ type: "getVisitsByTrailId", trailId: message.trailId });
+      const visitCount = visitsResult.success ? (visitsResult.data as any[]).length : 0;
+      trailManager.setActive(message.tabId, {
+        trailId: message.trailId,
+        tabId: message.tabId,
+        windowId: message.windowId,
+        lastVisitTimestamp: Date.now(),
+        lastVisitPosition: visitCount,
+        lastVisitUrl: message.url,
+      });
+      sendResponse({ ok: true });
+      break;
+    }
     case "trailMutated": {
       trailManager.removeByTrailId(message.trailId);
       sendResponse({ ok: true });

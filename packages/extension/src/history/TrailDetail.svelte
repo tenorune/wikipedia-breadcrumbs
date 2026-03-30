@@ -120,7 +120,7 @@
 
   <div class="timeline">
     {#each visits as visit, i}
-      <VisitCard {visit} trailStatus={trail.status} trailTabId={lastTabId} onUpdateNote={handleUpdateNote} />
+      <VisitCard {visit} trailId={trail.id} trailStatus={trail.status} trailTabId={lastTabId} onUpdateNote={handleUpdateNote} onResumed={onMutated} />
       {#if i < visits.length - 1}
         <button class="split-btn" onclick={() => handleSplit(visit.position)}>
           Split here
