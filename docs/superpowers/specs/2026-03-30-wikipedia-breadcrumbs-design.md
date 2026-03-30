@@ -19,17 +19,17 @@ Wikipedia Breadcrumbs is a tool for tracking and organizing Wikipedia browsing h
 ### Stack
 
 | Layer | Technology |
-|-------|-----------|
+| ------- | ----------- |
 | Frontend framework | Svelte (extension UI) / SvelteKit (PWA) |
 | Local storage | IndexedDB via Dexie.js |
-| Remote backend | Supabase (Postgres, Auth, Realtime, Row-Level Security) |
+| Remote backend | Supabase (Postgres, Auth, Row-Level Security) |
 | Monorepo tooling | pnpm workspaces |
 | Build | Vite |
 | Language | TypeScript |
 
 ### Monorepo Structure
 
-```
+```text
 wikipedia-breadcrumbs/
 ├── packages/
 │   ├── shared/           # Core library — used by both extension and PWA
@@ -67,7 +67,7 @@ wikipedia-breadcrumbs/
 ### Visit
 
 | Field | Type | Notes |
-|-------|------|-------|
+| ------- | ------ | ------- |
 | `id` | UUID | Generated client-side for offline-first |
 | `trail_id` | UUID | FK to Trail |
 | `url` | string | Cleaned Wikipedia article URL |
@@ -90,19 +90,19 @@ wikipedia-breadcrumbs/
 ### Trail
 
 | Field | Type | Notes |
-|-------|------|-------|
+| ------- | ------ | ------- |
 | `id` | UUID | |
 | `user_id` | UUID | Nullable (anonymous users have local-only trails) |
 | `name` | string | Nullable — auto-generated default, user can rename |
 | `started_at` | ISO 8601 | Timestamp of first visit |
 | `ended_at` | ISO 8601 | Timestamp of last visit, updated on each addition |
+| `status` | enum | `active`, `finalized` — `active` means trail is still receiving visits; `finalized` means explicitly ended by user or tab close |
 | `is_starred` | boolean | |
 | `tags` | string[] | User-applied categories |
 | `visibility` | enum | `private`, `unlisted`, `public` |
-| `device_id` | string | Identifies which device created the trail |
-| `forked_from_visit_id` | UUID | Nullable — the visit that spawned this trail via "open in new tab" |
+| `device_id` | string | Identifies which device created the trail. Generated as a random UUID on first launch, persisted in `chrome.storage.local` (extension) or `localStorage` (PWA). Not recoverable if storage is cleared — treated as a new device in that case |
+| `forked_from_visit_id` | UUID | Nullable — the visit that spawned this trail via "open in new tab". Invariant: non-null if and only if `start_reason` is `forked` |
 | `start_reason` | enum | `auto_new_tab`, `auto_timeout`, `auto_external`, `auto_search`, `auto_main_page`, `manual`, `forked` |
-| `manual_start` | boolean | Whether the user explicitly started this trail |
 | `sync_status` | enum | `local_only`, `synced`, `pending_sync` |
 | `updated_at` | ISO 8601 | For sync conflict resolution |
 | `deleted_at` | ISO 8601 | Nullable — soft delete |
@@ -110,7 +110,7 @@ wikipedia-breadcrumbs/
 ### User (Supabase Auth + profile table)
 
 | Field | Type | Notes |
-|-------|------|-------|
+| ------- | ------ | ------- |
 | `id` | UUID | Supabase auth user ID |
 | `display_name` | string | |
 | `created_at` | ISO 8601 | |
@@ -122,6 +122,7 @@ wikipedia-breadcrumbs/
 Citations are generated on-the-fly from Visit fields (`url`, `title`, `timestamp`, `language`, `article_id`), not stored separately. Lives in `packages/shared/citation/`.
 
 **Supported formats:**
+
 - Wikipedia citation template — `{{cite web |url=... |title=... |access-date=...}}`
 - APA
 - MLA
@@ -142,7 +143,7 @@ Citations are generated on-the-fly from Visit fields (`url`, `title`, `timestamp
 - `tabs` — monitor tab navigation, get tab/window IDs
 - `webNavigation` — detect navigation events with transition types
 - `*://*.wikipedia.org/*` — content script injection
-- `offscreen` (optional) — for IndexedDB access from service worker if needed
+- `offscreen` — required for IndexedDB access from the MV3 service worker. The service worker cannot directly access IndexedDB; an offscreen document is created to proxy DB operations. Only one offscreen document may exist at a time; Chrome may reclaim it, so the background script must handle re-creation
 
 ### Capture Flow
 
@@ -151,10 +152,16 @@ Citations are generated on-the-fly from Visit fields (`url`, `title`, `timestamp
 3. Content script messages back with: link text clicked (if applicable), referrer info, page metadata
 4. Trail detection logic (from `packages/shared`) decides:
    - Same trail → append visit with incremented `position`
-   - New trail → triggered by: new tab, external referrer, Wikipedia search, timeout gap (configurable, e.g. 30 min idle), Wikipedia Main Page, or **user explicit action**
+   - New trail → triggered by: new tab, external referrer, Wikipedia search, idle timeout, Wikipedia Main Page, or **user explicit action**
    - Different tab/window → separate concurrent trail per tab
 5. Visit saved to IndexedDB via shared db layer
 6. Sync — if user is authenticated, queues the visit for Supabase sync (batched, debounced)
+
+### Idle Timeout
+
+A new trail is started when the user has not navigated to a new Wikipedia page in the same tab for a configurable duration (default: 30 minutes). "Idle" means time since the last `webNavigation.onCompleted` event for a Wikipedia URL in that specific tab — not global browser idle, not user input idle.
+
+The timer is implemented using `chrome.alarms` API (not `setTimeout`) because the MV3 service worker may be terminated after ~5 minutes of inactivity. On each Wikipedia navigation, the alarm for that tab is reset. If the alarm fires before the next navigation, the next Wikipedia visit in that tab starts a new trail.
 
 ### Tab/Window Awareness
 
@@ -166,17 +173,21 @@ Citations are generated on-the-fly from Visit fields (`url`, `title`, `timestamp
 ### Explicit Trail Controls
 
 | Action | Extension | PWA |
-|--------|-----------|-----|
+| -------- | ----------- | ----- |
 | Start new trail | Button in popup + overlay panel, keyboard shortcut | Button on trails page + manual capture |
-| End current trail | Same locations — finalizes the active trail on that tab | N/A (PWA trails are manual) |
+| End current trail | Same locations — finalizes the active trail on that tab | Available for any trail (including extension-originated trails synced to PWA) |
 | Merge trails | Select trails in history page → combine into one | Same |
 | Split trail | Click a visit in a trail → "split here" creates two trails | Same |
 
 Manual starts override auto-detection. Trails record `start_reason` for context.
 
+**Split mechanics:** Splitting a trail at visit N creates two trails. The original trail keeps visits 1..N; a new trail is created with visits N+1..end, with `position` values renumbered starting at 1. All affected visits get `trail_id` and `position` updated, marked `pending_sync`. This is a write-heavy operation — sync batches these updates in a single transaction.
+
+**Merge mechanics:** Merging two trails interleaves visits by `timestamp` and renumbers `position` sequentially. The secondary trail is soft-deleted. All affected visits get `trail_id` and `position` updated, marked `pending_sync`.
+
 ### Display Modes
 
-- **Overlay mode** — content script renders a visible UI panel on Wikipedia pages (form factor TBD — sidebar, top bar, or other; to be explored with mockups during implementation). Shows current trail in real-time, inline notes, citation copy. Collapsible, resizable, preference persisted.
+- **Overlay mode** — content script renders a visible UI panel on Wikipedia pages (form factor TBD — sidebar, top bar, or other; to be explored with mockups during implementation). Shows current trail in real-time, inline notes, citation copy. Collapsible, resizable, preference persisted. **Implementation note:** The overlay form factor is a blocker for the content script UI work and must be resolved via mockups before that work begins.
 - **Background mode** — silent capture, no on-page UI. User interacts via popup or history page only.
 - User toggleable in popup or options. Default: background mode.
 
@@ -193,12 +204,12 @@ Manual starts override auto-detection. Trails record `start_reason` for context.
 ### Routes
 
 | Route | Purpose |
-|-------|---------|
+| ------- | --------- |
 | `/` | Landing — recent trails, quick stats |
 | `/trails` | Browse/search all trails with filters (date, tags, starred) |
 | `/trails/[id]` | Single trail view — visit timeline, annotations, citations |
 | `/shared/[id]` | Public/unlisted trail viewer (no auth required, SSR for SEO) |
-| `/add` | Manual capture — paste URL or batch import |
+| `/add` | Manual capture — paste a Wikipedia URL or multiple URLs to add visits. Distinct from the JSON/CSV file import on `/settings` which is for backup restore and migration |
 | `/settings` | Account, sync status, export/import, preferences |
 
 ### Share Target
@@ -260,11 +271,35 @@ Manual starts override auto-detection. Trails record `start_reason` for context.
 4. Conflicts: last `updated_at` wins; losing version stored in `conflict_log` table for user review
 5. Deletes: soft-delete with `deleted_at`, propagated on sync, hard-deleted after 30 days
 
+### Conflict Log
+
+| Field | Type | Notes |
+| ------- | ------ | ------- |
+| `id` | UUID | |
+| `record_type` | enum | `visit`, `trail` |
+| `record_id` | UUID | ID of the conflicting record |
+| `losing_snapshot` | JSON | Full serialized record that lost the conflict |
+| `winning_snapshot` | JSON | Full serialized record that won |
+| `resolved_at` | ISO 8601 | Nullable — set when user acknowledges or resolves |
+| `created_at` | ISO 8601 | When the conflict was detected |
+
+Conflicts surface in the PWA settings page and extension options as a notification badge. User can review side-by-side and either accept the winner or restore the losing version.
+
+### Sync Error Handling
+
+- **Network failure mid-sync:** Operations are idempotent (upserts keyed by UUID). A failed sync is retried on the next trigger with no risk of duplication.
+- **Partial batch failure:** Each record is upserted independently. Failed records stay `pending_sync`; successful ones are marked `synced`. Failed records are retried on next sync cycle.
+- **Supabase rate limits:** Sync uses exponential backoff (1s, 2s, 4s, max 60s) on 429 responses.
+- **Local status update failure:** If a push succeeds server-side but the local `sync_status` update fails, the record remains `pending_sync` and will be pushed again. Since the push is an upsert with the same UUID and `updated_at`, this is a no-op on the server.
+
 ### Anonymous → Authenticated Upgrade
 
 - Anonymous local data has no `user_id`
 - On sign-in, all local trails stamped with new `user_id` and queued for initial sync
-- If account already has remote data, pull merges — matching `device_id` deduplicates, others merge alongside
+- If account already has remote data, pull merges using the following dedup logic:
+  - Trails are matched by `device_id` + `started_at` timestamp (same device, same start time = same trail)
+  - Matched trails: remote version wins for metadata fields; visits are merged by `id` (UUID), no duplicates possible
+  - Unmatched trails: kept as-is from both sources (different devices = different trails)
 
 ### Export/Import
 
@@ -285,7 +320,7 @@ Manual starts override auto-detection. Trails record `start_reason` for context.
 ### Sharing
 
 | Visibility | Behavior |
-|------------|----------|
+| ------------ | ---------- |
 | `private` | Default. Only visible to owner. |
 | `unlisted` | Accessible via direct link. Not indexed. |
 | `public` | Listed on user's public profile (stretch goal). SSR for SEO and link previews. |
