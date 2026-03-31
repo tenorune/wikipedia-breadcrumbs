@@ -44,7 +44,7 @@
     authError = "";
     try {
       // Use launchWebAuthFlow to get an ID token
-      const clientId = "YOUR_GOOGLE_CLIENT_ID"; // Hardcoded for now — needs manual update
+      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string;
       const redirectUrl = chrome.identity.getRedirectURL();
       const nonce = crypto.randomUUID();
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&response_type=id_token&redirect_uri=${encodeURIComponent(redirectUrl)}&scope=openid%20email%20profile&nonce=${nonce}`;
