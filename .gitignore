@@ -11,3 +11,4 @@ docs/setup/
 packages/pwa/.env
 packages/pwa/.env.*
 .superpowers/
+.firebaserc
