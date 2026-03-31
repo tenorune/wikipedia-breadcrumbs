@@ -19,7 +19,35 @@ export async function initAuth(): Promise<void> {
     _loading = false;
   });
 
-  // Then check for existing session
+  // If returning from OAuth redirect, the URL hash contains session tokens.
+  // Supabase's `exchangeCodeForSession` or `getSession` should detect this,
+  // but we need to ensure it runs before anything else claims the session.
+  if (window.location.hash.includes("access_token")) {
+    console.log("[pwa] Detected OAuth callback hash, exchanging tokens...");
+    // Supabase JS auto-detects hash params when `detectSessionInUrl` is true (default).
+    // Calling getUser forces the exchange to happen now.
+    const { data, error } = await supabase.auth.getUser();
+    if (error) {
+      console.error("[pwa] Token exchange failed:", error.message);
+      // Clear the stale session and try again from the hash
+      await supabase.auth.signOut({ scope: "local" });
+      // Supabase should now re-detect the hash tokens
+      const { data: retryData } = await supabase.auth.getUser();
+      if (retryData?.user) {
+        _user = retryData.user;
+      }
+    } else if (data?.user) {
+      _user = data.user;
+    }
+    // Clean up the hash from the URL
+    if (window.location.hash) {
+      history.replaceState(null, "", window.location.pathname);
+    }
+    _loading = false;
+    return;
+  }
+
+  // Normal startup — check for existing session
   const { data } = await supabase.auth.getSession();
   if (data.session?.user) {
     _user = data.session.user;
