@@ -14,7 +14,11 @@ export type OffscreenRequest =
   | { type: "searchVisits"; query: string }
   | { type: "getActiveTrails" }
   | { type: "findVisitByUrl"; trailId: string; url: string }
-  | { type: "getActiveTrailByUrl"; url: string };
+  | { type: "getActiveTrailByUrl"; url: string }
+  | { type: "enableSync" }
+  | { type: "disableSync" }
+  | { type: "syncNow" }
+  | { type: "getSyncStatus" };
 
 export type OffscreenResponse<T = unknown> =
   | { success: true; data: T }
@@ -35,7 +39,11 @@ export type TrailMutationMessage =
   | { type: "trailMutated"; trailId: string }
   | { type: "trailDeleted"; trailId: string };
 
-export type BackgroundMessage = PopupMessage | TrailMutationMessage;
+export type BackgroundMessage = PopupMessage | TrailMutationMessage
+  | { type: "getSyncStatus" }
+  | { type: "syncNow" }
+  | { type: "enableSync" }
+  | { type: "disableSync" };
 
 export interface OffscreenEnvelope {
   target: "offscreen";
