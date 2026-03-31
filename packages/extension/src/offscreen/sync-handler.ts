@@ -15,11 +15,19 @@ let lastReport: SyncReport | null = null;
 
 const stateStore: SyncStateStore = {
   async getLastSyncTime() {
-    const { lastSyncTime } = await chrome.storage.local.get("lastSyncTime");
-    return (lastSyncTime as string) ?? null;
+    try {
+      const { lastSyncTime } = await chrome.storage.local.get("lastSyncTime");
+      return (lastSyncTime as string) ?? null;
+    } catch {
+      return null;
+    }
   },
   async setLastSyncTime(time: string) {
-    await chrome.storage.local.set({ lastSyncTime: time });
+    try {
+      await chrome.storage.local.set({ lastSyncTime: time });
+    } catch {
+      // storage may be unavailable during teardown
+    }
   },
 };
 
@@ -32,12 +40,21 @@ async function ensureInitialized(db: BreadcrumbsDB): Promise<boolean> {
 
   supabase = createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  const { data: authData, error: authError } = await supabase.auth.signInAnonymously();
-  if (authError || !authData.user) {
-    console.error("[breadcrumbs] Anonymous auth failed:", authError);
-    return false;
+  // Try to restore existing session first
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (sessionData?.session?.user) {
+    userId = sessionData.session.user.id;
+    console.log("[breadcrumbs] Restored existing session:", userId);
+  } else {
+    // No existing session — create anonymous user
+    const { data: authData, error: authError } = await supabase.auth.signInAnonymously();
+    if (authError || !authData.user) {
+      console.error("[breadcrumbs] Anonymous auth failed:", authError);
+      return false;
+    }
+    userId = authData.user.id;
+    console.log("[breadcrumbs] Created anonymous user:", userId);
   }
-  userId = authData.user.id;
 
   // Stamp all local trails and visits with userId for sync
   const trails = trailStore(db);
@@ -76,9 +93,9 @@ export async function handleSyncMessage(
       return { success: true, data: { started: true } };
     }
     case "disableSync": {
+      // Keep supabase client and session alive — just stop the engine
+      // This prevents creating a new anonymous user on re-enable
       engine = null;
-      supabase = null;
-      userId = null;
       return { success: true };
     }
     case "syncNow": {
