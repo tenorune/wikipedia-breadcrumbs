@@ -14,6 +14,7 @@ export default defineConfig({
       ],
     }),
   ],
+  envDir: "../..",
   publicDir: "static",
   build: {
     outDir: "dist",
