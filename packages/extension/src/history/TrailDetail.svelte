@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import type { Trail, Visit } from "@wikipedia-breadcrumbs/shared";
   import { BreadcrumbsDB, visitStore, trailStore, splitTrail, mergeTrails } from "@wikipedia-breadcrumbs/shared";
   import VisitCard from "./VisitCard.svelte";
@@ -71,12 +72,15 @@
   const trailOps = trailStore(db);
 
   async function loadVisits() {
+    if (!trail?.id) return;
     visits = await visitOps.getByTrailId(trail.id);
   }
 
   // Refresh when tab becomes visible
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") loadVisits();
+  onMount(() => {
+    const onVisible = () => { if (document.visibilityState === "visible") loadVisits(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   });
 
   async function saveName() {
