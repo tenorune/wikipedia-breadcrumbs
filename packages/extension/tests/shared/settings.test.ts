@@ -25,4 +25,7 @@ describe("settings", () => {
     expect(DEFAULTS.idleTimeoutMinutes).toBe(30);
     expect(DEFAULTS.captureEnabled).toBe(true);
   });
+  it("DEFAULTS includes syncEnabled as false", () => {
+    expect(DEFAULTS.syncEnabled).toBe(false);
+  });
 });

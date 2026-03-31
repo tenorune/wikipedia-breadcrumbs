@@ -1,11 +1,13 @@
 export interface ExtensionSettings {
   idleTimeoutMinutes: number;
   captureEnabled: boolean;
+  syncEnabled: boolean;
 }
 
 export const DEFAULTS: ExtensionSettings = {
   idleTimeoutMinutes: 30,
   captureEnabled: true,
+  syncEnabled: false,
 };
 
 const KEYS = Object.keys(DEFAULTS) as (keyof ExtensionSettings)[];
