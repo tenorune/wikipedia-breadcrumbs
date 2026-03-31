@@ -18,7 +18,13 @@ export type OffscreenRequest =
   | { type: "enableSync" }
   | { type: "disableSync" }
   | { type: "syncNow" }
-  | { type: "getSyncStatus" };
+  | { type: "getSyncStatus" }
+  | { type: "signInWithGoogle"; idToken: string }
+  | { type: "signInWithEmail"; email: string; password: string }
+  | { type: "signUpWithEmail"; email: string; password: string }
+  | { type: "signOut" }
+  | { type: "getAuthStatus" }
+  | { type: "reinitSync" };
 
 export type OffscreenResponse<T = unknown> =
   | { success: true; data: T }
@@ -44,7 +50,13 @@ export type BackgroundMessage = PopupMessage | TrailMutationMessage
   | { type: "syncNow" }
   | { type: "enableSync" }
   | { type: "disableSync" }
-  | { type: "syncComplete"; completedAt: string };
+  | { type: "syncComplete"; completedAt: string }
+  | { type: "signInWithGoogle"; idToken: string }
+  | { type: "signInWithEmail"; email: string; password: string }
+  | { type: "signUpWithEmail"; email: string; password: string }
+  | { type: "signOut" }
+  | { type: "getAuthStatus" }
+  | { type: "reinitSync" };
 
 export interface OffscreenEnvelope {
   target: "offscreen";
