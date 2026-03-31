@@ -81,6 +81,31 @@ export async function syncNow(): Promise<void> {
   }
 }
 
+export async function upgradeToAuthenticatedUser(newUserId: string): Promise<void> {
+  // Re-stamp all trails with new userId
+  const allTrails = await db.trails.toArray();
+  for (const trail of allTrails) {
+    if (trail.userId !== newUserId) {
+      await db.trails.update(trail.id, { userId: newUserId, syncStatus: SyncStatus.PendingSync });
+    }
+  }
+  // Mark all visits for re-push
+  const allVisits = await db.visits.toArray();
+  for (const visit of allVisits) {
+    await db.visits.update(visit.id, { syncStatus: SyncStatus.PendingSync });
+  }
+
+  // Reinitialize sync engine with new userId
+  userId = newUserId;
+  const backend = new SupabaseBackend(supabase, newUserId);
+  engine = new SyncEngine(db, backend, stateStore, newUserId);
+  _syncEnabled = true;
+  localStorage.setItem("syncEnabled", "true");
+
+  // Push everything under the new account
+  await syncNow();
+}
+
 export async function initSync(): Promise<void> {
   if (localStorage.getItem("syncEnabled") === "true") {
     await enableSync();
