@@ -19,7 +19,7 @@ export type OffscreenRequest =
   | { type: "disableSync" }
   | { type: "syncNow" }
   | { type: "getSyncStatus" }
-  | { type: "signInWithGoogle"; idToken: string }
+  | { type: "signInWithGoogle"; idToken: string; nonce: string }
   | { type: "signInWithEmail"; email: string; password: string }
   | { type: "signUpWithEmail"; email: string; password: string }
   | { type: "signOut" }
@@ -51,7 +51,7 @@ export type BackgroundMessage = PopupMessage | TrailMutationMessage
   | { type: "enableSync" }
   | { type: "disableSync" }
   | { type: "syncComplete"; completedAt: string }
-  | { type: "signInWithGoogle"; idToken: string }
+  | { type: "signInWithGoogle"; idToken: string; nonce: string }
   | { type: "signInWithEmail"; email: string; password: string }
   | { type: "signUpWithEmail"; email: string; password: string }
   | { type: "signOut" }
