@@ -19,7 +19,10 @@ export function visitStore(db: BreadcrumbsDB) {
     },
     async update(id: string, changes: Partial<Omit<Visit, "id">>): Promise<Visit | undefined> {
       const updatedAt = new Date().toISOString();
-      await db.visits.update(id, { ...changes, updatedAt });
+      const current = await db.visits.get(id);
+      const syncUpdate = current?.syncStatus === SyncStatus.Synced
+        ? SyncStatus.PendingSync : current?.syncStatus;
+      await db.visits.update(id, { ...changes, updatedAt, syncStatus: syncUpdate });
       return db.visits.get(id);
     },
     async softDelete(id: string): Promise<void> {
