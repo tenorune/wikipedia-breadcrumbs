@@ -17,22 +17,16 @@ export function getSyncUserId(): string | null {
 }
 let lastReport: SyncReport | null = null;
 
+// In-memory state store — offscreen doesn't have chrome.storage access.
+// The background reads lastSyncTime from the sync report instead.
+let lastSyncTime: string | null = null;
+
 const stateStore: SyncStateStore = {
   async getLastSyncTime() {
-    try {
-      const { lastSyncTime } = await chrome.storage.local.get("lastSyncTime");
-      return (lastSyncTime as string) ?? null;
-    } catch {
-      return null;
-    }
+    return lastSyncTime;
   },
   async setLastSyncTime(time: string) {
-    try {
-      console.log("[breadcrumbs] Setting lastSyncTime:", time);
-      await chrome.storage.local.set({ lastSyncTime: time });
-    } catch {
-      // storage may be unavailable during teardown
-    }
+    lastSyncTime = time;
   },
 };
 
@@ -94,6 +88,7 @@ export async function handleSyncMessage(
       engine!.syncNow().then((report) => {
         lastReport = report;
         console.log("[breadcrumbs] enableSync sync complete:", JSON.stringify(report));
+        chrome.runtime.sendMessage({ type: "syncComplete", completedAt: report.completedAt });
       }).catch((err) => console.error("[breadcrumbs] enableSync sync error:", err));
       return { success: true, data: { started: true } };
     }
@@ -109,10 +104,11 @@ export async function handleSyncMessage(
         if (!ok) return { success: false, error: "Sync not initialized" };
       }
       console.log("[breadcrumbs] Starting sync...");
-      // Don't block the response — sync runs async, poll getSyncStatus for results
+      // Don't block the response — sync runs async
       engine!.syncNow().then((report) => {
         lastReport = report;
         console.log("[breadcrumbs] Sync complete:", JSON.stringify(report));
+        chrome.runtime.sendMessage({ type: "syncComplete", completedAt: report.completedAt });
       }).catch((err) => console.error("[breadcrumbs] Sync error:", err));
       return { success: true, data: { started: true } };
     }

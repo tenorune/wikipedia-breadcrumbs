@@ -43,7 +43,8 @@ export type BackgroundMessage = PopupMessage | TrailMutationMessage
   | { type: "getSyncStatus" }
   | { type: "syncNow" }
   | { type: "enableSync" }
-  | { type: "disableSync" };
+  | { type: "disableSync" }
+  | { type: "syncComplete"; completedAt: string };
 
 export interface OffscreenEnvelope {
   target: "offscreen";

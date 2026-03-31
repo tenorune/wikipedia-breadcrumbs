@@ -326,9 +326,15 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
       sendResponse({ ok: true });
       break;
     }
-    case "getSyncStatus":
+    case "syncComplete": {
+      // Offscreen notifies us when async sync finishes — store the time
+      await chrome.storage.local.set({ lastSyncTime: (message as any).completedAt });
+      sendResponse({ ok: true });
+      break;
+    }
     case "syncNow":
     case "enableSync":
+    case "getSyncStatus":
     case "disableSync": {
       const result = await sendToOffscreen(message as any);
       sendResponse(result);
