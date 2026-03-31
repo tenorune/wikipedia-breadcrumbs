@@ -189,10 +189,10 @@
   </div>
 
   <div class="meta">
-    <span>{formatDate(trail.startedAt)}</span>
+    <span>{visits.length} pages</span>
+    <span> &middot; {formatDate(trail.startedAt)}</span>
     {#if trail.endedAt}<span> — {formatDate(trail.endedAt)}</span>{/if}
-    <span> &middot; {visits.length} pages</span>
-    <span class="status">{trail.status}</span>
+    {#if trail.status === "active"}<span class="active-badge">Active</span>{/if}
   </div>
 
   <div class="note-section">
@@ -210,12 +210,12 @@
   </div>
 
   <div class="sort-bar">
-    <span>Sort by:</span>
     <button class:active={sortField === "discovery"} onclick={() => toggleSort("discovery")}>Discovery {sortField === "discovery" ? (sortAsc ? "▲" : "▼") : ""}</button>
     <button class:active={sortField === "visited"} onclick={() => toggleSort("visited")}>Visited {sortField === "visited" ? (sortAsc ? "▲" : "▼") : ""}</button>
     <span class="sort-hint">{sortAsc ? "oldest to newest" : "newest to oldest"}</span>
   </div>
 
+  <hr class="timeline-start" />
   <div class="timeline">
     {#each sortedVisits as visit, i}
       <VisitCard
@@ -256,6 +256,7 @@
   .sort-bar button.active { background: #e8f0fe; border-color: #1a73e8; color: #1a73e8; }
   .sort-hint { font-style: italic; color: #999; }
   .meta { font-size: 13px; color: #666; margin: 8px 0 12px; }
+  .timeline-start { border: none; border-top: 1px solid #eee; margin: 14px 0 0; }
   .note-section { margin-bottom: 16px; }
   .trail-note { margin: 0; padding: 8px 12px; background: #f8f8f8; border-radius: 4px; cursor: pointer; font-size: 14px; color: #333; white-space: pre-wrap; }
   .trail-note:hover { background: #f0f0f0; }
@@ -264,7 +265,7 @@
   textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; font-family: inherit; resize: vertical; box-sizing: border-box; }
   .note-actions { display: flex; gap: 8px; margin-top: 6px; }
   .cancel-note { background: none; border: 1px solid #ddd; border-radius: 3px; padding: 4px 10px; cursor: pointer; color: #666; }
-  .status { background: #e8f0fe; padding: 1px 6px; border-radius: 3px; font-size: 11px; }
+  .active-badge { background: #d4edda; color: #155724; padding: 1px 6px; border-radius: 3px; font-size: 11px; margin-left: 4px; }
   .merge-picker { margin-top: 16px; padding: 12px; border: 1px solid #ddd; border-radius: 4px; }
   .merge-picker h3 { margin: 0 0 8px; font-size: 14px; }
   .merge-picker button { display: block; width: 100%; text-align: left; padding: 6px 10px; margin: 4px 0; border: 1px solid #eee; border-radius: 3px; background: white; cursor: pointer; }

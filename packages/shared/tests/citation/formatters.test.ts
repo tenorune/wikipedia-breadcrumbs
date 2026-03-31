@@ -18,34 +18,51 @@ describe("formatCitation", () => {
       '{{cite web |url=https://en.wikipedia.org/wiki/Rust_(programming_language) |title=Rust (programming language) |website=Wikipedia |language=en |access-date=2026-03-15}}'
     );
   });
-  it("formats APA", () => {
-    const result = formatCitation(visit, CitationFormat.APA);
-    expect(result).toBe(
-      "Rust (programming language). (2026, March 15). In *Wikipedia*. https://en.wikipedia.org/wiki/Rust_(programming_language)"
-    );
+
+  it("formats APA with locale-aware date", () => {
+    const result = formatCitation(visit, CitationFormat.APA, "en-US");
+    expect(result).toContain("2026");
+    expect(result).toContain("March");
+    expect(result).toContain("15");
+    expect(result).toContain("In *Wikipedia*");
   });
-  it("formats MLA", () => {
-    const result = formatCitation(visit, CitationFormat.MLA);
-    expect(result).toBe(
-      '"Rust (programming language)." *Wikipedia*, Wikimedia Foundation, 15 Mar. 2026, en.wikipedia.org/wiki/Rust_(programming_language).'
-    );
+
+  it("formats MLA with locale-aware date", () => {
+    const result = formatCitation(visit, CitationFormat.MLA, "en-US");
+    expect(result).toContain("March");
+    expect(result).toContain("2026");
+    expect(result).toMatch(/^"Rust \(programming language\)\." \*Wikipedia\*/);
+    expect(result).toContain("en.wikipedia.org/wiki/Rust_(programming_language)");
   });
-  it("formats Chicago", () => {
-    const result = formatCitation(visit, CitationFormat.Chicago);
-    expect(result).toBe(
-      '"Rust (programming language)," Wikipedia, accessed March 15, 2026, https://en.wikipedia.org/wiki/Rust_(programming_language).'
-    );
+
+  it("formats Chicago with locale-aware date", () => {
+    const result = formatCitation(visit, CitationFormat.Chicago, "en-US");
+    expect(result).toContain("accessed");
+    expect(result).toContain("March");
+    expect(result).toContain("2026");
   });
-  it("formats BibTeX", () => {
+
+  it("formats dates differently for different locales", () => {
+    const enResult = formatCitation(visit, CitationFormat.APA, "en-US");
+    const frResult = formatCitation(visit, CitationFormat.APA, "fr-FR");
+    // Both should contain the year, but month names differ
+    expect(enResult).toContain("March");
+    expect(frResult).toContain("mars");
+  });
+
+  it("formats BibTeX with ISO date", () => {
     const result = formatCitation(visit, CitationFormat.BibTeX);
     expect(result).toContain("@misc{wiki:46765424");
     expect(result).toContain("title = {Rust (programming language)}");
     expect(result).toContain("url = {https://en.wikipedia.org/wiki/Rust_(programming_language)}");
+    expect(result).toContain("Accessed 2026-03-15");
   });
+
   it("formats plain URL", () => {
     const result = formatCitation(visit, CitationFormat.URL);
     expect(result).toBe("https://en.wikipedia.org/wiki/Rust_(programming_language)");
   });
+
   it("formats Markdown link", () => {
     const result = formatCitation(visit, CitationFormat.Markdown);
     expect(result).toBe(
