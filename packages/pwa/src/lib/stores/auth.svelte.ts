@@ -12,38 +12,43 @@ export const authState = {
 };
 
 export async function initAuth(): Promise<void> {
-  // Set up listener — this catches OAuth callback, sign-in, sign-out events
+  const isOAuthCallback = window.location.hash.includes("access_token");
+
+  // Set up persistent listener
   supabase.auth.onAuthStateChange((event, session) => {
     console.log("[pwa] Auth state change:", event, session?.user?.email ?? "no user");
     _user = session?.user ?? null;
     _loading = false;
   });
 
-  // Check for existing session
-  const { data } = await supabase.auth.getSession();
-  if (data.session?.user) {
-    _user = data.session.user;
-  }
-  _loading = false;
-
-  // If returning from OAuth redirect, Supabase auto-detects the hash tokens
-  // via onAuthStateChange (SIGNED_IN event). We just need to wait for it.
-  if (window.location.hash.includes("access_token")) {
+  if (isOAuthCallback) {
     console.log("[pwa] Detected OAuth callback, waiting for session...");
+    // Wait for Supabase to process the hash and fire SIGNED_IN
     await new Promise<void>((resolve) => {
-      const timeout = setTimeout(resolve, 3000);
+      const timeout = setTimeout(() => {
+        console.log("[pwa] OAuth callback timeout — session not established");
+        resolve();
+      }, 5000);
       const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-        if (event === "SIGNED_IN") {
+        if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+          console.log("[pwa] OAuth session established");
           clearTimeout(timeout);
           subscription.unsubscribe();
           resolve();
         }
       });
     });
-    // Clean up the hash from the URL
-    const { replaceState } = await import("$app/navigation");
-    replaceState("/settings", {});
+    // Clean URL
+    window.history.replaceState({}, "", window.location.pathname);
+  } else {
+    // Normal startup — check existing session
+    const { data } = await supabase.auth.getSession();
+    if (data.session?.user) {
+      _user = data.session.user;
+    }
   }
+
+  _loading = false;
 }
 
 export async function signInWithGoogle(): Promise<{ error?: string }> {
