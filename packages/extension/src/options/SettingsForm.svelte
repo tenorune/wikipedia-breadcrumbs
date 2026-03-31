@@ -3,6 +3,23 @@
 
   let settings: ExtensionSettings | null = $state(null);
   let saved = $state(false);
+  let syncing = $state(false);
+  let syncStatus: any = $state(null);
+
+  async function loadSyncStatus() {
+    const response = await chrome.runtime.sendMessage({ type: "getSyncStatus" });
+    if (response?.success) syncStatus = response.data;
+  }
+
+  async function handleSyncNow() {
+    syncing = true;
+    await chrome.runtime.sendMessage({ type: "syncNow" });
+    await loadSyncStatus();
+    syncing = false;
+  }
+
+  // Load sync status on mount
+  loadSyncStatus();
 
   async function load() {
     settings = await getSettings();
@@ -32,6 +49,31 @@
       </label>
       <p class="help">When disabled, no new visits are recorded.</p>
     </div>
+    <hr />
+
+    <div class="field">
+      <label>
+        <input type="checkbox" bind:checked={settings.syncEnabled} />
+        Sync to cloud
+      </label>
+      <p class="help">Sync trails to Supabase. Data is stored anonymously.</p>
+    </div>
+
+    {#if settings.syncEnabled}
+      <div class="field">
+        <button type="button" class="sync-btn" onclick={handleSyncNow} disabled={syncing}>
+          {syncing ? "Syncing..." : "Sync now"}
+        </button>
+        {#if syncStatus}
+          <p class="help">
+            Last synced: {syncStatus.lastSyncTime
+              ? new Date(syncStatus.lastSyncTime).toLocaleString(undefined, { year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" })
+              : "Never"}
+          </p>
+        {/if}
+      </div>
+    {/if}
+
     <button type="submit">Save</button>
     {#if saved}<span class="saved">Saved!</span>{/if}
   </form>
@@ -47,4 +89,7 @@
   button { padding: 8px 20px; background: #0066cc; color: white; border: none; border-radius: 4px; cursor: pointer; }
   button:hover { background: #0052a3; }
   .saved { color: #28a745; margin-left: 12px; }
+  .sync-btn { padding: 8px 20px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
+  .sync-btn:hover { background: #218838; }
+  .sync-btn:disabled { background: #ccc; cursor: not-allowed; }
 </style>
