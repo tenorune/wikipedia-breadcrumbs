@@ -11,6 +11,10 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 let supabase: SupabaseClient | null = null;
 let engine: SyncEngine | null = null;
 let userId: string | null = null;
+
+export function getSyncUserId(): string | null {
+  return userId;
+}
 let lastReport: SyncReport | null = null;
 
 const stateStore: SyncStateStore = {
@@ -24,6 +28,7 @@ const stateStore: SyncStateStore = {
   },
   async setLastSyncTime(time: string) {
     try {
+      console.log("[breadcrumbs] Setting lastSyncTime:", time);
       await chrome.storage.local.set({ lastSyncTime: time });
     } catch {
       // storage may be unavailable during teardown

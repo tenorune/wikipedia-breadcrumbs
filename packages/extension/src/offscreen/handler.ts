@@ -1,6 +1,7 @@
-import { BreadcrumbsDB, visitStore, trailStore } from "@wikipedia-breadcrumbs/shared";
+import { BreadcrumbsDB, visitStore, trailStore, SyncStatus } from "@wikipedia-breadcrumbs/shared";
 import type { Visit } from "@wikipedia-breadcrumbs/shared";
 import type { OffscreenRequest, OffscreenResponse } from "../shared/messaging.js";
+import { getSyncUserId } from "./sync-handler.js";
 
 export async function handleOffscreenMessage(db: BreadcrumbsDB, message: OffscreenRequest): Promise<OffscreenResponse> {
   const visits = visitStore(db);
@@ -9,10 +10,19 @@ export async function handleOffscreenMessage(db: BreadcrumbsDB, message: Offscre
   try {
     switch (message.type) {
       case "addVisit": {
+        const syncUserId = getSyncUserId();
+        if (syncUserId) {
+          message.visit.syncStatus = SyncStatus.PendingSync;
+        }
         const result = await visits.add(message.visit);
         return { success: true, data: result };
       }
       case "addTrail": {
+        const syncUserId = getSyncUserId();
+        if (syncUserId) {
+          message.trail.userId = syncUserId;
+          message.trail.syncStatus = SyncStatus.PendingSync;
+        }
         const result = await trails.add(message.trail);
         return { success: true, data: result };
       }
