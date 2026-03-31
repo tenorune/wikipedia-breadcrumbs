@@ -46,8 +46,13 @@
       // Use launchWebAuthFlow to get an ID token
       const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string;
       const redirectUrl = chrome.identity.getRedirectURL();
-      const nonce = crypto.randomUUID();
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&response_type=id_token&redirect_uri=${encodeURIComponent(redirectUrl)}&scope=openid%20email%20profile&nonce=${nonce}`;
+      const rawNonce = crypto.randomUUID();
+      // Google embeds a SHA-256 hash of the nonce in the ID token.
+      // We send the hashed nonce to Google and the raw nonce to Supabase.
+      const encoder = new TextEncoder();
+      const hashBuffer = await crypto.subtle.digest("SHA-256", encoder.encode(rawNonce));
+      const hashedNonce = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&response_type=id_token&redirect_uri=${encodeURIComponent(redirectUrl)}&scope=openid%20email%20profile&nonce=${hashedNonce}`;
 
       const responseUrl = await chrome.identity.launchWebAuthFlow({ url: authUrl, interactive: true });
       const idToken = new URL(responseUrl!.replace("#", "?")).searchParams.get("id_token");
@@ -56,7 +61,7 @@
         return;
       }
 
-      const response = await chrome.runtime.sendMessage({ type: "signInWithGoogle", idToken, nonce });
+      const response = await chrome.runtime.sendMessage({ type: "signInWithGoogle", idToken, nonce: rawNonce });
       if (response?.success) {
         await loadAuthStatus();
         await chrome.runtime.sendMessage({ type: "reinitSync" });
