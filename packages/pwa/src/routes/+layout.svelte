@@ -9,6 +9,14 @@
 
   onMount(async () => {
     await initAuth();
+
+    // If returning from Google OAuth redirect, wait a moment for Supabase
+    // to process the URL hash and fire onAuthStateChange
+    if (window.location.hash.includes("access_token") || localStorage.getItem("pendingAuthUpgrade")) {
+      // Give Supabase time to process the callback
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+
     if (authState.isAuthenticated && authState.user && localStorage.getItem("pendingAuthUpgrade")) {
       await upgradeToAuthenticatedUser(authState.user.id);
       localStorage.removeItem("pendingAuthUpgrade");
