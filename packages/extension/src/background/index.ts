@@ -340,5 +340,15 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
       sendResponse(result);
       break;
     }
+    case "signInWithGoogle":
+    case "signInWithEmail":
+    case "signUpWithEmail":
+    case "signOut":
+    case "getAuthStatus":
+    case "reinitSync": {
+      const result = await sendToOffscreen(message as any);
+      sendResponse(result);
+      break;
+    }
   }
 }
