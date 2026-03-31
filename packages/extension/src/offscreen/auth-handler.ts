@@ -24,6 +24,7 @@ export async function handleAuthMessage(
       const { data, error } = await supabase.auth.signInWithIdToken({
         provider: "google",
         token: payload.idToken as string,
+        nonce: payload.nonce as string,
       });
       if (error) return { success: false, error: error.message };
       return { success: true, data: { user: data.user } };
