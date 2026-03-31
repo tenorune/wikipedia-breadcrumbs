@@ -12,51 +12,44 @@ export const authState = {
 };
 
 export async function initAuth(): Promise<void> {
-  // Set up listener FIRST — this catches the OAuth callback token exchange
+  // Set up listener — this catches OAuth callback, sign-in, sign-out events
   supabase.auth.onAuthStateChange((event, session) => {
     console.log("[pwa] Auth state change:", event, session?.user?.email ?? "no user");
     _user = session?.user ?? null;
     _loading = false;
   });
 
-  // If returning from OAuth redirect, the URL hash contains session tokens.
-  // Supabase's `exchangeCodeForSession` or `getSession` should detect this,
-  // but we need to ensure it runs before anything else claims the session.
-  if (window.location.hash.includes("access_token")) {
-    console.log("[pwa] Detected OAuth callback hash, exchanging tokens...");
-    // Supabase JS auto-detects hash params when `detectSessionInUrl` is true (default).
-    // Calling getUser forces the exchange to happen now.
-    const { data, error } = await supabase.auth.getUser();
-    if (error) {
-      console.error("[pwa] Token exchange failed:", error.message);
-      // Clear the stale session and try again from the hash
-      await supabase.auth.signOut({ scope: "local" });
-      // Supabase should now re-detect the hash tokens
-      const { data: retryData } = await supabase.auth.getUser();
-      if (retryData?.user) {
-        _user = retryData.user;
-      }
-    } else if (data?.user) {
-      _user = data.user;
-    }
-    // Clean up the hash from the URL
-    if (window.location.hash) {
-      history.replaceState(null, "", window.location.pathname);
-    }
-    _loading = false;
-    return;
-  }
-
-  // Normal startup — check for existing session
+  // Check for existing session
   const { data } = await supabase.auth.getSession();
   if (data.session?.user) {
     _user = data.session.user;
   }
   _loading = false;
+
+  // If returning from OAuth redirect, Supabase auto-detects the hash tokens
+  // via onAuthStateChange (SIGNED_IN event). We just need to wait for it.
+  if (window.location.hash.includes("access_token")) {
+    console.log("[pwa] Detected OAuth callback, waiting for session...");
+    await new Promise<void>((resolve) => {
+      const timeout = setTimeout(resolve, 3000);
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+        if (event === "SIGNED_IN") {
+          clearTimeout(timeout);
+          subscription.unsubscribe();
+          resolve();
+        }
+      });
+    });
+    // Clean up the hash from the URL
+    const { replaceState } = await import("$app/navigation");
+    replaceState("/settings", {});
+  }
 }
 
 export async function signInWithGoogle(): Promise<{ error?: string }> {
   localStorage.setItem("pendingAuthUpgrade", "true");
+  // Sign out the anonymous session first so it doesn't conflict with the OAuth callback
+  await supabase.auth.signOut({ scope: "local" });
   const { error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: { redirectTo: window.location.origin + "/settings" },
