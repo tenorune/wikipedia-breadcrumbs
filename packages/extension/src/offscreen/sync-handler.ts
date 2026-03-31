@@ -39,11 +39,20 @@ async function ensureInitialized(db: BreadcrumbsDB): Promise<boolean> {
   }
   userId = authData.user.id;
 
-  // Stamp all local trails with userId
+  // Stamp all local trails and visits with userId for sync
   const trails = trailStore(db);
   const allTrails = await db.trails.filter((t) => !t.userId).toArray();
+  console.log(`[breadcrumbs] Stamping ${allTrails.length} trails with userId ${userId}`);
   for (const trail of allTrails) {
     await trails.update(trail.id, { userId, syncStatus: SyncStatus.PendingSync } as any);
+  }
+
+  // Also mark all visits as pending sync
+  const allVisits = await db.visits.filter((v) => v.syncStatus !== SyncStatus.Synced).toArray();
+  console.log(`[breadcrumbs] Marking ${allVisits.length} visits as pending_sync`);
+  const visitOps = (await import("@wikipedia-breadcrumbs/shared")).visitStore(db);
+  for (const visit of allVisits) {
+    await visitOps.update(visit.id, { syncStatus: SyncStatus.PendingSync } as any);
   }
 
   const backend = new SupabaseBackend(supabase, userId);
@@ -74,9 +83,16 @@ export async function handleSyncMessage(
         const ok = await ensureInitialized(db);
         if (!ok) return { success: false, error: "Sync not initialized" };
       }
-      const report = await engine!.syncNow();
-      lastReport = report;
-      return { success: true, data: report };
+      console.log("[breadcrumbs] Starting sync...");
+      try {
+        const report = await engine!.syncNow();
+        console.log("[breadcrumbs] Sync complete:", JSON.stringify(report));
+        lastReport = report;
+        return { success: true, data: report };
+      } catch (err) {
+        console.error("[breadcrumbs] Sync error:", err);
+        return { success: false, error: String(err) };
+      }
     }
     case "getSyncStatus": {
       const lastSyncTime = await stateStore.getLastSyncTime();
