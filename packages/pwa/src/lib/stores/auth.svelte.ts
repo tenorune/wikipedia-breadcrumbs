@@ -12,12 +12,18 @@ export const authState = {
 };
 
 export async function initAuth(): Promise<void> {
-  supabase.auth.onAuthStateChange((_event, session) => {
+  // Set up listener FIRST — this catches the OAuth callback token exchange
+  supabase.auth.onAuthStateChange((event, session) => {
+    console.log("[pwa] Auth state change:", event, session?.user?.email ?? "no user");
     _user = session?.user ?? null;
     _loading = false;
   });
+
+  // Then check for existing session
   const { data } = await supabase.auth.getSession();
-  _user = data.session?.user ?? null;
+  if (data.session?.user) {
+    _user = data.session.user;
+  }
   _loading = false;
 }
 
