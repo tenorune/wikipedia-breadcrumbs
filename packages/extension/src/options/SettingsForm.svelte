@@ -46,8 +46,7 @@
       // Use launchWebAuthFlow to get an ID token
       const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string;
       const redirectUrl = chrome.identity.getRedirectURL();
-      const nonce = crypto.randomUUID();
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&response_type=id_token&redirect_uri=${encodeURIComponent(redirectUrl)}&scope=openid%20email%20profile&nonce=${nonce}`;
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&response_type=id_token&redirect_uri=${encodeURIComponent(redirectUrl)}&scope=openid%20email%20profile`;
 
       const responseUrl = await chrome.identity.launchWebAuthFlow({ url: authUrl, interactive: true });
       const idToken = new URL(responseUrl!.replace("#", "?")).searchParams.get("id_token");
