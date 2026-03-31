@@ -30,7 +30,7 @@
   type SortField = "discovery" | "visited";
   type SortDir = "asc" | "desc";
 
-  const SORT_KEY = `trailDetail_sort_${trailId}`;
+  const SORT_KEY = $derived(`trailDetail_sort_${trailId}`);
 
   function loadSortPrefs(): { field: SortField; dir: SortDir } {
     try {
@@ -197,12 +197,13 @@
         <button class="btn-save" onclick={saveName}>Save</button>
         <button class="btn-cancel" onclick={() => { editingName = false; }}>Cancel</button>
       {:else}
-        <h1 class="trail-name" role="button" tabindex="0"
-          onclick={() => { editingName = true; nameValue = trail?.name ?? ""; }}
-          onkeydown={(e) => e.key === "Enter" && (editingName = true)}
-          title="Click to edit name"
-        >
-          {trailDisplayName}
+        <h1 class="trail-name">
+          <button class="name-edit-trigger"
+            onclick={() => { editingName = true; nameValue = trail?.name ?? ""; }}
+            title="Click to edit name"
+          >
+            {trailDisplayName}
+          </button>
         </h1>
         <button class="star" class:starred={trail.isStarred} onclick={toggleStar}
           title={trail.isStarred ? "Unstar" : "Star"}
@@ -332,11 +333,19 @@
     font-size: 20px;
     font-weight: 700;
     margin: 0;
-    cursor: pointer;
     flex: 1;
     word-break: break-word;
   }
-  .trail-name:hover { text-decoration: underline; }
+  .name-edit-trigger {
+    background: none;
+    border: none;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    padding: 0;
+    text-align: left;
+  }
+  .name-edit-trigger:hover { text-decoration: underline; }
 
   .name-input {
     flex: 1;

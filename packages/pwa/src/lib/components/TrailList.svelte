@@ -107,10 +107,7 @@
 {:else}
   <ul class="list">
     {#each filtered as trail (trail.id)}
-      <li class="item" role="button" tabindex="0"
-        onclick={() => goto("/trails/" + trail.id)}
-        onkeydown={(e) => e.key === "Enter" && goto("/trails/" + trail.id)}
-      >
+      <li class="item">
         <button
           class="star"
           class:starred={trail.isStarred}
@@ -121,7 +118,7 @@
           {trail.isStarred ? "★" : "☆"}
         </button>
 
-        <div class="info">
+        <button class="info" onclick={() => goto("/trails/" + trail.id)}>
           <span class="name">{displayNames[trail.id] ?? "…"}</span>
           <span class="meta">
             {formatDate(trail.updatedAt)}
@@ -129,7 +126,7 @@
               <span class="badge active">Active</span>
             {/if}
           </span>
-        </div>
+        </button>
 
         <button
           class="delete"
@@ -199,6 +196,13 @@
     flex-direction: column;
     gap: 2px;
     overflow: hidden;
+    background: none;
+    border: none;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    padding: 0;
+    text-align: left;
   }
   .name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .meta { font-size: 11px; color: #888; display: flex; align-items: center; gap: 6px; }

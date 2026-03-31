@@ -13,6 +13,11 @@
 
   let editingNote = $state(false);
   let noteValue = $state(visit.note ?? "");
+
+  // Reset noteValue when visit prop changes (e.g. after reload)
+  $effect(() => {
+    noteValue = visit.note ?? "";
+  });
   let showCite = $state(false);
   let citeCopied = $state(false);
 
