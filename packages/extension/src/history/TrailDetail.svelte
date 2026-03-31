@@ -95,16 +95,19 @@
 
   async function handleSplit(afterPosition: number) {
     const [originalId, newTrailId] = await splitTrail(db, trail.id, afterPosition);
+    const isActive = trail.status === "active";
 
-    // Navigate the old trail's tab to its new last page
-    const oldVisits = await visitOps.getByTrailId(originalId);
-    const oldLastVisit = oldVisits[oldVisits.length - 1];
-    if (oldLastVisit) {
-      await chrome.runtime.sendMessage({
-        type: "navigateActiveTrail",
-        trailId: originalId,
-        url: oldLastVisit.url,
-      });
+    if (isActive) {
+      // Navigate the old trail's tab to its new last page
+      const oldVisits = await visitOps.getByTrailId(originalId);
+      const oldLastVisit = oldVisits[oldVisits.length - 1];
+      if (oldLastVisit) {
+        await chrome.runtime.sendMessage({
+          type: "navigateActiveTrail",
+          trailId: originalId,
+          url: oldLastVisit.url,
+        });
+      }
     }
     chrome.runtime.sendMessage({ type: "trailMutated", trailId: originalId });
 
