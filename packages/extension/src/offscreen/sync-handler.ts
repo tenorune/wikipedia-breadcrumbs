@@ -1,12 +1,10 @@
 import {
-  BreadcrumbsDB, SyncEngine, SupabaseBackend, createSupabaseClient,
+  BreadcrumbsDB, SyncEngine, SupabaseBackend,
   SyncStatus,
 } from "@wikipedia-breadcrumbs/shared";
 import type { SyncReport, SyncStateStore } from "@wikipedia-breadcrumbs/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+import { getSupabaseClient } from "./auth-handler.js";
 
 let supabase: SupabaseClient | null = null;
 let engine: SyncEngine | null = null;
@@ -32,12 +30,8 @@ const stateStore: SyncStateStore = {
 
 async function ensureInitialized(db: BreadcrumbsDB): Promise<boolean> {
   if (engine) return true;
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    console.error("[breadcrumbs] Missing Supabase env vars");
-    return false;
-  }
 
-  supabase = createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  supabase = getSupabaseClient();
 
   // Try to restore existing session first
   const { data: sessionData } = await supabase.auth.getSession();
@@ -78,7 +72,7 @@ async function ensureInitialized(db: BreadcrumbsDB): Promise<boolean> {
 
 export async function handleSyncMessage(
   db: BreadcrumbsDB,
-  type: "enableSync" | "disableSync" | "syncNow" | "getSyncStatus"
+  type: "enableSync" | "disableSync" | "syncNow" | "getSyncStatus" | "reinitSync"
 ): Promise<{ success: boolean; data?: unknown; error?: string }> {
   switch (type) {
     case "enableSync": {
@@ -115,6 +109,18 @@ export async function handleSyncMessage(
     case "getSyncStatus": {
       const lastSyncTime = await stateStore.getLastSyncTime();
       return { success: true, data: { lastSyncTime, lastReport, isEnabled: !!engine } };
+    }
+    case "reinitSync": {
+      // Tear down existing engine so ensureInitialized re-runs with new session
+      engine = null;
+      userId = null;
+      const ok = await ensureInitialized(db);
+      if (!ok) return { success: false, error: "Failed to reinitialize sync" };
+      engine!.syncNow().then((report) => {
+        lastReport = report;
+        chrome.runtime.sendMessage({ type: "syncComplete", completedAt: report.completedAt });
+      });
+      return { success: true };
     }
   }
 }
