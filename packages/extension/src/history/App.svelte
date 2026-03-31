@@ -39,8 +39,7 @@
   // Refresh data when the tab becomes visible (user switches back to it)
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
-      if (selectedTrail) {
-        // Re-fetch the trail in case status changed
+      if (selectedTrail?.id) {
         const db = new BreadcrumbsDB();
         trailStore(db).getById(selectedTrail.id).then((trail) => {
           if (trail) selectedTrail = trail;
