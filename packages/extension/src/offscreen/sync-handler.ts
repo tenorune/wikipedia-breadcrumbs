@@ -1,6 +1,6 @@
 import {
   BreadcrumbsDB, SyncEngine, SupabaseBackend, createSupabaseClient,
-  SyncStatus, trailStore,
+  SyncStatus,
 } from "@wikipedia-breadcrumbs/shared";
 import type { SyncReport, SyncStateStore } from "@wikipedia-breadcrumbs/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -56,20 +56,20 @@ async function ensureInitialized(db: BreadcrumbsDB): Promise<boolean> {
     console.log("[breadcrumbs] Created anonymous user:", userId);
   }
 
-  // Stamp all local trails and visits with userId for sync
-  const trails = trailStore(db);
-  const allTrails = await db.trails.filter((t) => !t.userId).toArray();
-  console.log(`[breadcrumbs] Stamping ${allTrails.length} trails with userId ${userId}`);
-  for (const trail of allTrails) {
-    await trails.update(trail.id, { userId, syncStatus: SyncStatus.PendingSync } as any);
+  // Stamp all local trails with current userId
+  // Re-stamps all trails (not just null) in case the anonymous user changed
+  const allTrails = await db.trails.toArray();
+  const trailsToStamp = allTrails.filter((t) => t.userId !== userId);
+  console.log(`[breadcrumbs] Stamping ${trailsToStamp.length} trails with userId ${userId}`);
+  for (const trail of trailsToStamp) {
+    await db.trails.update(trail.id, { userId, syncStatus: SyncStatus.PendingSync });
   }
 
-  // Also mark all visits as pending sync
+  // Ensure all unsynced visits are marked for push
   const allVisits = await db.visits.filter((v) => v.syncStatus !== SyncStatus.Synced).toArray();
   console.log(`[breadcrumbs] Marking ${allVisits.length} visits as pending_sync`);
-  const visitOps = (await import("@wikipedia-breadcrumbs/shared")).visitStore(db);
   for (const visit of allVisits) {
-    await visitOps.update(visit.id, { syncStatus: SyncStatus.PendingSync } as any);
+    await db.visits.update(visit.id, { syncStatus: SyncStatus.PendingSync });
   }
 
   const backend = new SupabaseBackend(supabase, userId);
