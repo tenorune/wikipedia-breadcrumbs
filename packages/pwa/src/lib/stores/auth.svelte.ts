@@ -12,8 +12,6 @@ export const authState = {
 };
 
 export async function initAuth(): Promise<void> {
-  const isOAuthCallback = window.location.hash.includes("access_token");
-
   // Set up persistent listener
   supabase.auth.onAuthStateChange((event, session) => {
     console.log("[pwa] Auth state change:", event, session?.user?.email ?? "no user");
@@ -21,33 +19,38 @@ export async function initAuth(): Promise<void> {
     _loading = false;
   });
 
-  if (isOAuthCallback) {
-    console.log("[pwa] Detected OAuth callback, waiting for session...");
-    // Wait for Supabase to process the hash and fire SIGNED_IN
-    await new Promise<void>((resolve) => {
-      const timeout = setTimeout(() => {
-        console.log("[pwa] OAuth callback timeout — session not established");
-        resolve();
-      }, 5000);
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-        if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-          console.log("[pwa] OAuth session established");
-          clearTimeout(timeout);
-          subscription.unsubscribe();
-          resolve();
-        }
+  // Check if returning from OAuth redirect — hash contains access_token + refresh_token
+  if (window.location.hash.includes("access_token")) {
+    console.log("[pwa] Detected OAuth callback, extracting tokens...");
+    const params = new URLSearchParams(window.location.hash.substring(1));
+    const accessToken = params.get("access_token");
+    const refreshToken = params.get("refresh_token");
+
+    if (accessToken && refreshToken) {
+      // Manually set the session from the hash tokens
+      const { data, error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
       });
-    });
-    // Clean URL
-    window.history.replaceState({}, "", window.location.pathname);
-  } else {
-    // Normal startup — check existing session
-    const { data } = await supabase.auth.getSession();
-    if (data.session?.user) {
-      _user = data.session.user;
+      if (error) {
+        console.error("[pwa] Failed to set session from OAuth tokens:", error.message);
+      } else {
+        console.log("[pwa] OAuth session established:", data.user?.email);
+        _user = data.user;
+      }
     }
+
+    // Clean the hash from the URL
+    window.history.replaceState({}, "", window.location.pathname);
+    _loading = false;
+    return;
   }
 
+  // Normal startup — check existing session
+  const { data } = await supabase.auth.getSession();
+  if (data.session?.user) {
+    _user = data.session.user;
+  }
   _loading = false;
 }
 
