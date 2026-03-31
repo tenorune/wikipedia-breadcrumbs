@@ -1,4 +1,5 @@
 import { getSettings } from "../shared/settings.js";
+import type { ExtensionSettings } from "../shared/settings.js";
 import { getDeviceId } from "../shared/device-id.js";
 import { TrailManager } from "./trail-manager.js";
 import { handleNavigation } from "./capture.js";
@@ -6,13 +7,18 @@ import { parseTabIdFromAlarm, clearIdleAlarm } from "./alarm-manager.js";
 import { sendToOffscreen } from "./offscreen.js";
 import type { BackgroundMessage } from "../shared/messaging.js";
 
+const SYNC_ALARM = "sync-interval";
+
 const trailManager = new TrailManager();
 let deviceId = "";
-let settings = { idleTimeoutMinutes: 30, captureEnabled: true };
+let settings: ExtensionSettings = { idleTimeoutMinutes: 30, captureEnabled: true, syncEnabled: false };
 
 async function initialize() {
   deviceId = await getDeviceId();
   settings = await getSettings();
+  if (settings.syncEnabled) {
+    chrome.alarms.create(SYNC_ALARM, { periodInMinutes: 5 });
+  }
   // Don't reconcile immediately — tabs may not be restored yet.
   // Wait for the first tab to finish loading, which signals the browser
   // has restored its session.
@@ -89,6 +95,16 @@ initialize();
 chrome.storage.onChanged.addListener((changes) => {
   if (changes.idleTimeoutMinutes) settings.idleTimeoutMinutes = changes.idleTimeoutMinutes.newValue;
   if (changes.captureEnabled) settings.captureEnabled = changes.captureEnabled.newValue;
+  if (changes.syncEnabled) {
+    settings.syncEnabled = changes.syncEnabled.newValue;
+    if (changes.syncEnabled.newValue) {
+      chrome.alarms.create(SYNC_ALARM, { periodInMinutes: 5 });
+      sendToOffscreen({ type: "enableSync" });
+    } else {
+      chrome.alarms.clear(SYNC_ALARM);
+      sendToOffscreen({ type: "disableSync" });
+    }
+  }
 });
 
 chrome.webNavigation.onCommitted.addListener(async (details) => {
@@ -141,6 +157,10 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === "reconcile-trails") {
     await reconcileActiveTrails();
+    return;
+  }
+  if (alarm.name === SYNC_ALARM) {
+    await sendToOffscreen({ type: "syncNow" });
     return;
   }
   const tabId = parseTabIdFromAlarm(alarm.name);
@@ -304,6 +324,14 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
     case "trailDeleted": {
       trailManager.removeByTrailId(message.trailId);
       sendResponse({ ok: true });
+      break;
+    }
+    case "getSyncStatus":
+    case "syncNow":
+    case "enableSync":
+    case "disableSync": {
+      const result = await sendToOffscreen(message as any);
+      sendResponse(result);
       break;
     }
   }
