@@ -7,19 +7,23 @@
   let syncStatus: any = $state(null);
 
   async function loadSyncStatus() {
-    const response = await chrome.runtime.sendMessage({ type: "getSyncStatus" });
-    if (response?.success) syncStatus = response.data;
+    // Read lastSyncTime directly from chrome.storage.local — no message chain needed
+    const { lastSyncTime } = await chrome.storage.local.get("lastSyncTime");
+    syncStatus = { lastSyncTime: lastSyncTime ?? null };
   }
 
   async function handleSyncNow() {
     syncing = true;
-    const beforeSync = syncStatus?.lastSyncTime ?? null;
-    await chrome.runtime.sendMessage({ type: "syncNow" });
-    // Poll until lastSyncTime changes (meaning sync completed)
+    const { lastSyncTime: beforeSync } = await chrome.storage.local.get("lastSyncTime");
+    chrome.runtime.sendMessage({ type: "syncNow" }); // fire and forget
+    // Poll chrome.storage.local directly until lastSyncTime changes
     for (let i = 0; i < 30; i++) {
       await new Promise((r) => setTimeout(r, 1000));
-      await loadSyncStatus();
-      if (syncStatus?.lastSyncTime && syncStatus.lastSyncTime !== beforeSync) break;
+      const { lastSyncTime } = await chrome.storage.local.get("lastSyncTime");
+      if (lastSyncTime && lastSyncTime !== beforeSync) {
+        syncStatus = { lastSyncTime };
+        break;
+      }
     }
     syncing = false;
   }

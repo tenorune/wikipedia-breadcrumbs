@@ -23,10 +23,15 @@ export function trailStore(db: BreadcrumbsDB) {
     },
     async update(id: string, changes: Partial<Omit<Trail, "id">>): Promise<Trail | undefined> {
       const updatedAt = new Date().toISOString();
-      const current = await db.trails.get(id);
-      const syncUpdate = current?.syncStatus === SyncStatus.Synced
-        ? SyncStatus.PendingSync : current?.syncStatus;
-      await db.trails.update(id, { ...changes, updatedAt, syncStatus: syncUpdate });
+      // If caller explicitly sets syncStatus, respect it (e.g. sync engine marking as synced)
+      // Otherwise, auto-mark synced records as pending_sync since they were modified
+      let syncStatus = (changes as any).syncStatus;
+      if (syncStatus === undefined) {
+        const current = await db.trails.get(id);
+        syncStatus = current?.syncStatus === SyncStatus.Synced
+          ? SyncStatus.PendingSync : current?.syncStatus;
+      }
+      await db.trails.update(id, { ...changes, updatedAt, syncStatus });
       return db.trails.get(id);
     },
     async finalize(id: string): Promise<Trail | undefined> {
