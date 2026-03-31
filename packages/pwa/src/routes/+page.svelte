@@ -3,6 +3,7 @@
   import { trailStore, visitStore } from "@wikipedia-breadcrumbs/shared";
   import { db } from "$lib/stores/db";
   import { syncState } from "$lib/stores/sync.svelte";
+  import { authState } from "$lib/stores/auth.svelte";
 
   const ts = trailStore(db);
   const vs = visitStore(db);
@@ -70,6 +71,10 @@
   </div>
 </div>
 
+{#if !authState.isAuthenticated}
+  <a href="/settings" class="sign-in-prompt">Sign in to sync across devices →</a>
+{/if}
+
 <section class="recent">
   <h2>Recent Trails</h2>
   {#if recentTrails.length === 0}
@@ -132,4 +137,5 @@
   .empty { color: #888; font-size: 13px; margin: 0 0 12px; }
   .see-all { font-size: 13px; color: #0066cc; text-decoration: none; }
   .see-all:hover { text-decoration: underline; }
+  .sign-in-prompt { display: block; text-align: center; padding: 8px; color: #0066cc; text-decoration: none; font-size: 13px; margin-top: 12px; }
 </style>

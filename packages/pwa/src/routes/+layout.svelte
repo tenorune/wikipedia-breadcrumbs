@@ -1,12 +1,19 @@
 <script lang="ts">
   import TabBar from "$lib/components/TabBar.svelte";
   import { initSync } from "$lib/stores/sync.svelte";
+  import { initAuth, authState } from "$lib/stores/auth.svelte";
+  import { upgradeToAuthenticatedUser } from "$lib/stores/sync.svelte";
   import { onMount } from "svelte";
 
   let { children } = $props();
 
-  onMount(() => {
-    initSync();
+  onMount(async () => {
+    await initAuth();
+    if (authState.isAuthenticated && authState.user && localStorage.getItem("pendingAuthUpgrade")) {
+      await upgradeToAuthenticatedUser(authState.user.id);
+      localStorage.removeItem("pendingAuthUpgrade");
+    }
+    await initSync();
   });
 </script>
 
