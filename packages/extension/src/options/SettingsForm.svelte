@@ -6,6 +6,13 @@
   let syncing = $state(false);
   let syncStatus: any = $state(null);
 
+  let authStatus: any = $state(null);
+  let authEmail = $state("");
+  let authPassword = $state("");
+  let authIsSignUp = $state(false);
+  let authError = $state("");
+  let authSubmitting = $state(false);
+
   async function loadSyncStatus() {
     // Read lastSyncTime directly from chrome.storage.local — no message chain needed
     const { lastSyncTime } = await chrome.storage.local.get("lastSyncTime");
@@ -27,6 +34,62 @@
     }
     syncing = false;
   }
+
+  async function loadAuthStatus() {
+    const response = await chrome.runtime.sendMessage({ type: "getAuthStatus" });
+    if (response?.success) authStatus = response.data;
+  }
+
+  async function handleGoogleSignIn() {
+    authError = "";
+    try {
+      // Use launchWebAuthFlow to get an ID token
+      const clientId = "YOUR_GOOGLE_CLIENT_ID"; // Hardcoded for now — needs manual update
+      const redirectUrl = chrome.identity.getRedirectURL();
+      const nonce = crypto.randomUUID();
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&response_type=id_token&redirect_uri=${encodeURIComponent(redirectUrl)}&scope=openid%20email%20profile&nonce=${nonce}`;
+
+      const responseUrl = await chrome.identity.launchWebAuthFlow({ url: authUrl, interactive: true });
+      const idToken = new URL(responseUrl!.replace("#", "?")).searchParams.get("id_token");
+      if (!idToken) {
+        authError = "No ID token received from Google";
+        return;
+      }
+
+      const response = await chrome.runtime.sendMessage({ type: "signInWithGoogle", idToken });
+      if (response?.success) {
+        await loadAuthStatus();
+        await chrome.runtime.sendMessage({ type: "reinitSync" });
+      } else {
+        authError = response?.error ?? "Sign-in failed";
+      }
+    } catch (err) {
+      authError = String(err);
+    }
+  }
+
+  async function handleEmailAuth() {
+    authError = "";
+    authSubmitting = true;
+    const type = authIsSignUp ? "signUpWithEmail" : "signInWithEmail";
+    const response = await chrome.runtime.sendMessage({
+      type, email: authEmail, password: authPassword,
+    });
+    if (response?.success) {
+      await loadAuthStatus();
+      await chrome.runtime.sendMessage({ type: "reinitSync" });
+    } else {
+      authError = response?.error ?? "Auth failed";
+    }
+    authSubmitting = false;
+  }
+
+  async function handleSignOut() {
+    await chrome.runtime.sendMessage({ type: "signOut" });
+    await loadAuthStatus();
+  }
+
+  loadAuthStatus();
 
   // Load sync status on mount
   loadSyncStatus();
@@ -58,6 +121,28 @@
         Capture enabled
       </label>
       <p class="help">When disabled, no new visits are recorded.</p>
+    </div>
+    <div class="auth-section">
+      <h3>Account</h3>
+      {#if authStatus?.isAuthenticated}
+        <p>Signed in as <strong>{authStatus.email}</strong></p>
+        <button type="button" onclick={handleSignOut}>Sign out</button>
+      {:else}
+        <p class="help">{authStatus?.isAnonymous ? "Sign in to sync across devices." : "Sign in to enable sync."}</p>
+        <button type="button" onclick={handleGoogleSignIn}>Sign in with Google</button>
+        <div style="margin: 8px 0; text-align: center; color: #999; font-size: 12px;">or</div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <input type="email" placeholder="Email" bind:value={authEmail} />
+          <input type="password" placeholder="Password" bind:value={authPassword} />
+          <button type="button" onclick={handleEmailAuth} disabled={authSubmitting}>
+            {authSubmitting ? "..." : authIsSignUp ? "Sign up" : "Sign in"}
+          </button>
+        </div>
+        <button type="button" style="background: none; border: none; color: #0066cc; cursor: pointer; font-size: 12px; margin-top: 4px;" onclick={() => { authIsSignUp = !authIsSignUp; authError = ""; }}>
+          {authIsSignUp ? "Already have an account? Sign in" : "Need an account? Sign up"}
+        </button>
+        {#if authError}<p style="color: #dc3545; font-size: 12px;">{authError}</p>{/if}
+      {/if}
     </div>
     <hr />
 
