@@ -68,9 +68,12 @@ export async function handleSyncMessage(
     case "enableSync": {
       const ok = await ensureInitialized(db);
       if (!ok) return { success: false, error: "Failed to initialize sync" };
-      const report = await engine!.syncNow();
-      lastReport = report;
-      return { success: true, data: report };
+      // Start sync in background, don't block the response
+      engine!.syncNow().then((report) => {
+        lastReport = report;
+        console.log("[breadcrumbs] enableSync sync complete:", JSON.stringify(report));
+      }).catch((err) => console.error("[breadcrumbs] enableSync sync error:", err));
+      return { success: true, data: { started: true } };
     }
     case "disableSync": {
       engine = null;
@@ -84,15 +87,12 @@ export async function handleSyncMessage(
         if (!ok) return { success: false, error: "Sync not initialized" };
       }
       console.log("[breadcrumbs] Starting sync...");
-      try {
-        const report = await engine!.syncNow();
-        console.log("[breadcrumbs] Sync complete:", JSON.stringify(report));
+      // Don't block the response — sync runs async, poll getSyncStatus for results
+      engine!.syncNow().then((report) => {
         lastReport = report;
-        return { success: true, data: report };
-      } catch (err) {
-        console.error("[breadcrumbs] Sync error:", err);
-        return { success: false, error: String(err) };
-      }
+        console.log("[breadcrumbs] Sync complete:", JSON.stringify(report));
+      }).catch((err) => console.error("[breadcrumbs] Sync error:", err));
+      return { success: true, data: { started: true } };
     }
     case "getSyncStatus": {
       const lastSyncTime = await stateStore.getLastSyncTime();

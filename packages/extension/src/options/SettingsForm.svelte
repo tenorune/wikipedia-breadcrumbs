@@ -14,7 +14,12 @@
   async function handleSyncNow() {
     syncing = true;
     await chrome.runtime.sendMessage({ type: "syncNow" });
-    await loadSyncStatus();
+    // Poll for completion — sync runs async in offscreen
+    for (let i = 0; i < 30; i++) {
+      await new Promise((r) => setTimeout(r, 1000));
+      await loadSyncStatus();
+      if (syncStatus?.lastReport?.completedAt) break;
+    }
     syncing = false;
   }
 
