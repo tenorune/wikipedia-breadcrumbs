@@ -36,13 +36,11 @@ export async function enableSync(): Promise<void> {
   const { data: sessionData } = await supabase.auth.getSession();
   if (sessionData?.session?.user) {
     userId = sessionData.session.user.id;
+    console.log("[pwa] enableSync: using existing session, userId:", userId.slice(0, 8));
   } else {
-    const { data, error } = await supabase.auth.signInAnonymously();
-    if (error || !data.user) {
-      console.error("[pwa] Anonymous auth failed:", error);
-      return;
-    }
-    userId = data.user.id;
+    // No session — require sign-in, don't create anonymous user
+    console.log("[pwa] enableSync: no session, sync requires sign-in");
+    return;
   }
 
   // Stamp local trails with userId
