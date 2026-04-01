@@ -30,5 +30,5 @@
   .icon-spacer { font-size: 20px; padding: 4px; visibility: hidden; }
   .back { background: none; border: none; color: #0066cc; cursor: pointer; padding: 0; margin-bottom: 16px; font-size: 14px; display: block; }
   .back:hover { text-decoration: underline; }
-  h2 { margin: 0 0 20px; font-size: 18px; color: #666; font-weight: normal; }
+  h2 { margin: 0 0 20px; }
 </style>
