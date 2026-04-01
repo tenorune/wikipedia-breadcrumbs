@@ -121,7 +121,7 @@
         <input type="checkbox" bind:checked={settings.syncEnabled} onchange={autoSave} />
         Sync to cloud
       </label>
-      <p class="help">Sync trails to Supabase.</p>
+      <p class="help">Back up and sync trails across devices.</p>
     </div>
 
     {#if settings.syncEnabled}
@@ -132,8 +132,24 @@
         {#if authStatus?.isAuthenticated}
           <p>Signed in as <strong>{authStatus.email}</strong></p>
           <button type="button" class="btn-secondary" onclick={handleSignOut}>Sign out</button>
+
+          <hr />
+
+          <div class="section">
+            <h3>Sync</h3>
+            <button type="button" class="btn-sync" onclick={handleSyncNow} disabled={syncing}>
+              {syncing ? "Syncing..." : "Sync now"}
+            </button>
+            {#if syncStatus}
+              <p class="help">
+                Last synced: {syncStatus.lastSyncTime
+                  ? new Date(syncStatus.lastSyncTime).toLocaleString(undefined, { year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" })
+                  : "Never"}
+              </p>
+            {/if}
+          </div>
         {:else}
-          <p class="help">{authStatus?.isAnonymous ? "Sign in to sync across devices." : "Sign in to enable sync."}</p>
+          <p class="help" style="margin-bottom: 12px;">Sign in to enable cloud backup and sync.</p>
           <button type="button" class="btn-google" onclick={handleGoogleSignIn}>Sign in with Google</button>
           <div class="divider"><span>or</span></div>
           <div class="email-form">
@@ -147,22 +163,6 @@
             {authIsSignUp ? "Already have an account? Sign in" : "Need an account? Sign up"}
           </button>
           {#if authError}<p class="error">{authError}</p>{/if}
-        {/if}
-      </div>
-
-      <hr />
-
-      <div class="section">
-        <h3>Sync</h3>
-        <button type="button" class="btn-sync" onclick={handleSyncNow} disabled={syncing}>
-          {syncing ? "Syncing..." : "Sync now"}
-        </button>
-        {#if syncStatus}
-          <p class="help">
-            Last synced: {syncStatus.lastSyncTime
-              ? new Date(syncStatus.lastSyncTime).toLocaleString(undefined, { year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" })
-              : "Never"}
-          </p>
         {/if}
       </div>
     {/if}
