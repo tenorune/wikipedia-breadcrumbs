@@ -4,7 +4,7 @@
   import { getDeviceId } from "$lib/stores/device-id";
   import { onMount } from "svelte";
 
-  let syncToggle = $state(false);
+  let syncEnabled = $state(localStorage.getItem("syncEnabled") === "true");
   let deviceId = $state("");
 
   let email = $state("");
@@ -13,28 +13,30 @@
   let authError = $state("");
   let authSubmitting = $state(false);
 
-  // Checkbox should be checked if sync is enabled OR user is authenticated
-  const syncEnabled = $derived(syncToggle || syncState.syncEnabled || authState.isAuthenticated);
-
   onMount(() => {
-    syncToggle = syncState.syncEnabled || authState.isAuthenticated;
     deviceId = getDeviceId();
+  });
+
+  // Persist syncEnabled to localStorage whenever it changes
+  $effect(() => {
+    localStorage.setItem("syncEnabled", String(syncEnabled));
+    if (!syncEnabled) {
+      disableSync();
+    }
   });
 
   function formatDate(iso: string): string {
     return new Date(iso).toLocaleString(undefined, {
-      year: "numeric", month: "short", day: "numeric",
+      year: "numeric", month: "long", day: "numeric",
       hour: "numeric", minute: "2-digit",
     });
   }
 
-  async function handleSyncToggle(e: Event) {
-    const checked = (e.target as HTMLInputElement).checked;
-    syncToggle = checked;
-    if (!checked) {
+  $effect(() => {
+    if (!syncEnabled) {
       disableSync();
     }
-  }
+  });
 
   async function handleGoogleSignIn() {
     authError = "";
@@ -54,7 +56,7 @@
       localStorage.setItem("pendingAuthUpgrade", "true");
       await upgradeToAuthenticatedUser(authState.user.id);
       localStorage.removeItem("pendingAuthUpgrade");
-      syncToggle = true;
+      syncEnabled = true;
     }
     authSubmitting = false;
   }
@@ -70,7 +72,7 @@
 
 <div class="field">
   <label class="toggle-label">
-    <input type="checkbox" checked={syncEnabled} onchange={handleSyncToggle} />
+    <input type="checkbox" bind:checked={syncEnabled} />
     Sync to cloud
   </label>
   <p class="help">Back up and sync trails across devices.</p>
