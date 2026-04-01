@@ -12,9 +12,9 @@
   let { visit, onUpdateNote, onDelete, onSplit }: Props = $props();
 
   let editingNote = $state(false);
-  let noteValue = $state(visit.note ?? "");
+  let noteValue = $state("");
 
-  // Reset noteValue when visit prop changes (e.g. after reload)
+  // Sync noteValue with visit prop (initial + updates)
   $effect(() => {
     noteValue = visit.note ?? "";
   });
