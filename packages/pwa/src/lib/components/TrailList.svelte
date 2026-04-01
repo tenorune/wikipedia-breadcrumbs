@@ -12,6 +12,7 @@
 
   let trails = $state<Trail[]>([]);
   let displayNames = $state<Record<string, string>>({});
+  let visitCounts = $state<Record<string, number>>({});
   let searchTexts = $state<Record<string, string>>({});
   let search = $state("");
   let sortMode = $state<SortMode>("recent");
@@ -20,10 +21,12 @@
     const all = await ts.getAll();
     trails = all;
     const names: Record<string, string> = {};
+    const counts: Record<string, number> = {};
     const texts: Record<string, string> = {};
     await Promise.all(
       all.map(async (t) => {
         const visits = await vs.getByTrailId(t.id);
+        counts[t.id] = visits.length;
         if (t.name) {
           names[t.id] = t.name;
         } else if (visits.length === 0) {
@@ -42,6 +45,7 @@
       })
     );
     displayNames = names;
+    visitCounts = counts;
     searchTexts = texts;
   }
 
@@ -86,8 +90,8 @@
   }
 
   function formatDate(iso: string): string {
-    return new Date(iso).toLocaleString(undefined, {
-      year: "numeric", month: "short", day: "numeric",
+    return new Date(iso).toLocaleDateString(undefined, {
+      year: "numeric", month: "long", day: "numeric",
     });
   }
 
@@ -127,7 +131,7 @@
         <button class="info" onclick={() => goto("/trails/" + trail.id)}>
           <span class="name">{displayNames[trail.id] ?? "…"}</span>
           <span class="meta">
-            {formatDate(trail.updatedAt)}
+            {visitCounts[trail.id] ?? 0} pages &middot; {formatDate(trail.updatedAt)}
             {#if trail.status === TrailStatus.Active}
               <span class="badge active">Active</span>
             {/if}

@@ -181,7 +181,7 @@
   }
 
   function formatDate(iso: string): string {
-    return new Date(iso).toLocaleDateString();
+    return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
   }
 
   loadVisits();
@@ -205,7 +205,7 @@
 
   <div class="meta">
     <span>{visits.length} pages</span>
-    <span> &middot; {formatDate(trail.startedAt)}</span>
+    <span> &middot; Started {formatDate(trail.startedAt)}</span>
     {#if trail.endedAt}<span> — {formatDate(trail.endedAt)}</span>{/if}
     {#if trail.status === "active"}<span class="active-badge">Active</span>{/if}
   </div>
@@ -218,7 +218,7 @@
     {:else if trailNote}
       <p class="trail-note" onclick={() => editingNote = true}>{trailNote}</p>
     {:else}
-      <button class="add-note" onclick={() => editingNote = true}>+ Add note</button>
+      <button class="add-note" onclick={() => editingNote = true}>+ Add trail note</button>
     {/if}
   </div>
 
