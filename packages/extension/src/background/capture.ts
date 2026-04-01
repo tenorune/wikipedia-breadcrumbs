@@ -57,14 +57,19 @@ export async function handleNavigation(
 
   const { tabId, transitionType, transitionQualifiers } = details;
 
+  console.log(`[breadcrumbs] capture: tabId=${tabId} url=${parsed.cleanUrl.slice(0, 60)} transition=${transitionType}`);
+
   // Try in-memory first, then recover from DB if SW was restarted
   let current = trailManager.getActive(tabId);
+  console.log(`[breadcrumbs] capture: in-memory entry=${!!current}${current ? ` trail=${current.trailId.slice(0, 8)}` : ""}`);
   if (!current) {
     // Try by tabId first (SW restart, same session)
     let recovered = await sendToOffscreen({ type: "getActiveTrailForTab", tabId });
+    console.log(`[breadcrumbs] capture: tabId recovery=${recovered.success && !!recovered.data}`);
     // Fall back to URL match (browser restart, tab IDs changed)
     if ((!recovered.success || !recovered.data) && parsed) {
       recovered = await sendToOffscreen({ type: "getActiveTrailByUrl", url: parsed.cleanUrl });
+      console.log(`[breadcrumbs] capture: URL recovery=${recovered.success && !!recovered.data}`);
     }
     if (recovered.success && recovered.data) {
       const { trail, lastVisit, visitCount } = recovered.data as any;
@@ -100,9 +105,9 @@ export async function handleNavigation(
   };
 
   const detection = shouldStartNewTrail(context);
+  console.log(`[breadcrumbs] capture: detection.isNew=${detection.isNew}${detection.isNew ? ` reason=${(detection as any).reason}` : ""} msSinceLastVisit=${current ? Date.now() - current.lastVisitTimestamp : "Infinity"} idleTimeoutMs=${idleTimeoutMinutes * 60 * 1000}`);
 
   if (detection.isNew || !current) {
-    // New trail
     const trail = createTrail({
       startReason: detection.isNew ? detection.reason : StartReason.AutoNewTab,
       deviceId,

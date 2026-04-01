@@ -62,15 +62,29 @@ async function reconcileActiveTrails() {
         continue;
       }
 
-      // Try to match by exact URL, then by articleId in any open tab URL
-      const matchTab = urlToTab.get(lastVisit.url)
-        ?? [...urlToTab.entries()].find(([url]) => {
-          // Match if the article slug appears in the tab URL
-          try {
-            const tabPath = new URL(url).pathname;
-            return tabPath.includes(lastVisit.articleId);
-          } catch { return false; }
+      // Try to match by any visit URL in the trail, not just the last one
+      let matchTab: chrome.tabs.Tab | undefined;
+      // Check last visit first (most likely match)
+      matchTab = urlToTab.get(lastVisit.url);
+      // Then check by articleId substring in tab URLs
+      if (!matchTab) {
+        matchTab = [...urlToTab.entries()].find(([url]) => {
+          try { return new URL(url).pathname.includes(lastVisit.articleId); }
+          catch { return false; }
         })?.[1];
+      }
+      // Then check ALL visit URLs in the trail against open tabs
+      if (!matchTab) {
+        for (const visit of visits) {
+          matchTab = urlToTab.get(visit.url);
+          if (matchTab) break;
+          matchTab = [...urlToTab.entries()].find(([url]) => {
+            try { return new URL(url).pathname.includes(visit.articleId); }
+            catch { return false; }
+          })?.[1];
+          if (matchTab) break;
+        }
+      }
 
       console.log("[breadcrumbs] reconcile: trail", trail.id.slice(0, 8), "matched tab:", matchTab?.id ?? "NONE");
 
