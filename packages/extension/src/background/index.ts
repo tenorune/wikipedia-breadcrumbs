@@ -57,8 +57,7 @@ async function reconcileActiveTrails() {
       const lastVisit = visits[visits.length - 1];
       console.log("[breadcrumbs] reconcile: trail", trail.id.slice(0, 8), "lastVisit url:", lastVisit?.url?.slice(0, 80), "articleId:", lastVisit?.articleId);
       if (!lastVisit) {
-        console.log("[breadcrumbs] reconcile: no visits, finalizing trail", trail.id.slice(0, 8));
-        await sendToOffscreen({ type: "finalizeTrail", trailId: trail.id });
+        console.log("[breadcrumbs] reconcile: no visits, skipping trail", trail.id.slice(0, 8));
         continue;
       }
 
@@ -98,9 +97,9 @@ async function reconcileActiveTrails() {
           lastVisitUrl: lastVisit.url,
         });
         urlToTab.delete(matchTab.url!);
-      } else {
-        await sendToOffscreen({ type: "finalizeTrail", trailId: trail.id });
       }
+      // Don't finalize unmatched trails — the tab may still be open on a page
+      // not yet recorded. They'll get finalized by tab close or idle timeout.
     }
     console.log("[breadcrumbs] reconcile: done. trailManager entries:", [...Array(1000).keys()].filter(i => trailManager.getActive(i)).length);
   } catch (err) {
