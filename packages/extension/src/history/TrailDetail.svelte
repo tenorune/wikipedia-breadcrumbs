@@ -134,6 +134,10 @@
     editingNote = false;
   }
 
+  async function autoSaveNote() {
+    await trailOps.update(trail.id, { note: trailNote.trim() || null });
+  }
+
   async function openMergePicker() {
     const others = (await trailOps.getAll()).filter((t) => t.id !== trail.id);
     const options: { trail: Trail; label: string }[] = [];
@@ -201,11 +205,8 @@
 
   <div class="note-section">
     {#if editingNote}
-      <textarea bind:value={trailNote} placeholder="Add a note about this trail..." rows="3"></textarea>
-      <div class="note-actions">
-        <button onclick={saveNote}>Save</button>
-        <button class="cancel-note" onclick={() => { editingNote = false; trailNote = trail.note ?? ""; }}>Cancel</button>
-      </div>
+      <textarea bind:value={trailNote} placeholder="Add a note about this trail..." rows="3"
+        onblur={saveNote} oninput={autoSaveNote}></textarea>
     {:else if trailNote}
       <p class="trail-note" onclick={() => editingNote = true}>{trailNote}</p>
     {:else}

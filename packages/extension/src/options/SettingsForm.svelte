@@ -2,7 +2,6 @@
   import { getSettings, updateSettings, type ExtensionSettings } from "../shared/settings.js";
 
   let settings: ExtensionSettings | null = $state(null);
-  let saved = $state(false);
   let syncing = $state(false);
   let syncStatus: any = $state(null);
 
@@ -103,26 +102,23 @@
     settings = await getSettings();
   }
 
-  async function save() {
-    if (!settings) return;
-    await updateSettings(settings);
-    saved = true;
-    setTimeout(() => saved = false, 2000);
+  async function autoSave() {
+    if (settings) await updateSettings(settings);
   }
 
   load();
 </script>
 
 {#if settings}
-  <form onsubmit={(e) => { e.preventDefault(); save(); }}>
+  <div>
     <div class="field">
       <label for="idle-timeout">Idle timeout (minutes)</label>
-      <input id="idle-timeout" type="number" min="5" max="120" bind:value={settings.idleTimeoutMinutes} />
+      <input id="idle-timeout" type="number" min="5" max="120" bind:value={settings.idleTimeoutMinutes} onchange={autoSave} />
       <p class="help">A new trail starts after this many minutes of no Wikipedia navigation in a tab.</p>
     </div>
     <div class="field">
       <label>
-        <input type="checkbox" bind:checked={settings.captureEnabled} />
+        <input type="checkbox" bind:checked={settings.captureEnabled} onchange={autoSave} />
         Capture enabled
       </label>
       <p class="help">When disabled, no new visits are recorded.</p>
@@ -174,9 +170,7 @@
       </div>
     {/if}
 
-    <button type="submit">Save</button>
-    {#if saved}<span class="saved">Saved!</span>{/if}
-  </form>
+  </div>
 {:else}
   <p>Loading...</p>
 {/if}
@@ -188,7 +182,6 @@
   .help { font-size: 13px; color: #666; margin: 4px 0 0; }
   button { padding: 8px 20px; background: #0066cc; color: white; border: none; border-radius: 4px; cursor: pointer; }
   button:hover { background: #0052a3; }
-  .saved { color: #28a745; margin-left: 12px; }
   .sync-btn { padding: 8px 20px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
   .sync-btn:hover { background: #218838; }
   .sync-btn:disabled { background: #ccc; cursor: not-allowed; }
