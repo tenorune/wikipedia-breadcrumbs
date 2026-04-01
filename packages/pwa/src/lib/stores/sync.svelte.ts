@@ -95,6 +95,10 @@ export async function upgradeToAuthenticatedUser(newUserId: string): Promise<voi
     await db.visits.update(visit.id, { syncStatus: SyncStatus.PendingSync });
   }
 
+  // Reset lastSyncTime to force a full pull under the new account
+  localStorage.removeItem("lastSyncTime");
+  _lastSyncTime = null;
+
   // Reinitialize sync engine with new userId
   userId = newUserId;
   const backend = new SupabaseBackend(supabase, newUserId);
