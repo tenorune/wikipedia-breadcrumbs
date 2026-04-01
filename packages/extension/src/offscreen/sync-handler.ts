@@ -76,6 +76,8 @@ export async function handleSyncMessage(
 ): Promise<{ success: boolean; data?: unknown; error?: string }> {
   switch (type) {
     case "enableSync": {
+      // Reset lastSyncTime on enable to force a full pull
+      lastSyncTime = null;
       const ok = await ensureInitialized(db);
       if (!ok) return { success: false, error: "Failed to initialize sync" };
       // Start sync in background, don't block the response
@@ -114,6 +116,8 @@ export async function handleSyncMessage(
       // Tear down existing engine so ensureInitialized re-runs with new session
       engine = null;
       userId = null;
+      // Reset lastSyncTime to force a full pull under the new/refreshed account
+      lastSyncTime = null;
       const ok = await ensureInitialized(db);
       if (!ok) return { success: false, error: "Failed to reinitialize sync" };
       engine!.syncNow().then((report) => {
