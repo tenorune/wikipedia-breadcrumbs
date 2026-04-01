@@ -92,6 +92,13 @@
     editingName = false;
   }
 
+  async function autoSaveName() {
+    if (nameText.trim()) {
+      await trailOps.update(trail.id, { name: nameText.trim() });
+      displayName = nameText.trim();
+    }
+  }
+
   async function toggleStar() {
     isStarred = !isStarred;
     await trailOps.update(trail.id, { isStarred });
@@ -185,8 +192,8 @@
 
   <div class="header">
     {#if editingName}
-      <input bind:value={nameText} onkeydown={(e) => e.key === "Enter" && saveName()} autofocus />
-      <button onclick={saveName}>Save</button>
+      <!-- svelte-ignore a11y_autofocus -->
+      <input bind:value={nameText} onkeydown={(e) => e.key === "Enter" && saveName()} onblur={saveName} oninput={autoSaveName} autofocus />
     {:else}
       <h2 onclick={() => { editingName = true; nameText = displayName ?? ""; }}>
         {displayName ?? (visits.length > 0 ? `${visits[0].title} → ${visits[visits.length - 1].title}` : "New trail")}
@@ -205,8 +212,9 @@
 
   <div class="note-section">
     {#if editingNote}
+      <!-- svelte-ignore a11y_autofocus -->
       <textarea bind:value={trailNote} placeholder="Add a note about this trail..." rows="3"
-        onblur={saveNote} oninput={autoSaveNote}></textarea>
+        onblur={saveNote} oninput={autoSaveNote} autofocus></textarea>
     {:else if trailNote}
       <p class="trail-note" onclick={() => editingNote = true}>{trailNote}</p>
     {:else}

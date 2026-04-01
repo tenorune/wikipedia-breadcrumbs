@@ -92,7 +92,8 @@
   </div>
   {#if editingNote}
     <div class="note-edit">
-      <input bind:value={noteText} placeholder="Add a note..." onkeydown={(e) => e.key === "Enter" && saveNote()} onblur={saveNote} oninput={autoSaveNote} />
+      <!-- svelte-ignore a11y_autofocus -->
+      <input bind:value={noteText} placeholder="Add a note..." onkeydown={(e) => e.key === "Enter" && saveNote()} onblur={saveNote} oninput={autoSaveNote} autofocus />
     </div>
   {:else if visit.note}
     <div class="note-display" onclick={() => { editingNote = true; }}>{visit.note}</div>
