@@ -7,6 +7,7 @@
     visitCount: number;
     firstTitle: string;
     lastTitle: string;
+    searchText: string;
   }
 
   interface Props {
@@ -30,10 +31,15 @@
     const summaries: TrailSummary[] = [];
     for (const trail of allTrails) {
       const visits = await visitOps.getByTrailId(trail.id);
+      const searchParts = [trail.name ?? "", trail.note ?? ""];
+      for (const v of visits) {
+        searchParts.push(v.title, v.note ?? "");
+      }
       summaries.push({
         trail, visitCount: visits.length,
         firstTitle: visits[0]?.title ?? "",
         lastTitle: visits[visits.length - 1]?.title ?? "",
+        searchText: searchParts.join(" ").toLowerCase(),
       });
     }
     trails = summaries;
@@ -44,11 +50,7 @@
     let result = trails;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      result = result.filter((s) =>
-        s.trail.name?.toLowerCase().includes(q) ||
-        s.firstTitle.toLowerCase().includes(q) ||
-        s.lastTitle.toLowerCase().includes(q)
-      );
+      result = result.filter((s) => s.searchText.includes(q));
     }
     if (sortBy === "recent") {
       result = [...result].sort((a, b) => b.trail.updatedAt.localeCompare(a.trail.updatedAt));

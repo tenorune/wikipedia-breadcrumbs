@@ -12,6 +12,7 @@
 
   let trails = $state<Trail[]>([]);
   let displayNames = $state<Record<string, string>>({});
+  let searchTexts = $state<Record<string, string>>({});
   let search = $state("");
   let sortMode = $state<SortMode>("recent");
 
@@ -19,23 +20,29 @@
     const all = await ts.getAll();
     trails = all;
     const names: Record<string, string> = {};
+    const texts: Record<string, string> = {};
     await Promise.all(
       all.map(async (t) => {
+        const visits = await vs.getByTrailId(t.id);
         if (t.name) {
           names[t.id] = t.name;
+        } else if (visits.length === 0) {
+          names[t.id] = "Empty trail";
+        } else if (visits.length === 1) {
+          names[t.id] = visits[0].title;
         } else {
-          const visits = await vs.getByTrailId(t.id);
-          if (visits.length === 0) {
-            names[t.id] = "Empty trail";
-          } else if (visits.length === 1) {
-            names[t.id] = visits[0].title;
-          } else {
-            names[t.id] = `${visits[0].title} → ${visits[visits.length - 1].title}`;
-          }
+          names[t.id] = `${visits[0].title} → ${visits[visits.length - 1].title}`;
         }
+        // Build searchable text from trail name, note, and all visit titles/notes
+        const parts = [t.name ?? "", t.note ?? ""];
+        for (const v of visits) {
+          parts.push(v.title, v.note ?? "");
+        }
+        texts[t.id] = parts.join(" ").toLowerCase();
       })
     );
     displayNames = names;
+    searchTexts = texts;
   }
 
   onMount(() => {
@@ -49,8 +56,7 @@
     const q = search.trim().toLowerCase();
     let list = trails.filter((t) => {
       if (!q) return true;
-      const name = (displayNames[t.id] ?? "").toLowerCase();
-      return name.includes(q);
+      return (searchTexts[t.id] ?? "").includes(q);
     });
 
     if (sortMode === "recent") {
