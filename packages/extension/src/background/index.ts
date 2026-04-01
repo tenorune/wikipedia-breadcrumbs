@@ -62,9 +62,15 @@ async function reconcileActiveTrails() {
         continue;
       }
 
-      // Try to match by exact URL, then by articleId substring
+      // Try to match by exact URL, then by articleId in any open tab URL
       const matchTab = urlToTab.get(lastVisit.url)
-        ?? [...urlToTab.entries()].find(([url]) => url.includes(lastVisit.articleId))?.[1];
+        ?? [...urlToTab.entries()].find(([url]) => {
+          // Match if the article slug appears in the tab URL
+          try {
+            const tabPath = new URL(url).pathname;
+            return tabPath.includes(lastVisit.articleId);
+          } catch { return false; }
+        })?.[1];
 
       console.log("[breadcrumbs] reconcile: trail", trail.id.slice(0, 8), "matched tab:", matchTab?.id ?? "NONE");
 
@@ -176,27 +182,44 @@ chrome.runtime.onMessage.addListener((message: any, _sender, sendResponse) => {
 async function handleBackgroundMessage(message: BackgroundMessage, sendResponse: (response: unknown) => void) {
   switch (message.type) {
     case "getCurrentTrail": {
-      const entry = trailManager.getActive(message.tabId);
+      let entry = trailManager.getActive(message.tabId);
+
+      // If no in-memory entry, try DB recovery
+      if (!entry) {
+        // Try by tabId first
+        let recovered = await sendToOffscreen({ type: "getActiveTrailForTab", tabId: message.tabId });
+        // Fall back to URL match (browser/SW restart)
+        if ((!recovered.success || !recovered.data)) {
+          try {
+            const tab = await chrome.tabs.get(message.tabId);
+            if (tab.url) {
+              const { parseWikipediaUrl } = await import("@wikipedia-breadcrumbs/shared");
+              const parsed = parseWikipediaUrl(tab.url);
+              if (parsed) {
+                recovered = await sendToOffscreen({ type: "getActiveTrailByUrl", url: parsed.cleanUrl });
+              }
+            }
+          } catch {}
+        }
+        if (recovered.success && recovered.data) {
+          const { trail, lastVisit, visitCount } = recovered.data as any;
+          let winId = 0;
+          try { winId = (await chrome.tabs.get(message.tabId)).windowId; } catch {}
+          entry = {
+            trailId: trail.id, tabId: message.tabId, windowId: winId,
+            lastVisitTimestamp: new Date(lastVisit.timestamp).getTime(), lastVisitPosition: visitCount,
+            lastVisitUrl: lastVisit.url,
+          };
+          trailManager.setActive(message.tabId, entry);
+        }
+      }
+
       if (entry) {
         const result = await sendToOffscreen({ type: "getVisitsByTrailId", trailId: entry.trailId });
         const trailResult = await sendToOffscreen({ type: "getTrailById", trailId: entry.trailId });
         sendResponse({ trail: trailResult.success ? trailResult.data : null, visits: result.success ? result.data : [] });
       } else {
-        const result = await sendToOffscreen({ type: "getActiveTrailForTab", tabId: message.tabId });
-        if (result.success && result.data) {
-          const { trail, lastVisit, visitCount } = result.data as any;
-          let winId = 0;
-          try { winId = (await chrome.tabs.get(message.tabId)).windowId; } catch {}
-          trailManager.setActive(message.tabId, {
-            trailId: trail.id, tabId: message.tabId, windowId: winId,
-            lastVisitTimestamp: new Date(lastVisit.timestamp).getTime(), lastVisitPosition: visitCount,
-            lastVisitUrl: lastVisit.url,
-          });
-          const visits = await sendToOffscreen({ type: "getVisitsByTrailId", trailId: trail.id });
-          sendResponse({ trail, visits: visits.success ? visits.data : [] });
-        } else {
-          sendResponse({ trail: null, visits: [] });
-        }
+        sendResponse({ trail: null, visits: [] });
       }
       break;
     }
