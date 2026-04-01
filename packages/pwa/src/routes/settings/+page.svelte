@@ -4,7 +4,7 @@
   import { getDeviceId } from "$lib/stores/device-id";
   import { onMount } from "svelte";
 
-  let syncEnabled = $state(false);
+  let syncToggle = $state(false);
   let deviceId = $state("");
 
   let email = $state("");
@@ -13,8 +13,11 @@
   let authError = $state("");
   let authSubmitting = $state(false);
 
+  // Checkbox should be checked if sync is enabled OR user is authenticated
+  const syncEnabled = $derived(syncToggle || syncState.syncEnabled || authState.isAuthenticated);
+
   onMount(() => {
-    syncEnabled = syncState.syncEnabled;
+    syncToggle = syncState.syncEnabled || authState.isAuthenticated;
     deviceId = getDeviceId();
   });
 
@@ -27,11 +30,10 @@
 
   async function handleSyncToggle(e: Event) {
     const checked = (e.target as HTMLInputElement).checked;
-    syncEnabled = checked;
+    syncToggle = checked;
     if (!checked) {
       disableSync();
     }
-    // When checked, we just show the sign-in form — don't enable anonymous sync
   }
 
   async function handleGoogleSignIn() {
@@ -52,6 +54,7 @@
       localStorage.setItem("pendingAuthUpgrade", "true");
       await upgradeToAuthenticatedUser(authState.user.id);
       localStorage.removeItem("pendingAuthUpgrade");
+      syncToggle = true;
     }
     authSubmitting = false;
   }
