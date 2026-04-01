@@ -62,7 +62,10 @@
 </script>
 
 <main>
-  <h1>Wikipedia Breadcrumbs</h1>
+  <div class="header-row">
+    <h1>Wikipedia Breadcrumbs</h1>
+    <button class="settings-btn" onclick={() => { window.location.href = chrome.runtime.getURL("src/options/index.html"); }} title="Settings">⚙️</button>
+  </div>
   {#if selectedTrail}
     <TrailDetail trail={selectedTrail} onBack={backToList} onMutated={backToList} />
   {:else}
@@ -71,5 +74,8 @@
 </main>
 
 <style>
-  h1 { margin: 0 0 20px; font-size: 24px; }
+  .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  h1 { margin: 0; font-size: 24px; }
+  .settings-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 4px; }
+  .settings-btn:hover { opacity: 0.7; }
 </style>

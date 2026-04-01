@@ -1,14 +1,34 @@
 <script lang="ts">
   import SettingsForm from "./SettingsForm.svelte";
+
+  async function openHistory() {
+    const historyUrl = chrome.runtime.getURL("src/history/index.html");
+    const tabs = await chrome.tabs.query({ url: historyUrl + "*" });
+    if (tabs.length > 0 && tabs[0].id != null) {
+      chrome.tabs.update(tabs[0].id, { active: true });
+      chrome.windows.update(tabs[0].windowId!, { focused: true });
+    } else {
+      // Open history in the current tab
+      window.location.href = historyUrl;
+    }
+  }
 </script>
 
 <main>
-  <h1>Wikipedia Breadcrumbs</h1>
+  <div class="header-row">
+    <h1>Wikipedia Breadcrumbs</h1>
+    <span class="icon-spacer">⚙️</span>
+  </div>
+  <button class="back" onclick={openHistory}>&larr; View trails</button>
   <h2>Settings</h2>
   <SettingsForm />
 </main>
 
 <style>
-  h1 { margin: 0 0 8px; font-size: 24px; }
+  .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  h1 { margin: 0; font-size: 24px; }
+  .icon-spacer { font-size: 20px; padding: 4px; visibility: hidden; }
+  .back { background: none; border: none; color: #0066cc; cursor: pointer; padding: 0; margin-bottom: 16px; font-size: 14px; display: block; }
+  .back:hover { text-decoration: underline; }
   h2 { margin: 0 0 20px; font-size: 18px; color: #666; font-weight: normal; }
 </style>

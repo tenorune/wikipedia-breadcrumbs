@@ -74,6 +74,7 @@ CREATE TABLE trails (
 CREATE TABLE visits (
   id uuid PRIMARY KEY,
   trail_id uuid NOT NULL REFERENCES trails(id),
+  user_id uuid REFERENCES auth.users(id),
   url text NOT NULL,
   title text NOT NULL,
   timestamp timestamptz NOT NULL,
@@ -128,11 +129,11 @@ CREATE POLICY "Users manage own trails"
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
--- Visits: users can only access visits in their own trails
+-- Visits: users can only access their own visits (user_id denormalized from trail)
 CREATE POLICY "Users manage own visits"
   ON visits FOR ALL
-  USING (trail_id IN (SELECT id FROM trails WHERE user_id = auth.uid()))
-  WITH CHECK (trail_id IN (SELECT id FROM trails WHERE user_id = auth.uid()));
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
 -- Conflict logs: users can only see their own
 CREATE POLICY "Users see own conflicts"

@@ -32,7 +32,7 @@
     <button onclick={onStartNew}>Start New Trail</button>
   {/if}
   <button onclick={openHistory}>History</button>
-  <button onclick={openOptions}>Options</button>
+  <button onclick={openOptions}>Settings</button>
 </div>
 
 <style>
