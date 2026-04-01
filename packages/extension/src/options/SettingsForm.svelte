@@ -13,7 +13,6 @@
   let authSubmitting = $state(false);
 
   async function loadSyncStatus() {
-    // Read lastSyncTime directly from chrome.storage.local — no message chain needed
     const { lastSyncTime } = await chrome.storage.local.get("lastSyncTime");
     syncStatus = { lastSyncTime: lastSyncTime ?? null };
   }
@@ -21,8 +20,7 @@
   async function handleSyncNow() {
     syncing = true;
     const { lastSyncTime: beforeSync } = await chrome.storage.local.get("lastSyncTime");
-    chrome.runtime.sendMessage({ type: "syncNow" }); // fire and forget
-    // Poll chrome.storage.local directly until lastSyncTime changes
+    chrome.runtime.sendMessage({ type: "syncNow" });
     for (let i = 0; i < 30; i++) {
       await new Promise((r) => setTimeout(r, 1000));
       const { lastSyncTime } = await chrome.storage.local.get("lastSyncTime");
@@ -42,12 +40,9 @@
   async function handleGoogleSignIn() {
     authError = "";
     try {
-      // Use launchWebAuthFlow to get an ID token
       const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string;
       const redirectUrl = chrome.identity.getRedirectURL();
       const rawNonce = crypto.randomUUID();
-      // Google embeds a SHA-256 hash of the nonce in the ID token.
-      // We send the hashed nonce to Google and the raw nonce to Supabase.
       const encoder = new TextEncoder();
       const hashBuffer = await crypto.subtle.digest("SHA-256", encoder.encode(rawNonce));
       const hashedNonce = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
@@ -94,8 +89,6 @@
   }
 
   loadAuthStatus();
-
-  // Load sync status on mount
   loadSyncStatus();
 
   async function load() {
@@ -123,41 +116,45 @@
       </label>
       <p class="help">When disabled, no new visits are recorded.</p>
     </div>
-    <div class="auth-section">
-      <h3>Account</h3>
-      {#if authStatus?.isAuthenticated}
-        <p>Signed in as <strong>{authStatus.email}</strong></p>
-        <button type="button" onclick={handleSignOut}>Sign out</button>
-      {:else}
-        <p class="help">{authStatus?.isAnonymous ? "Sign in to sync across devices." : "Sign in to enable sync."}</p>
-        <button type="button" onclick={handleGoogleSignIn}>Sign in with Google</button>
-        <div style="margin: 8px 0; text-align: center; color: #999; font-size: 12px;">or</div>
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          <input type="email" placeholder="Email" bind:value={authEmail} />
-          <input type="password" placeholder="Password" bind:value={authPassword} />
-          <button type="button" onclick={handleEmailAuth} disabled={authSubmitting}>
-            {authSubmitting ? "..." : authIsSignUp ? "Sign up" : "Sign in"}
-          </button>
-        </div>
-        <button type="button" style="background: none; border: none; color: #0066cc; cursor: pointer; font-size: 12px; margin-top: 4px;" onclick={() => { authIsSignUp = !authIsSignUp; authError = ""; }}>
-          {authIsSignUp ? "Already have an account? Sign in" : "Need an account? Sign up"}
-        </button>
-        {#if authError}<p style="color: #dc3545; font-size: 12px;">{authError}</p>{/if}
-      {/if}
-    </div>
-    <hr />
-
     <div class="field">
       <label>
-        <input type="checkbox" bind:checked={settings.syncEnabled} />
+        <input type="checkbox" bind:checked={settings.syncEnabled} onchange={autoSave} />
         Sync to cloud
       </label>
-      <p class="help">Sync trails to Supabase. Data is stored anonymously.</p>
+      <p class="help">Sync trails to Supabase.</p>
     </div>
 
     {#if settings.syncEnabled}
-      <div class="field">
-        <button type="button" class="sync-btn" onclick={handleSyncNow} disabled={syncing}>
+      <hr />
+
+      <div class="section">
+        <h3>Account</h3>
+        {#if authStatus?.isAuthenticated}
+          <p>Signed in as <strong>{authStatus.email}</strong></p>
+          <button type="button" class="btn-secondary" onclick={handleSignOut}>Sign out</button>
+        {:else}
+          <p class="help">{authStatus?.isAnonymous ? "Sign in to sync across devices." : "Sign in to enable sync."}</p>
+          <button type="button" class="btn-google" onclick={handleGoogleSignIn}>Sign in with Google</button>
+          <div class="divider"><span>or</span></div>
+          <div class="email-form">
+            <input type="email" placeholder="Email" bind:value={authEmail} />
+            <input type="password" placeholder="Password" bind:value={authPassword} />
+            <button type="button" class="btn-primary" onclick={handleEmailAuth} disabled={authSubmitting}>
+              {authSubmitting ? "..." : authIsSignUp ? "Sign up" : "Sign in"}
+            </button>
+          </div>
+          <button type="button" class="toggle-mode" onclick={() => { authIsSignUp = !authIsSignUp; authError = ""; }}>
+            {authIsSignUp ? "Already have an account? Sign in" : "Need an account? Sign up"}
+          </button>
+          {#if authError}<p class="error">{authError}</p>{/if}
+        {/if}
+      </div>
+
+      <hr />
+
+      <div class="section">
+        <h3>Sync</h3>
+        <button type="button" class="btn-sync" onclick={handleSyncNow} disabled={syncing}>
           {syncing ? "Syncing..." : "Sync now"}
         </button>
         {#if syncStatus}
@@ -169,7 +166,6 @@
         {/if}
       </div>
     {/if}
-
   </div>
 {:else}
   <p>Loading...</p>
@@ -177,12 +173,45 @@
 
 <style>
   .field { margin-bottom: 20px; }
+  .section { margin-bottom: 20px; }
+  h3 { margin: 0 0 12px; font-size: 18px; }
   label { font-weight: 600; display: block; margin-bottom: 4px; }
   input[type="number"] { width: 80px; padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; }
   .help { font-size: 13px; color: #666; margin: 4px 0 0; }
-  button { padding: 8px 20px; background: #0066cc; color: white; border: none; border-radius: 4px; cursor: pointer; }
-  button:hover { background: #0052a3; }
-  .sync-btn { padding: 8px 20px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
-  .sync-btn:hover { background: #218838; }
-  .sync-btn:disabled { background: #ccc; cursor: not-allowed; }
+  hr { border: none; border-top: 1px solid #eee; margin: 24px 0; }
+
+  .btn-google {
+    width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;
+    background: white; cursor: pointer; font-size: 14px; font-weight: 500;
+  }
+  .btn-google:hover { background: #f8f8f8; }
+  .btn-primary {
+    padding: 10px; background: #0066cc; color: white; border: none;
+    border-radius: 4px; cursor: pointer; font-size: 14px; width: 100%;
+  }
+  .btn-primary:hover { background: #0052a3; }
+  .btn-primary:disabled { background: #ccc; }
+  .btn-secondary {
+    padding: 6px 16px; border: 1px solid #ddd; border-radius: 4px;
+    background: white; cursor: pointer; font-size: 13px; color: #1a1a1a;
+  }
+  .btn-sync {
+    padding: 7px 16px; background: #0066cc; color: white; border: none;
+    border-radius: 4px; cursor: pointer; font-size: 14px;
+  }
+  .btn-sync:hover:not(:disabled) { background: #0055aa; }
+  .btn-sync:disabled { opacity: 0.5; cursor: default; }
+
+  .divider {
+    display: flex; align-items: center; gap: 12px; margin: 16px 0;
+    color: #999; font-size: 12px;
+  }
+  .divider::before, .divider::after { content: ""; flex: 1; border-top: 1px solid #eee; }
+  .email-form { display: flex; flex-direction: column; gap: 8px; }
+  .email-form input { padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+  .toggle-mode {
+    background: none; border: none; color: #0066cc; cursor: pointer;
+    font-size: 13px; padding: 8px 0; text-align: center; width: 100%;
+  }
+  .error { color: #dc3545; font-size: 13px; margin-top: 8px; }
 </style>
