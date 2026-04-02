@@ -21,6 +21,7 @@ Single file with nested structure — visits inside their parent trail:
       "createdAt": "...",
       "startedAt": "...",
       "endedAt": "...",
+      "updatedAt": "...",
       "status": "finalized",
       "isStarred": true,
       "tags": [],
@@ -35,6 +36,7 @@ Single file with nested structure — visits inside their parent trail:
           "title": "Article Title",
           "timestamp": "...",
           "lastVisitedAt": "...",
+          "updatedAt": "...",
           "position": 1,
           "sourceType": "link",
           "sourceDetail": "linked as ...",
@@ -53,13 +55,17 @@ Single file with nested structure — visits inside their parent trail:
 
 **Excluded fields** (internal/device-specific, regenerated on import): `userId`, `syncStatus`, `deletedAt`, `tabId`, `windowId`, `deviceId`.
 
+**Preserved fields**: `updatedAt` is exported and restored on import to preserve the original modification timestamps (important for backup/restore).
+
 ### CSV (read-only export)
 
 Flat format, one row per visit. Trail fields repeat on each row:
 
 ```
-trail_id,trail_name,trail_status,trail_started_at,trail_note,trail_is_starred,visit_id,visit_title,visit_url,visit_timestamp,visit_last_visited_at,visit_position,visit_note,visit_source_type,visit_source_detail,visit_language,visit_article_id,visit_parent_visit_id
+trail_id,trail_name,trail_status,trail_created_at,trail_started_at,trail_start_reason,trail_note,trail_is_starred,trail_visibility,visit_id,visit_title,visit_url,visit_timestamp,visit_last_visited_at,visit_position,visit_note,visit_source_type,visit_source_detail,visit_language,visit_article_id,visit_parent_visit_id
 ```
+
+`trail_tags` is serialized as semicolon-delimited. `trail_ended_at`, `visit_summary`, `visit_thumbnail_url`, and `trail_forked_from_visit_id` are omitted for brevity (rarely populated, not useful for spreadsheet analysis).
 
 No CSV import — mapping flat rows back to the trail/visit hierarchy adds complexity for a marginal use case.
 
@@ -71,16 +77,24 @@ No CSV import — mapping flat rows back to the trail/visit hierarchy adds compl
 
 ## Import Flow
 
-1. **Parse & validate** — check `version` field, validate structure. Reject with clear error if malformed.
+1. **Parse & validate** — check `version` field, validate structure. Reject with clear error if malformed. Validation includes:
+   - Required fields present and correct types (string, number, boolean, array)
+   - Enum fields contain valid values (`TrailStatus`, `Visibility`, `StartReason`, `SourceType`)
+   - Date strings are valid ISO 8601
+   - `position` is a non-negative integer
+   - `url` is non-empty
+   - If `version` is greater than supported, reject with "Please update the app to import this file"
 2. **Detect conflicts** — for each trail, check if a trail with that `id` exists locally.
-3. **No conflicts** — import directly. Set `syncStatus: local_only`, assign current `deviceId` and `userId`.
+3. **No conflicts** — import directly. Set `syncStatus: local_only`, assign current `deviceId` and `userId`. Preserve exported `updatedAt`.
 4. **Conflicts** — show dialog listing conflicting trails with per-trail choices:
    - **Skip** — keep local, don't import
-   - **Overwrite** — replace local trail and visits with imported data
-   - **Import as copy** — import with fresh trail ID, remap `trailId` and `parentVisitId` references on visits
+   - **Overwrite** — within a Dexie transaction: soft-delete all existing visits for the trail, then insert all imported visits and update the trail record. This is a complete replacement.
+   - **Import as copy** — import with fresh IDs for trail AND all visits. Build `oldId → newId` mapping to remap `trailId`, `parentVisitId`, and `forkedFromVisitId` references.
 5. **Summary** — show result: "Imported 3 trails (12 visits). Skipped 1."
 
 Non-conflicting trails import automatically without prompting.
+
+**Error handling**: Import is executed per-trail in individual Dexie transactions. If a trail fails, the error is recorded and remaining trails continue. `ImportResult` includes an `errors` array.
 
 ## Architecture
 
@@ -101,7 +115,7 @@ Same selection logic, returns CSV string.
 ```typescript
 parseImportJson(jsonString: string): { trails: ImportTrail[], errors: string[] }
 ```
-Validates and parses JSON. No DB access. Returns structured data or validation errors.
+Validates and parses JSON. No DB access. Checks version, required fields, enum values, date formats. Returns structured data or validation errors.
 
 ```typescript
 detectConflicts(db: BreadcrumbsDB, trails: ImportTrail[]): Promise<{ clean: ImportTrail[], conflicts: ConflictItem[] }>
@@ -111,18 +125,18 @@ Checks each trail ID against local DB.
 ```typescript
 executeImport(db: BreadcrumbsDB, plan: ImportPlan, context: ImportContext): Promise<ImportResult>
 ```
-Writes to DB per the resolved plan. Handles ID remapping for copies.
+Writes to DB per the resolved plan. Each trail is its own Dexie transaction. Handles ID remapping for copies. Assigns `trailId` on visits from their parent trail (or the new ID for copies).
 
 ### Types
 
 ```typescript
 interface ImportTrail {
-  // Trail fields (exported subset) + nested visits
   id: string;
   name: string | null;
   createdAt: string;
   startedAt: string;
   endedAt: string | null;
+  updatedAt: string;
   status: string;
   isStarred: boolean;
   tags: string[];
@@ -139,6 +153,7 @@ interface ImportVisit {
   title: string;
   timestamp: string;
   lastVisitedAt: string;
+  updatedAt: string;
   position: number;
   sourceType: string;
   sourceDetail: string | null;
@@ -171,8 +186,11 @@ interface ImportResult {
   trailsImported: number;
   visitsImported: number;
   skipped: number;
+  errors: string[];
 }
 ```
+
+Note: `trailId` is not stored on `ImportVisit` — it is inferred from the parent `ImportTrail.id` (or the newly generated ID for copies) during `executeImport`.
 
 ## UI Entry Points
 
