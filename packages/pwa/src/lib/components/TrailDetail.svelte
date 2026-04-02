@@ -134,12 +134,22 @@
     await loadData();
   }
 
+  async function autoSaveName() {
+    if (!trail) return;
+    await ts.update(trail.id, { name: nameValue.trim() || null });
+  }
+
   async function saveNote() {
     if (!trail) return;
     const v = noteValue.trim() || null;
     await ts.update(trail.id, { note: v });
     editingNote = false;
     await loadData();
+  }
+
+  async function autoSaveNote() {
+    if (!trail) return;
+    await ts.update(trail.id, { note: noteValue.trim() || null });
   }
 
   async function toggleStar() {
@@ -187,15 +197,17 @@
 
     <div class="title-row">
       {#if editingName}
+        <!-- svelte-ignore a11y_autofocus -->
         <input
           class="name-input"
           type="text"
           bind:value={nameValue}
           placeholder="Trail name"
-          onkeydown={(e) => { if (e.key === "Enter") saveName(); if (e.key === "Escape") { editingName = false; } }}
+          onkeydown={(e) => { if (e.key === "Enter") saveName(); }}
+          onblur={saveName}
+          oninput={autoSaveName}
+          autofocus
         />
-        <button class="btn-save" onclick={saveName}>Save</button>
-        <button class="btn-cancel" onclick={() => { editingName = false; }}>Cancel</button>
       {:else}
         <h1 class="trail-name">
           <button class="name-edit-trigger"
@@ -250,17 +262,16 @@
         {trail.note}
       </div>
     {:else if editingNote}
+      <!-- svelte-ignore a11y_autofocus -->
       <textarea
         class="trail-note-input"
         rows="3"
         bind:value={noteValue}
         placeholder="Add a note about this trail…"
-        onkeydown={(e) => { if (e.key === "Escape") { editingNote = false; } }}
+        onblur={saveNote}
+        oninput={autoSaveNote}
+        autofocus
       ></textarea>
-      <div class="note-actions">
-        <button class="btn-save" onclick={saveNote}>Save</button>
-        <button class="btn-cancel" onclick={() => { editingNote = false; }}>Cancel</button>
-      </div>
     {:else}
       <button class="add-note" onclick={() => { editingNote = true; noteValue = ""; }}>+ Add trail note</button>
     {/if}

@@ -344,8 +344,8 @@
   .note-section { margin-bottom: 16px; }
   .trail-note { margin: 0; padding: 8px 12px; background: #f8f8f8; border-radius: 4px; cursor: pointer; font-size: 14px; color: #333; white-space: pre-wrap; }
   .trail-note:hover { background: #f0f0f0; }
-  .add-note { background: none; border: 1px dashed #ccc; border-radius: 4px; padding: 6px 12px; cursor: pointer; color: #999; font-size: 13px; }
-  .add-note:hover { border-color: #0066cc; color: #0066cc; }
+  .add-note { background: none; border: none; cursor: pointer; color: #0066cc; font-size: 13px; padding: 0; }
+  .add-note:hover { text-decoration: underline; }
   textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; font-family: inherit; resize: vertical; box-sizing: border-box; }
   .note-actions { display: flex; gap: 8px; margin-top: 6px; }
   .cancel-note { background: none; border: 1px solid #ddd; border-radius: 3px; padding: 4px 10px; cursor: pointer; color: #666; }

@@ -51,6 +51,10 @@
     editingNote = false;
   }
 
+  function autoSaveNote() {
+    onUpdateNote(visit.id, noteValue.trim() || null);
+  }
+
   function cancelNote() {
     noteValue = visit.note ?? "";
     editingNote = false;
@@ -99,16 +103,15 @@
 
   {#if editingNote}
     <div class="note-edit">
+      <!-- svelte-ignore a11y_autofocus -->
       <textarea
-        rows="3"
+        rows="2"
         bind:value={noteValue}
         placeholder="Add a note…"
-        onkeydown={(e) => { if (e.key === "Escape") cancelNote(); }}
+        onblur={saveNote}
+        oninput={autoSaveNote}
+        autofocus
       ></textarea>
-      <div class="note-actions">
-        <button class="btn-save" onclick={saveNote}>Save</button>
-        <button class="btn-cancel" onclick={cancelNote}>Cancel</button>
-      </div>
     </div>
   {/if}
 
