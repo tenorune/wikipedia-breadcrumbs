@@ -89,6 +89,7 @@ CREATE TABLE visits (
   thumbnail_url text,
   language text NOT NULL,
   article_id text NOT NULL,
+  parent_visit_id uuid,
   updated_at timestamptz NOT NULL,
   deleted_at timestamptz
 );

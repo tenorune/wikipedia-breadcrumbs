@@ -146,14 +146,28 @@ export async function handleNavigation(
         changes: { lastVisitedAt: now },
       });
     } else {
-      // New page — append to trail
+      // New page — find the parent visit (the page we navigated from)
+      let parentVisitId: string | null = null;
+      if (current.lastVisitUrl) {
+        const parentResult = await sendToOffscreen({
+          type: "findVisitByUrl",
+          trailId: current.trailId,
+          url: current.lastVisitUrl,
+        });
+        if (parentResult.success && parentResult.data) {
+          parentVisitId = (parentResult.data as any).id;
+        }
+      }
+
       const position = trailManager.incrementPosition(tabId, parsed.cleanUrl);
       const visit = createVisit({
         trailId: current.trailId, url: parsed.cleanUrl, title: parsed.title, position,
         sourceType: inferSourceType(transitionType, transitionQualifiers),
         sourceDetail: inferSourceDetail(transitionType, transitionQualifiers),
         language: parsed.language,
-        articleId: parsed.cleanUrl.split("/wiki/")[1] ?? parsed.title, tabId,
+        articleId: parsed.cleanUrl.split("/wiki/")[1] ?? parsed.title,
+        parentVisitId,
+        tabId,
       });
       await sendToOffscreen({ type: "addVisit", visit });
     }

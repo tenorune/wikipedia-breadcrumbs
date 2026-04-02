@@ -21,6 +21,7 @@
   let mergeOptions: { trail: Trail; label: string }[] = $state([]);
   let editingNote = $state(false);
   let trailNote = $state(trail.note ?? "");
+  let focusedVisitId: string | null = $state(null);
   // Persist sort preferences across trail detail views
   function loadSortPrefs() {
     try {
@@ -66,6 +67,22 @@
     if (!sortAsc) result = result.reverse();
     return result;
   });
+
+  // When a visit is focused, show it as "parent" with pages discovered from it as "children".
+  // Uses the explicit parentVisitId field set during capture.
+  const focusedView = $derived.by(() => {
+    if (!focusedVisitId || sortField !== "discovery") return null;
+    const parent = visits.find((v) => v.id === focusedVisitId);
+    if (!parent) return null;
+
+    const children = visits.filter((v) => v.parentVisitId === parent.id);
+
+    return { parent, children };
+  });
+
+  function toggleFocus(visitId: string) {
+    focusedVisitId = focusedVisitId === visitId ? null : visitId;
+  }
 
   const db = new BreadcrumbsDB();
   const visitOps = visitStore(db);
@@ -229,17 +246,52 @@
 
   <hr class="timeline-start" />
   <div class="timeline">
-    {#each sortedVisits as visit, i}
-      <VisitCard
-        {visit}
-        trailId={trail.id}
-        trailStatus={trail.status}
-        onUpdateNote={handleUpdateNote}
-        onDelete={handleDeleteVisit}
-        onSplit={sortField === "discovery" && sortAsc && i < sortedVisits.length - 1 ? handleSplit : undefined}
-        onResumed={onMutated}
-      />
-    {/each}
+    {#if focusedView}
+      <div class="focused-parent" onclick={() => toggleFocus(focusedView.parent.id)}>
+        <div class="parent-label">Parent</div>
+        <VisitCard
+          visit={focusedView.parent}
+          trailId={trail.id}
+          trailStatus={trail.status}
+          onUpdateNote={handleUpdateNote}
+          onDelete={handleDeleteVisit}
+          onResumed={onMutated}
+        />
+      </div>
+      {#if focusedView.children.length > 0}
+        <div class="children-label">Discovered from this page</div>
+        {#each focusedView.children as child}
+          <div class="focused-child" onclick={() => toggleFocus(child.id)}>
+            <VisitCard
+              visit={child}
+              trailId={trail.id}
+              trailStatus={trail.status}
+              onUpdateNote={handleUpdateNote}
+              onDelete={handleDeleteVisit}
+              onResumed={onMutated}
+            />
+          </div>
+        {/each}
+      {:else}
+        <p class="no-children">No pages were discovered from this page.</p>
+      {/if}
+    {:else}
+      {#each sortedVisits as visit, i}
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="visit-wrapper" class:focusable={sortField === "discovery"} onclick={() => sortField === "discovery" && toggleFocus(visit.id)}>
+          <VisitCard
+            {visit}
+            trailId={trail.id}
+            trailStatus={trail.status}
+            onUpdateNote={handleUpdateNote}
+            onDelete={handleDeleteVisit}
+            onSplit={sortField === "discovery" && sortAsc && i < sortedVisits.length - 1 ? handleSplit : undefined}
+            onResumed={onMutated}
+          />
+        </div>
+      {/each}
+    {/if}
   </div>
 
   {#if showMergePicker}
@@ -269,6 +321,15 @@
   .sort-hint { font-style: italic; color: #999; }
   .meta { font-size: 13px; color: #666; margin: 8px 0 12px; }
   .timeline-start { border: none; border-top: 1px solid #eee; margin: 14px 0 0; }
+  .visit-wrapper.focusable { cursor: pointer; }
+  .visit-wrapper.focusable:hover { background: #fafafa; border-radius: 4px; }
+  .focused-parent { background: #f0f7ff; border-radius: 6px; padding: 8px; cursor: pointer; }
+  .focused-parent:hover { background: #e4effa; }
+  .parent-label { font-size: 11px; color: #0066cc; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .children-label { font-size: 11px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 12px 0 4px 16px; }
+  .focused-child { margin-left: 16px; border-left: 2px solid #0066cc; padding-left: 12px; cursor: pointer; }
+  .focused-child:hover { background: #fafafa; border-radius: 0 4px 4px 0; }
+  .no-children { font-size: 13px; color: #999; margin: 12px 0 0 16px; }
   .note-section { margin-bottom: 16px; }
   .trail-note { margin: 0; padding: 8px 12px; background: #f8f8f8; border-radius: 4px; cursor: pointer; font-size: 14px; color: #333; white-space: pre-wrap; }
   .trail-note:hover { background: #f0f0f0; }

@@ -18,6 +18,7 @@ export interface Visit {
   thumbnailUrl: string | null;
   language: string;
   articleId: string;
+  parentVisitId: string | null;
   syncStatus: SyncStatus;
   updatedAt: string;
   deletedAt: string | null;
@@ -32,6 +33,7 @@ export interface CreateVisitInput {
   language: string;
   articleId: string;
   sourceDetail?: string | null;
+  parentVisitId?: string | null;
   tabId?: number | null;
   windowId?: number | null;
   note?: string | null;
@@ -58,6 +60,7 @@ export function createVisit(input: CreateVisitInput): Visit {
     thumbnailUrl: input.thumbnailUrl ?? null,
     language: input.language,
     articleId: input.articleId,
+    parentVisitId: input.parentVisitId ?? null,
     syncStatus: SyncStatusEnum.LocalOnly,
     updatedAt: now,
     deletedAt: null,
