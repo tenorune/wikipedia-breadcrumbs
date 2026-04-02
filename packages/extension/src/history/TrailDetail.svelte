@@ -247,7 +247,10 @@
   <hr class="timeline-start" />
   <div class="timeline">
     {#if focusedView}
-      <div class="focused-parent" onclick={() => toggleFocus(focusedView.parent.id)}>
+      <div class="focused-parent" onclick={(e) => {
+        if ((e.target as HTMLElement).closest("a, button, input, textarea")) return;
+        toggleFocus(focusedView.parent.id);
+      }}>
         <div class="parent-label">Parent</div>
         <VisitCard
           visit={focusedView.parent}
@@ -261,7 +264,10 @@
       {#if focusedView.children.length > 0}
         <div class="children-label">Discovered from this page</div>
         {#each focusedView.children as child}
-          <div class="focused-child" onclick={() => toggleFocus(child.id)}>
+          <div class="focused-child" onclick={(e) => {
+            if ((e.target as HTMLElement).closest("a, button, input, textarea")) return;
+            toggleFocus(child.id);
+          }}>
             <VisitCard
               visit={child}
               trailId={trail.id}
@@ -279,7 +285,12 @@
       {#each sortedVisits as visit, i}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="visit-wrapper" class:focusable={sortField === "discovery"} onclick={() => sortField === "discovery" && toggleFocus(visit.id)}>
+        <div class="visit-wrapper" class:focusable={sortField === "discovery"} onclick={(e) => {
+          // Don't trigger focus when clicking links, buttons, or inputs
+          const target = e.target as HTMLElement;
+          if (target.closest("a, button, input, textarea")) return;
+          if (sortField === "discovery") toggleFocus(visit.id);
+        }}>
           <VisitCard
             {visit}
             trailId={trail.id}

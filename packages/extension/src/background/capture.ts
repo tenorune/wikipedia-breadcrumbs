@@ -194,6 +194,12 @@ export async function handleNavigation(
   const capturedClickedText = details.clickedLinkText;
   setTimeout(async () => {
     try {
+      // Verify the tab is still on the same URL before fetching page info
+      try {
+        const tab = await chrome.tabs.get(tabId);
+        if (!tab.url?.includes(parsed.cleanUrl.split("/wiki/")[1] ?? "")) return;
+      } catch { return; }
+
       const pageInfo = await Promise.race([
         chrome.tabs.sendMessage(tabId, { type: "getPageInfo" }),
         new Promise((_, reject) => setTimeout(() => reject("timeout"), 2000)),
