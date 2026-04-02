@@ -80,52 +80,51 @@
 </script>
 
 <div class="visit-card">
-  <div class="main">
-    <a href={visit.url} onclick={handleTitleClick} class="title">{visit.title}</a>
-    {#if visit.sourceDetail}
-      <span class="redirect">({visit.sourceDetail})</span>
-    {/if}
-    <div class="meta">
-      <span class="time">Discovered {formatTime(visit.timestamp)}</span>
-      {#if visit.lastVisitedAt && visit.lastVisitedAt !== visit.timestamp}
-        <span class="sep">&middot;</span>
-        <span class="time">Last visited {formatTime(visit.lastVisitedAt)}</span>
+  <div class="card-body">
+    <div class="main">
+      <a href={visit.url} onclick={handleTitleClick} class="title">{visit.title}</a>
+      {#if visit.sourceDetail}
+        <span class="redirect">({visit.sourceDetail})</span>
       {/if}
+      <div class="meta">
+        <span class="time">Discovered {formatTime(visit.timestamp)}</span>
+        {#if visit.lastVisitedAt && visit.lastVisitedAt !== visit.timestamp}
+          <span class="sep">&middot;</span>
+          <span class="time">Last visited {formatTime(visit.lastVisitedAt)}</span>
+        {/if}
+      </div>
     </div>
-  </div>
-  {#if editingNote}
-    <div class="note-edit">
-      <!-- svelte-ignore a11y_autofocus -->
-      <input bind:value={noteText} placeholder="Add a note..." onkeydown={(e) => e.key === "Enter" && saveNote()} onblur={saveNote} oninput={autoSaveNote} autofocus />
-    </div>
-  {:else if visit.note}
-    <div class="note-display" onclick={() => { editingNote = true; }}>{visit.note}</div>
-  {/if}
-  <div class="actions">
-    {#if !editingNote && !visit.note}
-      <button class="note-btn" onclick={() => { editingNote = true; }}>Add Note</button>
+    {#if editingNote}
+      <div class="note-edit">
+        <!-- svelte-ignore a11y_autofocus -->
+        <input bind:value={noteText} placeholder="Add a note..." onkeydown={(e) => e.key === "Enter" && saveNote()} onblur={saveNote} oninput={autoSaveNote} autofocus />
+      </div>
+    {:else if visit.note}
+      <div class="note-display" onclick={() => { editingNote = true; }}>{visit.note}</div>
     {/if}
-    <button class="cite-btn" onclick={() => showCitation = !showCitation}>Cite</button>
-    <button class="delete-btn" onclick={() => onDelete(visit.id)}>Delete</button>
+    <div class="actions">
+      {#if !editingNote && !visit.note}
+        <button class="note-btn" onclick={() => { editingNote = true; }}>Add Note</button>
+      {/if}
+      <button class="cite-btn" onclick={() => showCitation = !showCitation}>Cite</button>
+      <button class="delete-btn" onclick={() => onDelete(visit.id)}>Delete</button>
+    </div>
+    {#if showCitation}
+      <div class="citation-picker">
+        {#each citationFormats as fmt}
+          <button onclick={() => copyCitation(fmt.key)}>{fmt.label}</button>
+        {/each}
+      </div>
+    {/if}
   </div>
-  {#if showCitation}
-    <div class="citation-picker">
-      {#each citationFormats as fmt}
-        <button onclick={() => copyCitation(fmt.key)}>{fmt.label}</button>
-      {/each}
-    </div>
-  {/if}
-  {#if onSplit}
-    <div class="split-divider">
-      <hr /><button onclick={() => onSplit(visit.position)}>Split</button>
-    </div>
-  {/if}
+  <div class="split-divider">
+    <hr /><button class:hidden={!onSplit} onclick={() => onSplit?.(visit.position)}>Split</button>
+  </div>
 </div>
 
 <style>
-  .visit-card { padding: 10px 0; }
-  .visit-card:not(:has(.split-divider)) { border-bottom: 1px solid #eee; }
-  .visit-card:has(.split-divider) { padding-bottom: 0; }
+  .visit-card { padding: 0; }
+  .card-body { padding: 10px 0 8px 8px; border-radius: 6px; }
   .title { color: #0066cc; text-decoration: none; font-size: 15px; font-weight: 500; }
   .title:hover { text-decoration: underline; }
   .redirect { font-size: 12px; color: #999; font-style: italic; }
@@ -139,9 +138,10 @@
   .note-btn, .cite-btn, .delete-btn { font-size: 12px; padding: 2px 8px; border: 1px solid #ddd; border-radius: 3px; background: white; cursor: pointer; }
   .delete-btn:hover { border-color: #dc3545; color: #dc3545; }
   .split-divider { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
-  .split-divider hr { flex: 1; border: none; border-top: 1px solid #eee; margin: 0; }
+  .split-divider hr { flex: 1; border: none; border-top: 1px solid #ccc; margin: 0; }
   .split-divider button { font-size: 11px; padding: 1px 8px; border: 1px solid #ddd; border-radius: 3px; background: white; cursor: pointer; color: #999; flex-shrink: 0; }
   .split-divider button:hover { border-color: #0066cc; color: #0066cc; }
+  .split-divider button.hidden { visibility: hidden; }
   .note-edit { display: flex; gap: 4px; }
   .note-edit input { font-size: 12px; padding: 2px 6px; border: 1px solid #ccc; border-radius: 3px; width: 200px; }
   .citation-picker { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }

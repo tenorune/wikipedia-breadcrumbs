@@ -254,11 +254,11 @@
   <div class="timeline">
     {#if focusedView}
       {#if focusedView.parent}
-        <div class="focused-grandparent" onclick={(e) => {
+        <div class="visit-wrapper focused-grandparent" onclick={(e) => {
           if ((e.target as HTMLElement).closest("a, button, input, textarea")) return;
           toggleFocus(focusedView.parent!.id);
         }}>
-          <div class="grandparent-label">Discovered from</div>
+          <!-- <div class="grandparent-label">Discovered from</div> -->
           <VisitCard
             visit={focusedView.parent}
             trailId={trail.id}
@@ -269,7 +269,7 @@
           />
         </div>
       {/if}
-      <div class="focused-current" onclick={(e) => {
+      <div class="visit-wrapper focused-current" onclick={(e) => {
         if ((e.target as HTMLElement).closest("a, button, input, textarea")) return;
         toggleFocus(focusedView.focused.id);
       }}>
@@ -285,7 +285,7 @@
       {#if focusedView.children.length > 0}
         <div class="children-label">Discovered from this page</div>
         {#each focusedView.children as child}
-          <div class="focused-child" onclick={(e) => {
+          <div class="visit-wrapper focused-child" onclick={(e) => {
             if ((e.target as HTMLElement).closest("a, button, input, textarea")) return;
             toggleFocus(child.id);
           }}>
@@ -352,17 +352,22 @@
   .sort-bar button.active { background: #e8f0fe; border-color: #1a73e8; color: #1a73e8; }
   .sort-hint { font-style: italic; color: #999; }
   .meta { font-size: 13px; color: #666; margin: 8px 0 12px; }
-  .timeline-start { border: none; border-top: 1px solid #eee; margin: 14px 0 0; }
+  .timeline-start { border: none; border-top: 1px solid #eee; margin: 14px 0 12px; }
+  .visit-wrapper { padding: 0 8px; margin-left: -16px; }
   .visit-wrapper.focusable { cursor: pointer; }
-  .visit-wrapper.focusable:hover { background: #fafafa; border-radius: 4px; }
-  .focused-grandparent { opacity: 0.6; margin-bottom: 4px; cursor: pointer; }
-  .focused-grandparent:hover { opacity: 0.8; }
-  .grandparent-label { font-size: 11px; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
-  .focused-current { background: #f0f7ff; border-radius: 6px; padding: 8px; cursor: pointer; }
-  .focused-current:hover { background: #e4effa; }
-  .children-label { font-size: 11px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 12px 0 4px 16px; }
-  .focused-child { margin-left: 16px; border-left: 2px solid #0066cc; padding-left: 12px; cursor: pointer; }
-  .focused-child:hover { background: #fafafa; border-radius: 0 4px 4px 0; }
+  .visit-wrapper.focusable:hover :global(.card-body) { background: #d0e0ff; }
+  .focused-grandparent { opacity: 0.6; cursor: pointer; }
+  .focused-grandparent:hover { opacity: 1; }
+  .focused-grandparent :global(.card-body) { background: #fff3e0; }
+  .focused-grandparent:hover :global(.card-body) { background: #ffe0b2; }
+  .grandparent-label { font-size: 11px; color: #e65100; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .focused-current { cursor: pointer; }
+  .focused-current :global(.card-body) { background: #c8e6c9; }
+  .focused-current:hover :global(.card-body) { background: #a5d6a7; }
+  .children-label { font-size: 11px; color: #1565c0; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 12px 0 4px 16px; }
+  .focused-child { margin-left: 16px; border-left: 3px solid #1565c0; padding-left: 12px; cursor: pointer; }
+  .focused-child :global(.card-body) { background: #e3f2fd; border-radius: 0 4px 4px 0; }
+  .focused-child:hover :global(.card-body) { background: #bbdefb; }
   .no-children { font-size: 13px; color: #999; margin: 12px 0 0 16px; }
   .note-section { margin-bottom: 16px; }
   .trail-note { margin: 0; padding: 8px 12px; background: #f8f8f8; border-radius: 4px; cursor: pointer; font-size: 14px; color: #333; white-space: pre-wrap; }
