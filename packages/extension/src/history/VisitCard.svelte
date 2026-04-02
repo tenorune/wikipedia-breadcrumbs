@@ -138,7 +138,7 @@
   .note-btn, .cite-btn, .delete-btn { font-size: 12px; padding: 2px 8px; border: 1px solid #ddd; border-radius: 3px; background: white; cursor: pointer; }
   .delete-btn:hover { border-color: #dc3545; color: #dc3545; }
   .split-divider { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
-  .split-divider hr { flex: 1; border: none; border-top: 1px solid #ccc; margin: 0; }
+  .split-divider hr { flex: 1; border: none; border-top: 1px solid #eee; margin: 0; }
   .split-divider button { font-size: 11px; padding: 1px 8px; border: 1px solid #ddd; border-radius: 3px; background: white; cursor: pointer; color: #999; flex-shrink: 0; }
   .split-divider button:hover { border-color: #0066cc; color: #0066cc; }
   .split-divider button.hidden { visibility: hidden; }

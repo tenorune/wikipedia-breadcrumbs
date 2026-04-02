@@ -283,7 +283,7 @@
         />
       </div>
       {#if focusedView.children.length > 0}
-        <div class="children-label">Discovered from this page</div>
+        <!-- <div class="children-label">Discovered from this page</div> -->
         {#each focusedView.children as child}
           <div class="visit-wrapper focused-child" onclick={(e) => {
             if ((e.target as HTMLElement).closest("a, button, input, textarea")) return;
@@ -340,7 +340,7 @@
 </div>
 
 <style>
-  .trail-detail { max-width: 700px; }
+  .trail-detail { }
   .back { background: none; border: none; color: #0066cc; cursor: pointer; padding: 0; margin-bottom: 16px; }
   .header { display: flex; align-items: center; gap: 12px; }
   .header h2 { margin: 0; cursor: pointer; }
@@ -352,22 +352,21 @@
   .sort-bar button.active { background: #e8f0fe; border-color: #1a73e8; color: #1a73e8; }
   .sort-hint { font-style: italic; color: #999; }
   .meta { font-size: 13px; color: #666; margin: 8px 0 12px; }
-  .timeline-start { border: none; border-top: 1px solid #eee; margin: 14px 0 12px; }
-  .visit-wrapper { padding: 0 8px; margin-left: -16px; }
+  .timeline-start { border: none; border-top: 1px solid #eee; margin: 14px 50px 12px -8px; }
+  .visit-wrapper { padding: 0 0 0 8px; margin-left: -16px; }
   .visit-wrapper.focusable { cursor: pointer; }
-  .visit-wrapper.focusable:hover :global(.card-body) { background: #d0e0ff; }
+  .visit-wrapper.focusable:hover :global(.card-body) { background: #fafafa; margin-right: 50px; }
   .focused-grandparent { opacity: 0.6; cursor: pointer; }
-  .focused-grandparent:hover { opacity: 1; }
-  .focused-grandparent :global(.card-body) { background: #fff3e0; }
-  .focused-grandparent:hover :global(.card-body) { background: #ffe0b2; }
-  .grandparent-label { font-size: 11px; color: #e65100; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .focused-grandparent:hover { opacity: 0.8; }
+  .focused-grandparent :global(.card-body) { margin-right: 50px; }
+  .grandparent-label { font-size: 11px; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
   .focused-current { cursor: pointer; }
-  .focused-current :global(.card-body) { background: #c8e6c9; }
-  .focused-current:hover :global(.card-body) { background: #a5d6a7; }
-  .children-label { font-size: 11px; color: #1565c0; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 12px 0 4px 16px; }
-  .focused-child { margin-left: 16px; border-left: 3px solid #1565c0; padding-left: 12px; cursor: pointer; }
-  .focused-child :global(.card-body) { background: #e3f2fd; border-radius: 0 4px 4px 0; }
-  .focused-child:hover :global(.card-body) { background: #bbdefb; }
+  .focused-current :global(.card-body) { background: #f0f7ff; margin-right: 50px; }
+  .focused-current:hover :global(.card-body) { background: #e4effa; }
+  .children-label { font-size: 11px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 12px 0 4px 16px; }
+  .focused-child { margin-left: 16px; border-left: 2px solid #0066cc; padding-left: 12px; cursor: pointer; }
+  .focused-child :global(.card-body) { margin-right: 50px; }
+  .focused-child:hover :global(.card-body) { background: #fafafa; }
   .no-children { font-size: 13px; color: #999; margin: 12px 0 0 16px; }
   .note-section { margin-bottom: 16px; }
   .trail-note { margin: 0; padding: 8px 12px; background: #f8f8f8; border-radius: 4px; cursor: pointer; font-size: 14px; color: #333; white-space: pre-wrap; }

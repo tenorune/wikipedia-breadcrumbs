@@ -25,6 +25,7 @@
 </main>
 
 <style>
+  main { max-width: 700px; margin: 0 auto; }
   .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
   h1 { margin: 0; font-size: 24px; }
   .icon-spacer { font-size: 20px; padding: 4px; visibility: hidden; }
