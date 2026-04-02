@@ -101,7 +101,7 @@
   .stats {
     display: flex;
     gap: 12px;
-    margin-bottom: 28px;
+    margin-bottom: 12px;
   }
   .stat {
     flex: 1;
@@ -137,5 +137,5 @@
   .empty { color: #888; font-size: 13px; margin: 0 0 12px; }
   .see-all { font-size: 13px; color: #0066cc; text-decoration: none; }
   .see-all:hover { text-decoration: underline; }
-  .sign-in-prompt { display: block; text-align: center; padding: 8px; color: #0066cc; text-decoration: none; font-size: 13px; margin-top: 12px; }
+  .sign-in-prompt { display: block; text-align: center; padding: 8px; color: #0066cc; text-decoration: none; font-size: 13px; margin-bottom: 8px; }
 </style>

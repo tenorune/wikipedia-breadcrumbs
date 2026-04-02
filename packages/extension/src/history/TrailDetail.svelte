@@ -72,12 +72,15 @@
   // Uses the explicit parentVisitId field set during capture.
   const focusedView = $derived.by(() => {
     if (!focusedVisitId || sortField !== "discovery") return null;
-    const parent = visits.find((v) => v.id === focusedVisitId);
-    if (!parent) return null;
+    const focused = visits.find((v) => v.id === focusedVisitId);
+    if (!focused) return null;
 
-    const children = visits.filter((v) => v.parentVisitId === parent.id);
+    const parent = focused.parentVisitId
+      ? visits.find((v) => v.id === focused.parentVisitId) ?? null
+      : null;
+    const children = visits.filter((v) => v.parentVisitId === focused.id);
 
-    return { parent, children };
+    return { focused, parent, children };
   });
 
   function toggleFocus(visitId: string) {
@@ -239,21 +242,39 @@
   </div>
 
   <div class="sort-bar">
-    <button class:active={sortField === "discovery"} onclick={() => toggleSort("discovery")}>Discovery {sortField === "discovery" ? (sortAsc ? "▲" : "▼") : ""}</button>
+    <button class:active={sortField === "discovery"} onclick={() => {
+      if (focusedView) { focusedVisitId = null; }
+      else { toggleSort("discovery"); }
+    }}>Discovery {focusedView ? "◎" : sortField === "discovery" ? (sortAsc ? "▲" : "▼") : ""}</button>
     <button class:active={sortField === "visited"} onclick={() => toggleSort("visited")}>Visited {sortField === "visited" ? (sortAsc ? "▲" : "▼") : ""}</button>
-    <span class="sort-hint">{sortAsc ? "oldest to newest" : "newest to oldest"}</span>
+    <span class="sort-hint">{focusedView ? "focused view" : sortAsc ? "oldest to newest" : "newest to oldest"}</span>
   </div>
 
   <hr class="timeline-start" />
   <div class="timeline">
     {#if focusedView}
-      <div class="focused-parent" onclick={(e) => {
+      {#if focusedView.parent}
+        <div class="focused-grandparent" onclick={(e) => {
+          if ((e.target as HTMLElement).closest("a, button, input, textarea")) return;
+          toggleFocus(focusedView.parent!.id);
+        }}>
+          <div class="grandparent-label">Discovered from</div>
+          <VisitCard
+            visit={focusedView.parent}
+            trailId={trail.id}
+            trailStatus={trail.status}
+            onUpdateNote={handleUpdateNote}
+            onDelete={handleDeleteVisit}
+            onResumed={onMutated}
+          />
+        </div>
+      {/if}
+      <div class="focused-current" onclick={(e) => {
         if ((e.target as HTMLElement).closest("a, button, input, textarea")) return;
-        toggleFocus(focusedView.parent.id);
+        toggleFocus(focusedView.focused.id);
       }}>
-        <div class="parent-label">Parent</div>
         <VisitCard
-          visit={focusedView.parent}
+          visit={focusedView.focused}
           trailId={trail.id}
           trailStatus={trail.status}
           onUpdateNote={handleUpdateNote}
@@ -327,16 +348,18 @@
   .star { background: none; border: none; font-size: 20px; cursor: pointer; }
   .merge-btn { background: none; border: 1px solid #ddd; border-radius: 3px; padding: 4px 10px; cursor: pointer; font-size: 13px; }
   .sort-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; font-size: 13px; color: #666; }
-  .sort-bar button { padding: 3px 10px; border: 1px solid #ddd; border-radius: 3px; background: white; cursor: pointer; font-size: 12px; }
+  .sort-bar button { padding: 3px 10px; border: 1px solid #ddd; border-radius: 3px; background: white; cursor: pointer; font-size: 12px; min-width: 90px; height: 24px; line-height: 16px; }
   .sort-bar button.active { background: #e8f0fe; border-color: #1a73e8; color: #1a73e8; }
   .sort-hint { font-style: italic; color: #999; }
   .meta { font-size: 13px; color: #666; margin: 8px 0 12px; }
   .timeline-start { border: none; border-top: 1px solid #eee; margin: 14px 0 0; }
   .visit-wrapper.focusable { cursor: pointer; }
   .visit-wrapper.focusable:hover { background: #fafafa; border-radius: 4px; }
-  .focused-parent { background: #f0f7ff; border-radius: 6px; padding: 8px; cursor: pointer; }
-  .focused-parent:hover { background: #e4effa; }
-  .parent-label { font-size: 11px; color: #0066cc; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .focused-grandparent { opacity: 0.6; margin-bottom: 4px; cursor: pointer; }
+  .focused-grandparent:hover { opacity: 0.8; }
+  .grandparent-label { font-size: 11px; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .focused-current { background: #f0f7ff; border-radius: 6px; padding: 8px; cursor: pointer; }
+  .focused-current:hover { background: #e4effa; }
   .children-label { font-size: 11px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 12px 0 4px 16px; }
   .focused-child { margin-left: 16px; border-left: 2px solid #0066cc; padding-left: 12px; cursor: pointer; }
   .focused-child:hover { background: #fafafa; border-radius: 0 4px 4px 0; }

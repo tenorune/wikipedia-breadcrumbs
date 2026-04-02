@@ -30,6 +30,7 @@ export function shouldStartNewTrail(context: TrailDetectionContext): DetectionRe
   if (context.newTabId !== context.currentTrailTabId) return { isNew: true, reason: StartReason.AutoNewTab };
   if (context.isNewTab) return { isNew: true, reason: StartReason.AutoNewTab };
   if (context.msSinceLastVisit >= context.idleTimeoutMs) return { isNew: true, reason: StartReason.AutoTimeout };
+  if (context.isFromSearch) return { isNew: true, reason: StartReason.AutoSearch };
   if (isExternalReferrer(context.referrerUrl) && context.transitionType !== "link") return { isNew: true, reason: StartReason.AutoExternal };
   return { isNew: false };
 }

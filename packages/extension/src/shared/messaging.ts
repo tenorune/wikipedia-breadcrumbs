@@ -11,9 +11,10 @@ export type OffscreenRequest =
   | { type: "updateTrail"; trailId: string; changes: Partial<Trail> }
   | { type: "updateVisit"; visitId: string; changes: Partial<Visit> }
   | { type: "softDeleteTrail"; trailId: string }
+  | { type: "softDeleteVisit"; visitId: string }
   | { type: "searchVisits"; query: string }
   | { type: "getActiveTrails" }
-  | { type: "findVisitByUrl"; trailId: string; url: string }
+  | { type: "findVisitByUrl"; trailId: string; url: string; title?: string }
   | { type: "getActiveTrailByUrl"; url: string }
   | { type: "enableSync" }
   | { type: "disableSync" }

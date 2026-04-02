@@ -28,7 +28,7 @@ async function initialize() {
 
 // Reconcile after browser has had time to restore tabs.
 // Use an alarm to delay — this survives SW termination unlike setTimeout.
-chrome.alarms.create("reconcile-trails", { delayInMinutes: 0.1 }); // ~6 seconds
+chrome.alarms.create("reconcile-trails", { delayInMinutes: 0.1, periodInMinutes: 15 }); // ~6 seconds, then every 15 min
 
 // On startup, match active trails to currently open tabs by URL.
 // Tab IDs change across browser restarts, so we match by the last visit's URL
@@ -100,9 +100,22 @@ async function reconcileActiveTrails() {
         });
         urlToTab.delete(matchTab.url!);
       }
-      // Don't finalize unmatched trails — the tab may still be open on a page
-      // not yet recorded. They'll get finalized by tab close or idle timeout.
     }
+
+    // Finalize stale unmatched trails — any active trail not in memory
+    // whose last activity is older than 2x the idle timeout is likely orphaned.
+    const staleThresholdMs = settings.idleTimeoutMinutes * 60 * 1000 * 2;
+    const now = Date.now();
+    for (const trail of activeTrails) {
+      if (!trailManager.getByTrailId(trail.id)) {
+        const age = now - new Date(trail.updatedAt).getTime();
+        if (age > staleThresholdMs) {
+          console.log("[breadcrumbs] reconcile: finalizing stale trail", trail.id.slice(0, 8), `(${Math.round(age / 60000)}min old)`);
+          await sendToOffscreen({ type: "finalizeTrail", trailId: trail.id });
+        }
+      }
+    }
+
     console.log("[breadcrumbs] reconcile: done. trailManager entries:", [...Array(1000).keys()].filter(i => trailManager.getActive(i)).length);
   } catch (err) {
     console.error("[breadcrumbs] reconcile failed:", err);
@@ -190,7 +203,14 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     return;
   }
   const tabId = parseTabIdFromAlarm(alarm.name);
-  if (tabId !== null) trailManager.removeTab(tabId);
+  if (tabId !== null) {
+    const entry = trailManager.getActive(tabId);
+    if (entry) {
+      await sendToOffscreen({ type: "finalizeTrail", trailId: entry.trailId });
+    }
+    trailManager.removeTab(tabId);
+    await clearIdleAlarm(tabId);
+  }
 });
 
 chrome.runtime.onMessage.addListener((message: any, _sender, sendResponse) => {

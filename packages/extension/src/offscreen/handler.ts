@@ -80,9 +80,27 @@ export async function handleOffscreenMessage(db: BreadcrumbsDB, message: Offscre
         await trails.softDelete(message.trailId);
         return { success: true, data: null };
       }
+      case "softDeleteVisit": {
+        await visits.softDelete(message.visitId);
+        return { success: true, data: null };
+      }
       case "findVisitByUrl": {
         const trailVisits = await visits.getByTrailId(message.trailId);
-        const match = trailVisits.find((v) => v.url === message.url);
+        // Exact URL match first
+        let match = trailVisits.find((v) => v.url === message.url);
+        // Fallback: match by articleId (handles same redirect URL revisited)
+        if (!match) {
+          const articleId = message.url.split("/wiki/")[1];
+          if (articleId) {
+            match = trailVisits.find((v) => v.articleId === articleId);
+          }
+        }
+        // Fallback: match by title, case-insensitive (handles redirect targets
+        // with different URLs and case variants like /wiki/Star_wars vs /wiki/Star_Wars)
+        if (!match && message.title) {
+          const lowerTitle = message.title.toLowerCase();
+          match = trailVisits.find((v) => v.title.toLowerCase() === lowerTitle);
+        }
         return { success: true, data: match ?? null };
       }
       case "searchVisits": {

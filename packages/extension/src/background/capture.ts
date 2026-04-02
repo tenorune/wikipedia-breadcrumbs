@@ -86,7 +86,16 @@ export async function handleNavigation(
     }
   }
 
-  const isMainPage = parsed.title === "Main Page";
+  // Main Page is never recorded — finalize the current trail so the next
+  // article the user clicks starts a fresh trail.
+  if (parsed.title === "Main Page") {
+    if (current) {
+      await sendToOffscreen({ type: "finalizeTrail", trailId: current.trailId });
+      trailManager.removeTab(tabId);
+    }
+    return;
+  }
+
   const isFromSearch = transitionType === "generated";
   const isExternal = isExternalTransition(transitionType, transitionQualifiers);
 
@@ -101,7 +110,7 @@ export async function handleNavigation(
     newUrl: details.url,
     msSinceLastVisit: current ? Date.now() - current.lastVisitTimestamp : Infinity,
     idleTimeoutMs: idleTimeoutMinutes * 60 * 1000,
-    isMainPage,
+    isMainPage: false,
     isFromSearch,
   };
 
@@ -130,11 +139,15 @@ export async function handleNavigation(
       lastVisitUrl: parsed.cleanUrl,
     });
   } else {
-    // Same trail — check if this URL is already in the trail
+    // Same trail — check if this URL is already in the trail.
+    // findVisitByUrl also matches by articleId, so redirects are caught
+    // (e.g., /wiki/Sahabah matches a visit stored as /wiki/Sahabah even if
+    // its title was updated to "Companions of the Prophet").
     const existing = await sendToOffscreen({
       type: "findVisitByUrl",
       trailId: current.trailId,
       url: parsed.cleanUrl,
+      title: parsed.title,
     });
 
     const now = new Date().toISOString();
@@ -149,10 +162,15 @@ export async function handleNavigation(
       // New page — find the parent visit (the page we navigated from)
       let parentVisitId: string | null = null;
       if (current.lastVisitUrl) {
+        // Derive a title from the parent URL for fallback matching
+        // (needed when parent was reached via redirect, e.g. lastVisitUrl is
+        // /wiki/Companions_of_the_Prophet but stored visit URL is /wiki/Sahabah)
+        const parentParsed = parseWikipediaUrl(current.lastVisitUrl);
         const parentResult = await sendToOffscreen({
           type: "findVisitByUrl",
           trailId: current.trailId,
           url: current.lastVisitUrl,
+          title: parentParsed?.title,
         });
         if (parentResult.success && parentResult.data) {
           parentVisitId = (parentResult.data as any).id;
@@ -194,10 +212,10 @@ export async function handleNavigation(
   const capturedClickedText = details.clickedLinkText;
   setTimeout(async () => {
     try {
-      // Verify the tab is still on the same URL before fetching page info
+      // Verify tab still exists and is on Wikipedia
       try {
         const tab = await chrome.tabs.get(tabId);
-        if (!tab.url?.includes(parsed.cleanUrl.split("/wiki/")[1] ?? "")) return;
+        if (!tab.url || !tab.url.includes("wikipedia.org")) return;
       } catch { return; }
 
       const pageInfo = await Promise.race([
@@ -207,18 +225,66 @@ export async function handleNavigation(
 
       if (pageInfo && "pageTitle" in pageInfo && pageInfo.pageTitle) {
         const actualTitle = pageInfo.pageTitle;
+        const isRedirect = pageInfo.redirectedFrom !== null;
+
+        // Verify this is still the page we navigated to:
+        // either the title matches, or it's a redirect from our original article
+        const titleMatches = actualTitle === capturedTitle;
+        const redirectMatches = isRedirect &&
+          pageInfo.redirectedFrom!.replace(/ /g, "_") === capturedTitle.replace(/ /g, "_");
+        if (!titleMatches && !redirectMatches) return;
+
         const changes: Record<string, unknown> = {};
 
-        // Update title if it differs from the URL-derived title
+        // Update title to the actual page title
         if (actualTitle !== capturedTitle) {
           changes.title = actualTitle;
         }
 
-        // Determine sourceDetail based on redirect or clicked link text
-        if (pageInfo.redirectedFrom) {
-          changes.sourceDetail = `Redirected from ${pageInfo.redirectedFrom}`;
-        } else if (capturedClickedText && capturedClickedText !== actualTitle) {
-          changes.sourceDetail = `Linked as ${capturedClickedText}`;
+        // Build sourceDetail: combine linked-as and redirect info
+        const parts: string[] = [];
+        if (capturedClickedText && capturedClickedText.toLowerCase() !== actualTitle.toLowerCase()) {
+          parts.push(`linked as ${capturedClickedText}`);
+        }
+        // Only mention redirect separately if it differs from the clicked text
+        if (isRedirect && pageInfo.redirectedFrom !== capturedClickedText) {
+          parts.push(`redirected from ${pageInfo.redirectedFrom}`);
+        }
+        if (parts.length > 0) {
+          changes.sourceDetail = parts.join(", ");
+        }
+
+        // Check if another visit in this trail already has the actual title
+        // (happens when the same page is reached via different redirects,
+        // e.g. /wiki/Sahabah and /wiki/Companions_of_Muhammad both → "Companions of the Prophet")
+        if (actualTitle !== capturedTitle) {
+          const existingByTitle = await sendToOffscreen({
+            type: "findVisitByUrl",
+            trailId: capturedTrailId,
+            url: "", // won't match any URL
+            title: actualTitle,
+          });
+          if (existingByTitle.success && existingByTitle.data) {
+            // This visit is a duplicate — find the one we just created and delete it
+            const duplicate = await sendToOffscreen({
+              type: "findVisitByUrl",
+              trailId: capturedTrailId,
+              url: capturedUrl,
+            });
+            if (duplicate.success && duplicate.data && (duplicate.data as any).id !== (existingByTitle.data as any).id) {
+              const now = new Date().toISOString();
+              await sendToOffscreen({
+                type: "updateVisit",
+                visitId: (existingByTitle.data as any).id,
+                changes: { lastVisitedAt: now },
+              });
+              await sendToOffscreen({
+                type: "softDeleteVisit",
+                visitId: (duplicate.data as any).id,
+              });
+              return;
+            }
+          }
         }
 
         if (Object.keys(changes).length > 0) {

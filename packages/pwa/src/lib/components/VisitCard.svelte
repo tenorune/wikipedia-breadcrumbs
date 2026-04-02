@@ -79,7 +79,7 @@
     <a class="title" href={visit.url} target="_blank" rel="noopener noreferrer">
       {visit.title}
     </a>
-    {#if visit.sourceDetail?.startsWith("Redirected from") || visit.sourceDetail?.startsWith("Linked as")}
+    {#if visit.sourceDetail}
       <span class="redirect">({visit.sourceDetail})</span>
     {/if}
   </div>
