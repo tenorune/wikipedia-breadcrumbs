@@ -7,6 +7,7 @@
     visitCount: number;
     firstTitle: string;
     lastTitle: string;
+    lastDiscoveredAt: string;
     searchText: string;
   }
 
@@ -39,6 +40,7 @@
         trail, visitCount: visits.length,
         firstTitle: visits[0]?.title ?? "",
         lastTitle: visits[visits.length - 1]?.title ?? "",
+        lastDiscoveredAt: visits[visits.length - 1]?.timestamp ?? trail.startedAt,
         searchText: searchParts.join(" ").toLowerCase(),
       });
     }
@@ -109,7 +111,7 @@
           <div class="trail-info" onclick={() => onSelectTrail(summary.trail)}>
             <span class="name">{summary.trail.name ?? `${summary.firstTitle} → ${summary.lastTitle}`}</span>
             <span class="meta">
-              {summary.visitCount} pages &middot; {formatDate(summary.trail.startedAt)}
+              {summary.visitCount} pages &middot; {formatDate(summary.trail.startedAt)}{#if formatDate(summary.trail.startedAt) !== formatDate(summary.lastDiscoveredAt)}{" "}&mdash; {formatDate(summary.lastDiscoveredAt)}{/if}
               {#if summary.trail.status === "active"}
                 <span class="active-badge">Active</span>
               {/if}

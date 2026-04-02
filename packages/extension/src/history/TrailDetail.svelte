@@ -205,8 +205,7 @@
 
   <div class="meta">
     <span>{visits.length} pages</span>
-    <span> &middot; Started {formatDate(trail.startedAt)}</span>
-    {#if trail.endedAt}<span> — {formatDate(trail.endedAt)}</span>{/if}
+    <span> &middot; {formatDate(trail.startedAt)}{#if visits.length > 0 && formatDate(trail.startedAt) !== formatDate(visits[visits.length - 1].timestamp)}{" "}&mdash; {formatDate(visits[visits.length - 1].timestamp)}{/if}</span>
     {#if trail.status === "active"}<span class="active-badge">Active</span>{/if}
   </div>
 

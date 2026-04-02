@@ -13,6 +13,7 @@
   let trails = $state<Trail[]>([]);
   let displayNames = $state<Record<string, string>>({});
   let visitCounts = $state<Record<string, number>>({});
+  let lastDiscovered = $state<Record<string, string>>({});
   let searchTexts = $state<Record<string, string>>({});
   let search = $state("");
   let sortMode = $state<SortMode>("recent");
@@ -22,11 +23,13 @@
     trails = all;
     const names: Record<string, string> = {};
     const counts: Record<string, number> = {};
+    const discovered: Record<string, string> = {};
     const texts: Record<string, string> = {};
     await Promise.all(
       all.map(async (t) => {
         const visits = await vs.getByTrailId(t.id);
         counts[t.id] = visits.length;
+        discovered[t.id] = visits.length > 0 ? visits[visits.length - 1].timestamp : t.startedAt;
         if (t.name) {
           names[t.id] = t.name;
         } else if (visits.length === 0) {
@@ -46,6 +49,7 @@
     );
     displayNames = names;
     visitCounts = counts;
+    lastDiscovered = discovered;
     searchTexts = texts;
   }
 
@@ -131,7 +135,7 @@
         <button class="info" onclick={() => goto("/trails/" + trail.id)}>
           <span class="name">{displayNames[trail.id] ?? "…"}</span>
           <span class="meta">
-            {visitCounts[trail.id] ?? 0} pages &middot; {formatDate(trail.updatedAt)}
+            {visitCounts[trail.id] ?? 0} pages &middot; {formatDate(lastDiscovered[trail.id] ?? trail.startedAt)}
             {#if trail.status === TrailStatus.Active}
               <span class="badge active">Active</span>
             {/if}
