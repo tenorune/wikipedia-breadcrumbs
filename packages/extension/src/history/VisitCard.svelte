@@ -82,6 +82,9 @@
 <div class="visit-card">
   <div class="main">
     <a href={visit.url} onclick={handleTitleClick} class="title">{visit.title}</a>
+    {#if visit.sourceDetail?.startsWith("Redirected from")}
+      <span class="redirect">({visit.sourceDetail})</span>
+    {/if}
     <div class="meta">
       <span class="time">Discovered {formatTime(visit.timestamp)}</span>
       {#if visit.lastVisitedAt && visit.lastVisitedAt !== visit.timestamp}
@@ -125,6 +128,7 @@
   .visit-card:has(.split-divider) { padding-bottom: 0; }
   .title { color: #0066cc; text-decoration: none; font-size: 15px; font-weight: 500; }
   .title:hover { text-decoration: underline; }
+  .redirect { font-size: 12px; color: #999; font-style: italic; }
   .meta { font-size: 12px; color: #666; margin-top: 4px; display: flex; gap: 4px; align-items: center; }
   .sep { color: #999; }
   .badge { background: #e8f0fe; color: #1a73e8; padding: 1px 6px; border-radius: 3px; font-size: 11px; }

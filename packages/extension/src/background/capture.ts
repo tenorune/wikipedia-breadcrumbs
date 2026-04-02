@@ -170,4 +170,41 @@ export async function handleNavigation(
   }
 
   await resetIdleAlarm(tabId, idleTimeoutMinutes);
+
+  // After the page loads, fetch the actual title and redirect info from the content script
+  // and update the visit if the title differs (handles Wikipedia redirects)
+  const capturedTrailId = current?.trailId ?? "";
+  const capturedUrl = parsed.cleanUrl;
+  const capturedTitle = parsed.title;
+  setTimeout(async () => {
+    try {
+      const pageInfo = await Promise.race([
+        chrome.tabs.sendMessage(tabId, { type: "getPageInfo" }),
+        new Promise((_, reject) => setTimeout(() => reject("timeout"), 2000)),
+      ]) as { pageTitle: string; redirectedFrom: string | null } | undefined;
+
+      if (pageInfo && "pageTitle" in pageInfo && pageInfo.pageTitle) {
+        const actualTitle = pageInfo.pageTitle;
+        if (actualTitle !== capturedTitle) {
+          const sourceDetail = pageInfo.redirectedFrom
+            ? `Redirected from ${pageInfo.redirectedFrom}`
+            : null;
+          const result = await sendToOffscreen({
+            type: "findVisitByUrl",
+            trailId: capturedTrailId,
+            url: capturedUrl,
+          });
+          if (result.success && result.data) {
+            await sendToOffscreen({
+              type: "updateVisit",
+              visitId: (result.data as any).id,
+              changes: { title: actualTitle, sourceDetail },
+            });
+          }
+        }
+      }
+    } catch {
+      // Content script not ready or tab closed — ignore
+    }
+  }, 1500);
 }

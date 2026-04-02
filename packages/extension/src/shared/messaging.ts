@@ -30,8 +30,11 @@ export type OffscreenResponse<T = unknown> =
   | { success: true; data: T }
   | { success: false; error: string };
 
-export type ContentMessage = { type: "getClickContext" } | { type: "ping" };
-export type ContentResponse = { clickedLinkText: string | null; referrerUrl: string | null } | { pong: true };
+export type ContentMessage = { type: "getClickContext" } | { type: "getPageInfo" } | { type: "ping" };
+export type ContentResponse =
+  | { clickedLinkText: string | null; referrerUrl: string | null }
+  | { pageTitle: string; redirectedFrom: string | null }
+  | { pong: true };
 
 export type PopupMessage =
   | { type: "getCurrentTrail"; tabId: number }

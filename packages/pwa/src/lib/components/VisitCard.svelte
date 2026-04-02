@@ -32,10 +32,17 @@
   ];
 
   function formatTime(iso: string): string {
-    return new Date(iso).toLocaleString(undefined, {
-      year: "numeric", month: "short", day: "numeric",
+    const d = new Date(iso);
+    const now = new Date();
+    const isThisYear = d.getFullYear() === now.getFullYear();
+    const datePart = d.toLocaleDateString(undefined, {
+      ...(isThisYear ? {} : { year: "numeric" }),
+      month: "short", day: "numeric",
+    });
+    const timePart = d.toLocaleTimeString(undefined, {
       hour: "numeric", minute: "2-digit",
     });
+    return `${datePart} at ${timePart}`;
   }
 
   function saveNote() {
@@ -68,10 +75,13 @@
     <a class="title" href={visit.url} target="_blank" rel="noopener noreferrer">
       {visit.title}
     </a>
+    {#if visit.sourceDetail?.startsWith("Redirected from")}
+      <span class="redirect">({visit.sourceDetail})</span>
+    {/if}
   </div>
 
   <div class="times">
-    <span>Discovered {formatTime(visit.timestamp)}</span>
+    <span>{formatTime(visit.timestamp)}</span>
     {#if !sameTime}
       <span>· Last visited {formatTime(visit.lastVisitedAt)}</span>
     {/if}
@@ -155,6 +165,7 @@
     word-break: break-word;
   }
   .title:hover { text-decoration: underline; }
+  .redirect { font-size: 11px; color: #999; font-style: italic; }
 
   .times { font-size: 11px; color: #888; }
 
