@@ -75,6 +75,7 @@
 </script>
 
 <div class="card">
+  <button class="delete-x" onclick={() => onDelete(visit.id)} title="Delete visit" aria-label="Delete visit">✕</button>
   <div class="header">
     <a class="title" href={visit.url} target="_blank" rel="noopener noreferrer">
       {visit.title}
@@ -132,21 +133,15 @@
           </div>
         {/if}
       </div>
-      <button class="action danger" onclick={() => onDelete(visit.id)}>Delete</button>
     </div>
     {#if onSplit}
       <div class="actions-right">
-        <button class="action split" onclick={() => onSplit!(visit.position)}>Split here</button>
+        <button class="action split" onclick={() => onSplit!(visit.position)}>Split</button>
       </div>
     {/if}
   </div>
 </div>
 
-{#if onSplit}
-  <div class="split-divider">
-    <hr />
-  </div>
-{/if}
 
 <style>
   .card {
@@ -157,7 +152,21 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+    position: relative;
   }
+  .delete-x {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: none;
+    border: none;
+    color: #bbb;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 4px;
+    line-height: 1;
+  }
+  .delete-x:hover { color: #cc3300; }
 
   .header { }
   .title {
@@ -214,8 +223,6 @@
     color: #333;
   }
   .action:hover { background: #eee; }
-  .action.danger { color: #cc3300; border-color: #f5c0b0; }
-  .action.danger:hover { background: #fff0ec; }
   .action.split { color: #6600cc; border-color: #d0c0f5; }
   .action.split:hover { background: #f5f0ff; }
 
@@ -245,13 +252,4 @@
   }
   .cite-item:hover { background: #f5f5f5; }
 
-  .split-divider {
-    position: relative;
-    margin: 4px 0;
-  }
-  .split-divider hr {
-    border: none;
-    border-top: 1px dashed #ccc;
-    margin: 0;
-  }
 </style>

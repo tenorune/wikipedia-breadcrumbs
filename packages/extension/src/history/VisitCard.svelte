@@ -81,13 +81,14 @@
 
 <div class="visit-card">
   <div class="card-body">
+    <button class="delete-x" onclick={() => onDelete(visit.id)} title="Delete visit" aria-label="Delete visit">✕</button>
     <div class="main">
       <a href={visit.url} onclick={handleTitleClick} class="title">{visit.title}</a>
       {#if visit.sourceDetail}
         <span class="redirect">({visit.sourceDetail})</span>
       {/if}
       <div class="meta">
-        <span class="time">Discovered {formatTime(visit.timestamp)}</span>
+        <span class="time">{formatTime(visit.timestamp)}</span>
         {#if visit.lastVisitedAt && visit.lastVisitedAt !== visit.timestamp}
           <span class="sep">&middot;</span>
           <span class="time">Last visited {formatTime(visit.lastVisitedAt)}</span>
@@ -106,16 +107,17 @@
       {#if !editingNote && !visit.note}
         <button class="note-btn" onclick={() => { editingNote = true; }}>Add Note</button>
       {/if}
-      <button class="cite-btn" onclick={() => showCitation = !showCitation}>Cite</button>
-      <button class="delete-btn" onclick={() => onDelete(visit.id)}>Delete</button>
-    </div>
-    {#if showCitation}
-      <div class="citation-picker">
-        {#each citationFormats as fmt}
-          <button onclick={() => copyCitation(fmt.key)}>{fmt.label}</button>
-        {/each}
+      <div class="cite-wrap">
+        <button class="cite-btn" onclick={() => showCitation = !showCitation}>Cite</button>
+        {#if showCitation}
+          <div class="cite-menu">
+            {#each citationFormats as fmt}
+              <button class="cite-item" onclick={() => copyCitation(fmt.key)}>{fmt.label}</button>
+            {/each}
+          </div>
+        {/if}
       </div>
-    {/if}
+    </div>
   </div>
   <div class="split-divider">
     <hr /><button class:hidden={!onSplit} onclick={() => onSplit?.(visit.position)}>Split</button>
@@ -124,7 +126,20 @@
 
 <style>
   .visit-card { padding: 0; }
-  .card-body { padding: 10px 0 8px 8px; border-radius: 6px; }
+  .card-body { padding: 10px 0 8px 8px; border-radius: 6px; position: relative; }
+  .delete-x {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: none;
+    border: none;
+    color: #bbb;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 4px;
+    line-height: 1;
+  }
+  .delete-x:hover { color: #cc3300; }
   .title { color: #0066cc; text-decoration: none; font-size: 15px; font-weight: 500; }
   .title:hover { text-decoration: underline; }
   .redirect { font-size: 12px; color: #999; font-style: italic; }
@@ -135,8 +150,7 @@
   .actions { display: flex; gap: 8px; margin-top: 6px; }
   .note-display { font-size: 12px; color: #333; cursor: pointer; text-align: left; margin-top: 6px; }
   .note-display:hover { color: #0066cc; }
-  .note-btn, .cite-btn, .delete-btn { font-size: 12px; padding: 2px 8px; border: 1px solid #ddd; border-radius: 3px; background: white; cursor: pointer; }
-  .delete-btn:hover { border-color: #dc3545; color: #dc3545; }
+  .note-btn, .cite-btn { font-size: 12px; padding: 2px 8px; border: 1px solid #ddd; border-radius: 3px; background: white; cursor: pointer; }
   .split-divider { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
   .split-divider hr { flex: 1; border: none; border-top: 1px solid #eee; margin: 0; }
   .split-divider button { font-size: 11px; padding: 1px 8px; border: 1px solid #ddd; border-radius: 3px; background: white; cursor: pointer; color: #999; flex-shrink: 0; }
@@ -144,7 +158,29 @@
   .split-divider button.hidden { visibility: hidden; }
   .note-edit { display: flex; gap: 4px; }
   .note-edit input { font-size: 12px; padding: 2px 6px; border: 1px solid #ccc; border-radius: 3px; width: 200px; }
-  .citation-picker { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-  .citation-picker button { font-size: 12px; padding: 3px 10px; border: 1px solid #ddd; border-radius: 3px; background: #f8f8f8; cursor: pointer; }
-  .citation-picker button:hover { background: #e8f0fe; }
+  .cite-wrap { position: relative; }
+  .cite-menu {
+    position: absolute;
+    bottom: calc(100% + 4px);
+    left: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 4px 0;
+    z-index: 50;
+    min-width: 180px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+  .cite-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 7px 14px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 12px;
+    color: #222;
+  }
+  .cite-item:hover { background: #f5f5f5; }
 </style>
