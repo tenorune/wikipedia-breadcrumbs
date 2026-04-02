@@ -166,7 +166,7 @@ async function importCopy(db: BreadcrumbsDB, trail: ExportTrail, ctx: ImportCont
 }
 
 function buildTrailRecord(trail: ExportTrail, ctx: ImportContext): any {
-  return {
+  return JSON.parse(JSON.stringify({
     id: trail.id,
     userId: ctx.userId,
     name: trail.name,
@@ -176,7 +176,7 @@ function buildTrailRecord(trail: ExportTrail, ctx: ImportContext): any {
     updatedAt: trail.updatedAt,
     status: trail.status,
     isStarred: trail.isStarred,
-    tags: trail.tags,
+    tags: trail.tags ?? [],
     note: trail.note,
     visibility: trail.visibility,
     deviceId: ctx.deviceId,
@@ -184,11 +184,11 @@ function buildTrailRecord(trail: ExportTrail, ctx: ImportContext): any {
     startReason: trail.startReason,
     syncStatus: SyncStatus.LocalOnly,
     deletedAt: null,
-  };
+  }));
 }
 
 function buildVisitRecord(v: ExportVisit, trailId: string, ctx: ImportContext): any {
-  return {
+  return JSON.parse(JSON.stringify({
     id: v.id,
     trailId,
     url: v.url,
@@ -209,5 +209,5 @@ function buildVisitRecord(v: ExportVisit, trailId: string, ctx: ImportContext): 
     parentVisitId: v.parentVisitId,
     syncStatus: SyncStatus.LocalOnly,
     deletedAt: null,
-  };
+  }));
 }

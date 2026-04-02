@@ -1,9 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { Trail, Visit } from "@wikipedia-breadcrumbs/shared";
-  import { BreadcrumbsDB, visitStore, trailStore, splitTrail, mergeTrails } from "@wikipedia-breadcrumbs/shared";
+  import { BreadcrumbsDB, visitStore, trailStore, splitTrail, mergeTrails, exportTrailsJson, exportTrailsCsv, downloadFile, exportFilename } from "@wikipedia-breadcrumbs/shared";
   import VisitCard from "./VisitCard.svelte";
-  import ExportMenu from "./ExportMenu.svelte";
 
   interface Props {
     trail: Trail;
@@ -19,6 +18,7 @@
   let isStarred = $state(trail.isStarred);
   let displayName = $state(trail.name);
   let showMergePicker = $state(false);
+  let detailMenuOpen = $state(false);
   let mergeOptions: { trail: Trail; label: string }[] = $state([]);
   let editingNote = $state(false);
   let trailNote = $state(trail.note ?? "");
@@ -191,6 +191,14 @@
     onMutated();
   }
 
+  async function handleDetailExport(format: "json" | "csv") {
+    detailMenuOpen = false;
+    const content = format === "json"
+      ? await exportTrailsJson(db, [trail.id])
+      : await exportTrailsCsv(db, [trail.id]);
+    downloadFile(content, exportFilename(trail.name, format), format === "json" ? "application/json" : "text/csv");
+  }
+
   async function handleUpdateNote(visitId: string, note: string) {
     await visitOps.update(visitId, { note });
     await loadVisits();
@@ -211,36 +219,46 @@
 <div class="trail-detail">
   <button class="back" onclick={onBack}>&larr; Back to trails</button>
 
-  <div class="header">
-    {#if editingName}
-      <!-- svelte-ignore a11y_autofocus -->
-      <input bind:value={nameText} onkeydown={(e) => e.key === "Enter" && saveName()} onblur={saveName} oninput={autoSaveName} autofocus />
-    {:else}
-      <h2 onclick={() => { editingName = true; nameText = displayName ?? ""; }}>
-        {displayName ?? (visits.length > 0 ? `${visits[0].title} → ${visits[visits.length - 1].title}` : "New trail")}
-      </h2>
-    {/if}
+  <div class="header-box">
     <button class="star" onclick={toggleStar}>{isStarred ? "★" : "☆"}</button>
-    <button class="merge-btn" onclick={openMergePicker}>Merge</button>
-    <ExportMenu trailIds={[trail.id]} trailName={trail.name} />
-  </div>
-
-  <div class="meta">
-    <span>{visits.length} pages</span>
-    <span> &middot; {formatDate(trail.startedAt)}{#if visits.length > 0 && formatDate(trail.startedAt) !== formatDate(visits[visits.length - 1].timestamp)}{" "}&mdash; {formatDate(visits[visits.length - 1].timestamp)}{/if}</span>
-    {#if trail.status === "active"}<span class="active-badge">Active</span>{/if}
-  </div>
-
-  <div class="note-section">
-    {#if editingNote}
-      <!-- svelte-ignore a11y_autofocus -->
-      <textarea bind:value={trailNote} placeholder="Add a note about this trail..." rows="3"
-        onblur={saveNote} oninput={autoSaveNote} autofocus></textarea>
-    {:else if trailNote}
-      <p class="trail-note" onclick={() => editingNote = true}>{trailNote}</p>
-    {:else}
-      <button class="add-note" onclick={() => editingNote = true}>+ Add trail note</button>
-    {/if}
+    <div class="header-content">
+      <div class="title-row">
+        {#if editingName}
+          <!-- svelte-ignore a11y_autofocus -->
+          <input bind:value={nameText} onkeydown={(e) => e.key === "Enter" && saveName()} onblur={saveName} oninput={autoSaveName} autofocus />
+        {:else}
+          <h2 onclick={() => { editingName = true; nameText = displayName ?? ""; }}>
+            {displayName ?? (visits.length > 0 ? `${visits[0].title} → ${visits[visits.length - 1].title}` : "New trail")}
+          </h2>
+        {/if}
+        <div class="detail-menu-wrap">
+          <button class="detail-menu-btn" onclick={() => { detailMenuOpen = !detailMenuOpen; }} title="Actions">⋮</button>
+          {#if detailMenuOpen}
+            <div class="detail-menu">
+              <button onclick={() => { detailMenuOpen = false; openMergePicker(); }}>Merge</button>
+              <button onclick={() => handleDetailExport("json")}>Export JSON</button>
+              <button onclick={() => handleDetailExport("csv")}>Export CSV</button>
+            </div>
+          {/if}
+        </div>
+      </div>
+      <div class="meta">
+        <span>{visits.length} pages</span>
+        <span> &middot; {formatDate(trail.startedAt)}{#if visits.length > 0 && formatDate(trail.startedAt) !== formatDate(visits[visits.length - 1].timestamp)}{" "}&mdash; {formatDate(visits[visits.length - 1].timestamp)}{/if}</span>
+        {#if trail.status === "active"}<span class="active-badge">Active</span>{/if}
+      </div>
+      <div class="note-section">
+        {#if editingNote}
+          <!-- svelte-ignore a11y_autofocus -->
+          <textarea bind:value={trailNote} placeholder="Add a note about this trail..." rows="3"
+            onblur={saveNote} oninput={autoSaveNote} autofocus></textarea>
+        {:else if trailNote}
+          <p class="trail-note" onclick={() => editingNote = true}>{trailNote}</p>
+        {:else}
+          <button class="add-note" onclick={() => editingNote = true}>+ Add trail note</button>
+        {/if}
+      </div>
+    </div>
   </div>
 
   <div class="sort-bar">
@@ -344,11 +362,26 @@
 <style>
   .trail-detail { }
   .back { background: none; border: none; color: #0066cc; cursor: pointer; padding: 0; margin-bottom: 16px; }
-  .header { display: flex; align-items: center; gap: 12px; }
-  .header h2 { margin: 0; cursor: pointer; }
-  .header h2:hover { color: #0066cc; }
-  .star { background: none; border: none; font-size: 20px; cursor: pointer; }
-  .merge-btn { background: none; border: 1px solid #ddd; border-radius: 3px; padding: 4px 10px; cursor: pointer; font-size: 13px; }
+  .header-box {
+    display: flex; gap: 10px; padding: 12px; border: 1px solid #eee; border-radius: 6px;
+    margin-bottom: 12px; align-items: start;
+  }
+  .star { background: none; border: none; font-size: 20px; cursor: pointer; padding: 0; flex-shrink: 0; color: #ccc; }
+  .header-content { flex: 1; min-width: 0; }
+  .title-row { display: flex; align-items: center; gap: 8px; }
+  .title-row h2 { margin: 0; cursor: pointer; flex: 1; word-break: break-word; }
+  .title-row h2:hover { color: #0066cc; }
+  .detail-menu-wrap { position: relative; }
+  .detail-menu-btn { background: none; border: 1px solid #ddd; border-radius: 3px; font-size: 18px; cursor: pointer; padding: 0 8px; color: #555; line-height: 1; }
+  .detail-menu-btn:hover { background: #f0f0f0; }
+  .detail-menu {
+    position: absolute; top: calc(100% + 4px); right: 0; background: white;
+    border: 1px solid #ddd; border-radius: 6px; padding: 4px 0; z-index: 50;
+    min-width: 140px; box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+  .detail-menu button { display: block; width: 100%; text-align: left; padding: 6px 12px; border: none; background: none; cursor: pointer; font-size: 12px; color: #222; }
+  .detail-menu button:hover { background: #f5f5f5; }
+  .meta { font-size: 13px; color: #666; margin-top: 4px; }
   .sort-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; font-size: 13px; color: #666; }
   .sort-bar button { padding: 3px 10px; border: 1px solid #ddd; border-radius: 3px; background: white; cursor: pointer; font-size: 12px; min-width: 90px; height: 24px; line-height: 16px; }
   .sort-bar button.active { background: #e8f0fe; border-color: #1a73e8; color: #1a73e8; }
@@ -370,7 +403,7 @@
   .focused-child :global(.card-body) { margin-right: 50px; }
   .focused-child:hover :global(.card-body) { background: #fafafa; }
   .no-children { font-size: 13px; color: #999; margin: 12px 0 0 0; }
-  .note-section { margin-bottom: 16px; }
+  .note-section { margin-top: 6px; }
   .trail-note { margin: 0; padding: 8px 12px; background: #f8f8f8; border-radius: 4px; cursor: pointer; font-size: 14px; color: #333; white-space: pre-wrap; }
   .trail-note:hover { background: #f0f0f0; }
   .add-note { background: none; border: none; cursor: pointer; color: #0066cc; font-size: 13px; padding: 0; }

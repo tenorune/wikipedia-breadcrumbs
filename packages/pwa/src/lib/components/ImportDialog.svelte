@@ -65,22 +65,22 @@
   }
 </script>
 
-<button class="import-btn" onclick={handleImport}>Import</button>
-
-{#if error}
-  <div class="import-error">{error}</div>
-{/if}
-
-{#if result}
-  <div class="import-result">
-    Imported {result.trailsImported} trail{result.trailsImported === 1 ? "" : "s"}
-    ({result.visitsImported} visit{result.visitsImported === 1 ? "" : "s"}).
-    {#if result.skipped > 0}Skipped {result.skipped}.{/if}
-    {#if result.errors.length > 0}
-      <div class="import-errors">{result.errors.join("; ")}</div>
-    {/if}
-  </div>
-{/if}
+<div class="import-wrap">
+  <button class="import-btn" onclick={handleImport}>Import</button>
+  {#if error}
+    <div class="import-error">{error}</div>
+  {/if}
+  {#if result}
+    <div class="import-result">
+      Imported {result.trailsImported} trail{result.trailsImported === 1 ? "" : "s"}
+      ({result.visitsImported} visit{result.visitsImported === 1 ? "" : "s"}).
+      {#if result.skipped > 0}Skipped {result.skipped}.{/if}
+      {#if result.errors.length > 0}
+        <div class="import-errors">{result.errors.join("; ")}</div>
+      {/if}
+    </div>
+  {/if}
+</div>
 
 {#if showDialog}
   <div class="conflict-overlay">
@@ -89,7 +89,7 @@
       <p>{conflicts.length} trail{conflicts.length === 1 ? "" : "s"} already exist{conflicts.length === 1 ? "s" : ""} locally.</p>
       {#each conflicts as conflict}
         <div class="conflict-item">
-          <strong>{conflict.imported.name ?? conflict.imported.id.slice(0, 8)}</strong>
+          <strong>{conflict.imported.name ?? (conflict.imported.visits.length > 0 ? `${conflict.imported.visits[0].title} → ${conflict.imported.visits[conflict.imported.visits.length - 1].title}` : "Empty trail")}</strong>
           <span>({conflict.imported.visits.length} visits)</span>
           <div class="conflict-actions">
             <label><input type="radio" bind:group={decisions[conflict.imported.id]} value="skip" /> Skip</label>
@@ -107,13 +107,14 @@
 {/if}
 
 <style>
+  .import-wrap { position: relative; }
   .import-btn {
     font-size: 12px; padding: 4px 10px; border: 1px solid #ddd; border-radius: 6px;
     background: #f8f8f8; cursor: pointer; color: #333;
   }
   .import-btn:hover { background: #eee; }
-  .import-error { color: #dc3545; font-size: 12px; margin-top: 4px; white-space: pre-wrap; }
-  .import-result { font-size: 12px; color: #155724; background: #d4edda; padding: 6px 10px; border-radius: 6px; margin-top: 4px; }
+  .import-error { position: absolute; top: calc(100% + 4px); left: 0; min-width: 250px; color: #dc3545; font-size: 12px; white-space: pre-wrap; z-index: 10; background: white; padding: 6px 10px; border-radius: 6px; border: 1px solid #f5c0b0; }
+  .import-result { position: absolute; top: calc(100% + 4px); left: 0; min-width: 250px; font-size: 12px; color: #155724; background: #d4edda; padding: 6px 10px; border-radius: 6px; z-index: 10; }
   .import-errors { color: #dc3545; margin-top: 4px; }
   .conflict-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 100; }
   .conflict-dialog { background: white; border-radius: 12px; padding: 20px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; }
