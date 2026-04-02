@@ -9,6 +9,10 @@ document.body.addEventListener("click", (event) => {
   const anchor = target.closest("a[href]") as HTMLAnchorElement | null;
   if (anchor?.href) {
     tracker.handleClick({ href: anchor.href, textContent: anchor.textContent?.trim() ?? "" });
+    // Send clicked link text to background immediately so it's available after navigation
+    try {
+      chrome.runtime.sendMessage({ type: "linkClicked", text: anchor.textContent?.trim() ?? "" });
+    } catch {}
   }
 });
 

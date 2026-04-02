@@ -11,6 +11,7 @@ export interface NavigationDetails {
   windowId: number;
   transitionType: string;
   transitionQualifiers: string[];
+  clickedLinkText: string | null;
 }
 
 function inferSourceType(transitionType: string, transitionQualifiers: string[]): SourceType {
@@ -176,6 +177,7 @@ export async function handleNavigation(
   const capturedTrailId = current?.trailId ?? "";
   const capturedUrl = parsed.cleanUrl;
   const capturedTitle = parsed.title;
+  const capturedClickedText = details.clickedLinkText;
   setTimeout(async () => {
     try {
       const pageInfo = await Promise.race([
@@ -185,10 +187,21 @@ export async function handleNavigation(
 
       if (pageInfo && "pageTitle" in pageInfo && pageInfo.pageTitle) {
         const actualTitle = pageInfo.pageTitle;
+        const changes: Record<string, unknown> = {};
+
+        // Update title if it differs from the URL-derived title
         if (actualTitle !== capturedTitle) {
-          const sourceDetail = pageInfo.redirectedFrom
-            ? `Redirected from ${pageInfo.redirectedFrom}`
-            : null;
+          changes.title = actualTitle;
+        }
+
+        // Determine sourceDetail based on redirect or clicked link text
+        if (pageInfo.redirectedFrom) {
+          changes.sourceDetail = `Redirected from ${pageInfo.redirectedFrom}`;
+        } else if (capturedClickedText && capturedClickedText !== actualTitle) {
+          changes.sourceDetail = `Linked as ${capturedClickedText}`;
+        }
+
+        if (Object.keys(changes).length > 0) {
           const result = await sendToOffscreen({
             type: "findVisitByUrl",
             trailId: capturedTrailId,
@@ -198,7 +211,7 @@ export async function handleNavigation(
             await sendToOffscreen({
               type: "updateVisit",
               visitId: (result.data as any).id,
-              changes: { title: actualTitle, sourceDetail },
+              changes,
             });
           }
         }

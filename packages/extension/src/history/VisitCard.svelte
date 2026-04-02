@@ -82,7 +82,7 @@
 <div class="visit-card">
   <div class="main">
     <a href={visit.url} onclick={handleTitleClick} class="title">{visit.title}</a>
-    {#if visit.sourceDetail?.startsWith("Redirected from")}
+    {#if visit.sourceDetail?.startsWith("Redirected from") || visit.sourceDetail?.startsWith("Linked as")}
       <span class="redirect">({visit.sourceDetail})</span>
     {/if}
     <div class="meta">

@@ -10,6 +10,8 @@ import type { BackgroundMessage } from "../shared/messaging.js";
 const SYNC_ALARM = "sync-interval";
 
 const trailManager = new TrailManager();
+// Store the last clicked link text per tab (sent by content script on click)
+const lastClickedLinkText = new Map<number, string>();
 let deviceId = "";
 let settings: ExtensionSettings = { idleTimeoutMinutes: 30, captureEnabled: true, syncEnabled: false };
 
@@ -130,6 +132,10 @@ chrome.webNavigation.onCommitted.addListener(async (details) => {
   if (!settings.captureEnabled) return;
   let windowId = 0;
   try { windowId = (await chrome.tabs.get(details.tabId)).windowId; } catch {}
+  // Get and clear the clicked link text for this tab (set by content script before navigation)
+  const clickedText = lastClickedLinkText.get(details.tabId) ?? null;
+  lastClickedLinkText.delete(details.tabId);
+
   await handleNavigation(
     {
       tabId: details.tabId,
@@ -138,6 +144,7 @@ chrome.webNavigation.onCommitted.addListener(async (details) => {
       windowId,
       transitionType: details.transitionType,
       transitionQualifiers: details.transitionQualifiers,
+      clickedLinkText: clickedText,
     },
     trailManager, deviceId, settings.idleTimeoutMinutes
   );
@@ -188,6 +195,11 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
 chrome.runtime.onMessage.addListener((message: any, _sender, sendResponse) => {
   if (message.target === "offscreen") return false;
+  // Content script sends clicked link text immediately on click
+  if (message.type === "linkClicked" && _sender.tab?.id) {
+    lastClickedLinkText.set(_sender.tab.id, message.text);
+    return false;
+  }
   handleBackgroundMessage(message as BackgroundMessage, sendResponse);
   return true;
 });
