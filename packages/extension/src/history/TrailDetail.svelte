@@ -367,7 +367,7 @@
   .focused-child { margin-left: 16px; border-left: 2px solid #0066cc; padding-left: 12px; cursor: pointer; }
   .focused-child :global(.card-body) { margin-right: 50px; }
   .focused-child:hover :global(.card-body) { background: #fafafa; }
-  .no-children { font-size: 13px; color: #999; margin: 12px 0 0 16px; }
+  .no-children { font-size: 13px; color: #999; margin: 12px 0 0 0; }
   .note-section { margin-bottom: 16px; }
   .trail-note { margin: 0; padding: 8px 12px; background: #f8f8f8; border-radius: 4px; cursor: pointer; font-size: 14px; color: #333; white-space: pre-wrap; }
   .trail-note:hover { background: #f0f0f0; }

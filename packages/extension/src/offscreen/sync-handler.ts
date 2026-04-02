@@ -33,20 +33,14 @@ async function ensureInitialized(db: BreadcrumbsDB): Promise<boolean> {
 
   supabase = getSupabaseClient();
 
-  // Try to restore existing session first
+  // Require an authenticated session — don't create anonymous users
   const { data: sessionData } = await supabase.auth.getSession();
   if (sessionData?.session?.user) {
     userId = sessionData.session.user.id;
     console.log("[breadcrumbs] Restored existing session:", userId);
   } else {
-    // No existing session — create anonymous user
-    const { data: authData, error: authError } = await supabase.auth.signInAnonymously();
-    if (authError || !authData.user) {
-      console.error("[breadcrumbs] Anonymous auth failed:", authError);
-      return false;
-    }
-    userId = authData.user.id;
-    console.log("[breadcrumbs] Created anonymous user:", userId);
+    console.log("[breadcrumbs] No session — sync requires sign-in");
+    return false;
   }
 
   // Stamp all local trails with current userId

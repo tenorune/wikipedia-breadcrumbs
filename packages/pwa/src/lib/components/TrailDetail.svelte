@@ -43,6 +43,9 @@
   let sortField = $state<SortField>("discovery");
   let sortDir = $state<SortDir>("asc");
 
+  // Focused view
+  let focusedVisitId: string | null = $state(null);
+
   // Merge UI
   let showMerge = $state(false);
   let mergeTargetId = $state("");
@@ -108,8 +111,23 @@
     return list;
   });
 
+  const focusedView = $derived.by(() => {
+    if (!focusedVisitId || sortField !== "discovery") return null;
+    const focused = visits.find((v) => v.id === focusedVisitId);
+    if (!focused) return null;
+    const parent = focused.parentVisitId
+      ? visits.find((v) => v.id === focused.parentVisitId) ?? null
+      : null;
+    const children = visits.filter((v) => v.parentVisitId === focused.id);
+    return { focused, parent, children };
+  });
+
+  function toggleFocus(visitId: string) {
+    focusedVisitId = focusedVisitId === visitId ? null : visitId;
+  }
+
   const sortHint = $derived(
-    sortDir === "asc" ? "oldest to newest" : "newest to oldest"
+    focusedView ? "focused view" : sortDir === "asc" ? "oldest to newest" : "newest to oldest"
   );
 
   const trailDisplayName = $derived.by(() => {
@@ -283,9 +301,12 @@
       <button
         class="sort-btn"
         class:active={sortField === "discovery"}
-        onclick={() => setSortField("discovery")}
+        onclick={() => {
+          if (focusedView) { focusedVisitId = null; }
+          else { setSortField("discovery"); }
+        }}
       >
-        Discovery {sortField === "discovery" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+        Discovery {focusedView ? "◎" : sortField === "discovery" ? (sortDir === "asc" ? "↑" : "↓") : ""}
       </button>
       <button
         class="sort-btn"
@@ -302,14 +323,66 @@
   <div class="visits">
     {#if sortedVisits.length === 0}
       <p class="empty">No visits in this trail.</p>
-    {:else}
-      {#each sortedVisits as visit, i (visit.id)}
+    {:else if focusedView}
+      {#if focusedView.parent}
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="focused-grandparent" onclick={(e) => {
+          if ((e.target as HTMLElement).closest("a, button, input, textarea")) return;
+          toggleFocus(focusedView.parent!.id);
+        }}>
+          <VisitCard
+            visit={focusedView.parent}
+            onUpdateNote={handleUpdateNote}
+            onDelete={handleDeleteVisit}
+          />
+        </div>
+      {/if}
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="focused-current" onclick={(e) => {
+        if ((e.target as HTMLElement).closest("a, button, input, textarea")) return;
+        toggleFocus(focusedView.focused.id);
+      }}>
         <VisitCard
-          {visit}
+          visit={focusedView.focused}
           onUpdateNote={handleUpdateNote}
           onDelete={handleDeleteVisit}
-          onSplit={showSplit && i < sortedVisits.length - 1 ? handleSplit : undefined}
         />
+      </div>
+      {#if focusedView.children.length > 0}
+        {#each focusedView.children as child}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="focused-child" onclick={(e) => {
+            if ((e.target as HTMLElement).closest("a, button, input, textarea")) return;
+            toggleFocus(child.id);
+          }}>
+            <VisitCard
+              visit={child}
+              onUpdateNote={handleUpdateNote}
+              onDelete={handleDeleteVisit}
+            />
+          </div>
+        {/each}
+      {:else}
+        <p class="no-children">No pages were discovered from this page.</p>
+      {/if}
+    {:else}
+      {#each sortedVisits as visit, i (visit.id)}
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="visit-wrapper" class:focusable={sortField === "discovery"} onclick={(e) => {
+          if ((e.target as HTMLElement).closest("a, button, input, textarea")) return;
+          if (sortField === "discovery") toggleFocus(visit.id);
+        }}>
+          <VisitCard
+            {visit}
+            onUpdateNote={handleUpdateNote}
+            onDelete={handleDeleteVisit}
+            onSplit={showSplit && i < sortedVisits.length - 1 ? handleSplit : undefined}
+          />
+        </div>
       {/each}
     {/if}
   </div>
@@ -441,7 +514,6 @@
     border: 1px solid #ddd; border-radius: 6px;
     font-size: 13px; font-family: inherit; resize: vertical;
   }
-  .note-actions { display: flex; gap: 6px; margin-top: 4px; }
   .add-note {
     background: none; border: none; color: #0066cc;
     cursor: pointer; font-size: 13px; padding: 0;
@@ -460,10 +532,22 @@
     font-size: 12px; padding: 5px 12px;
     border: 1px solid #ddd; border-radius: 6px;
     background: #f8f8f8; cursor: pointer; color: #555;
+    min-width: 90px; height: 28px;
   }
   .sort-btn.active { background: #e8f0fe; color: #0066cc; border-color: #aac4f5; font-weight: 600; }
   .sort-hint { font-size: 11px; color: #aaa; }
 
   .visits { display: flex; flex-direction: column; gap: 8px; }
   .empty { color: #888; font-size: 13px; }
+
+  .visit-wrapper.focusable { cursor: pointer; border-radius: 10px; }
+  .visit-wrapper.focusable:hover { background: #fafafa; }
+  .focused-grandparent { opacity: 0.6; cursor: pointer; }
+  .focused-grandparent:hover { opacity: 0.8; }
+  .focused-current { cursor: pointer; }
+  .focused-current > :global(.card) { background: #f0f7ff; }
+  .focused-current:hover > :global(.card) { background: #e4effa; }
+  .focused-child { margin-left: 16px; border-left: 2px solid #0066cc; padding-left: 12px; cursor: pointer; }
+  .focused-child:hover { background: #fafafa; border-radius: 0 10px 10px 0; }
+  .no-children { color: #999; font-size: 13px; margin: 4px 0 0 16px; }
 </style>

@@ -194,16 +194,6 @@
     font-family: inherit;
     resize: vertical;
   }
-  .note-actions { display: flex; gap: 6px; margin-top: 4px; }
-  .btn-save {
-    font-size: 12px; padding: 4px 10px; background: #0066cc; color: white;
-    border: none; border-radius: 6px; cursor: pointer;
-  }
-  .btn-cancel {
-    font-size: 12px; padding: 4px 10px; background: #eee; color: #333;
-    border: none; border-radius: 6px; cursor: pointer;
-  }
-
   .actions {
     display: flex;
     justify-content: space-between;
