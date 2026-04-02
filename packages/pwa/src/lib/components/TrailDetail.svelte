@@ -4,6 +4,7 @@
   import type { Trail, Visit } from "@wikipedia-breadcrumbs/shared";
   import { db } from "$lib/stores/db";
   import VisitCard from "./VisitCard.svelte";
+  import ExportMenu from "./ExportMenu.svelte";
 
   interface Props {
     trailId: string;
@@ -243,6 +244,7 @@
         <button class="btn-merge-toggle" onclick={() => { showMerge = !showMerge; }}>
           Merge
         </button>
+        <ExportMenu trailIds={[trailId]} trailName={trail?.name} />
       {/if}
     </div>
 

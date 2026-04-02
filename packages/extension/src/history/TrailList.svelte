@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { Trail } from "@wikipedia-breadcrumbs/shared";
   import { BreadcrumbsDB, trailStore, visitStore } from "@wikipedia-breadcrumbs/shared";
+  import ExportMenu from "./ExportMenu.svelte";
+  import ImportDialog from "./ImportDialog.svelte";
 
   interface TrailSummary {
     trail: Trail;
@@ -93,6 +95,8 @@
       <option value="oldest">Oldest First</option>
       <option value="starred">Starred First</option>
     </select>
+    <ExportMenu />
+    <ImportDialog onComplete={refresh} />
   </div>
 
   {#if loading}

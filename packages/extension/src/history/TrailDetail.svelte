@@ -3,6 +3,7 @@
   import type { Trail, Visit } from "@wikipedia-breadcrumbs/shared";
   import { BreadcrumbsDB, visitStore, trailStore, splitTrail, mergeTrails } from "@wikipedia-breadcrumbs/shared";
   import VisitCard from "./VisitCard.svelte";
+  import ExportMenu from "./ExportMenu.svelte";
 
   interface Props {
     trail: Trail;
@@ -221,6 +222,7 @@
     {/if}
     <button class="star" onclick={toggleStar}>{isStarred ? "★" : "☆"}</button>
     <button class="merge-btn" onclick={openMergePicker}>Merge</button>
+    <ExportMenu trailIds={[trail.id]} trailName={trail.name} />
   </div>
 
   <div class="meta">

@@ -4,6 +4,8 @@
   import { trailStore, visitStore } from "@wikipedia-breadcrumbs/shared";
   import type { Trail } from "@wikipedia-breadcrumbs/shared";
   import { db } from "$lib/stores/db";
+  import ExportMenu from "./ExportMenu.svelte";
+  import ImportDialog from "./ImportDialog.svelte";
 
   const ts = trailStore(db);
   const vs = visitStore(db);
@@ -114,6 +116,8 @@
     <option value="oldest">Oldest</option>
     <option value="starred">Starred</option>
   </select>
+  <ExportMenu />
+  <ImportDialog onComplete={loadTrails} />
 </div>
 
 {#if filtered.length === 0}
