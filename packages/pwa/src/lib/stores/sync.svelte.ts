@@ -67,6 +67,7 @@ export function disableSync(): void {
 
 export async function syncNow(): Promise<void> {
   if (!engine) return;
+  if (typeof navigator !== "undefined" && !navigator.onLine) return;
   _syncing = true;
   try {
     const report = await engine.syncNow();
