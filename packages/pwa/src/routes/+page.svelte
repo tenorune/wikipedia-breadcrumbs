@@ -65,10 +65,12 @@
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("online", goOnline);
     window.addEventListener("offline", goOffline);
+    const tickInterval = setInterval(() => { tick++; }, 60000);
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("online", goOnline);
       window.removeEventListener("offline", goOffline);
+      clearInterval(tickInterval);
     };
   });
 
@@ -104,7 +106,13 @@
     return "just now";
   }
 
-  const syncAgeText = $derived(syncState.lastSyncTime ? formatSyncAge(syncState.lastSyncTime) : null);
+  let tick = $state(0);
+  let syncAgeText = $state<string | null>(null);
+
+  $effect(() => {
+    const _ = tick;
+    syncAgeText = syncState.lastSyncTime ? formatSyncAge(syncState.lastSyncTime) : null;
+  });
 </script>
 
 <h1>Wikipedia Breadcrumbs</h1>
