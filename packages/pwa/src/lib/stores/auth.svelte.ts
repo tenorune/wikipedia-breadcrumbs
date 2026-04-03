@@ -37,7 +37,9 @@ export async function initAuth(): Promise<void> {
         console.error("[pwa] Failed to set session from OAuth tokens:", error.message);
       } else {
         console.log("[pwa] OAuth session established:", data.user?.email);
-        _user = data.user;
+        // Refresh to get full user_metadata (magic link sessions may have stale JWT)
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        _user = refreshed.user ?? data.user;
       }
     }
 
