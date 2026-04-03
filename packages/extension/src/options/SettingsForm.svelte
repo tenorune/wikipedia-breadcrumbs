@@ -59,6 +59,9 @@
       if (response?.success) {
         await loadAuthStatus();
         await chrome.runtime.sendMessage({ type: "reinitSync" });
+        // Wait for sync to complete, then refresh status
+        await new Promise((r) => setTimeout(r, 3000));
+        await loadSyncStatus();
       } else {
         authError = response?.error ?? "Sign-in failed";
       }
@@ -73,6 +76,8 @@
     if (response?.success) {
       await loadAuthStatus();
       await chrome.runtime.sendMessage({ type: "reinitSync" });
+      await new Promise((r) => setTimeout(r, 3000));
+      await loadSyncStatus();
     } else {
       authError = response?.error ?? "Wikipedia sign-in failed";
     }
@@ -88,6 +93,8 @@
     if (response?.success) {
       await loadAuthStatus();
       await chrome.runtime.sendMessage({ type: "reinitSync" });
+      await new Promise((r) => setTimeout(r, 3000));
+      await loadSyncStatus();
     } else {
       authError = response?.error ?? "Auth failed";
     }

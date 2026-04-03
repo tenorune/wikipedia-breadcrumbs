@@ -20,6 +20,18 @@
   let searchTexts = $state<Record<string, string>>({});
   let search = $state("");
   let sortMode = $state<SortMode>("recent");
+  let sortDropdownOpen = $state(false);
+
+  const sortLabels: Record<SortMode, string> = { recent: "Most Recent", oldest: "Oldest", starred: "Starred" };
+
+  $effect(() => {
+    if (!sortDropdownOpen) return;
+    const close = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest(".sort-dropdown-wrap")) sortDropdownOpen = false;
+    };
+    setTimeout(() => document.addEventListener("click", close));
+    return () => document.removeEventListener("click", close);
+  });
 
   async function loadTrails() {
     const all = await ts.getAll();
@@ -106,6 +118,16 @@
 
   // Data menu (import/export)
   let dataMenuOpen = $state(false);
+
+  $effect(() => {
+    if (!dataMenuOpen) return;
+    const close = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest(".data-menu-wrap")) dataMenuOpen = false;
+    };
+    setTimeout(() => document.addEventListener("click", close));
+    return () => document.removeEventListener("click", close);
+  });
+
   let importConflicts = $state<ConflictItem[]>([]);
   let importClean = $state<any[]>([]);
   let importDecisions = $state<Record<string, "skip" | "overwrite" | "copy">>({});
@@ -178,11 +200,19 @@
     placeholder="Search trails…"
     bind:value={search}
   />
-  <select class="sort" bind:value={sortMode}>
-    <option value="recent">Most Recent</option>
-    <option value="oldest">Oldest</option>
-    <option value="starred">Starred</option>
-  </select>
+  <div class="sort-dropdown-wrap">
+    <button class="sort-dropdown-btn" onclick={() => { sortDropdownOpen = !sortDropdownOpen; }}>
+      <span>{sortLabels[sortMode]}</span>
+      <span class="sort-dropdown-arrow">▾</span>
+    </button>
+    {#if sortDropdownOpen}
+      <div class="sort-dropdown">
+        {#each (["recent", "oldest", "starred"] as SortMode[]) as mode}
+          <button class:selected={sortMode === mode} onclick={() => { sortMode = mode; sortDropdownOpen = false; }}>{sortLabels[mode]}</button>
+        {/each}
+      </div>
+    {/if}
+  </div>
   <div class="data-menu-wrap">
     <button class="data-menu-btn" onclick={() => { dataMenuOpen = !dataMenuOpen; }} title="Import / Export">⋮</button>
     {#if dataMenuOpen}
@@ -253,9 +283,6 @@
           <span class="name">{displayNames[trail.id] ?? "…"}</span>
           <span class="meta">
             {visitCounts[trail.id] ?? 0} pages &middot; {formatDate(lastDiscovered[trail.id] ?? trail.startedAt)}
-            {#if trail.status === TrailStatus.Active}
-              <span class="badge active">Active</span>
-            {/if}
           </span>
         </button>
 
@@ -277,6 +304,7 @@
     display: flex;
     gap: 8px;
     margin-bottom: 14px;
+    align-items: stretch;
   }
   .search {
     flex: 1;
@@ -285,20 +313,28 @@
     border-radius: 8px;
     font-size: 14px;
     outline: none;
+    box-sizing: border-box;
   }
   .search:focus { border-color: #0066cc; }
-  .sort {
-    padding: 8px 10px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    font-size: 14px;
-    background: white;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23555'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 10px center;
-    padding-right: 28px;
+  .sort-dropdown-wrap { position: relative; display: flex; }
+  .sort-dropdown-btn {
+    padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px;
+    font-size: 13px; background: white; cursor: pointer; box-sizing: border-box;
+    display: flex; align-items: center; gap: 6px; white-space: nowrap; height: 100%;
   }
+  .sort-dropdown-btn:hover { border-color: #bbb; }
+  .sort-dropdown-arrow { color: #555; }
+  .sort-dropdown {
+    position: absolute; top: calc(100% + 4px); left: 0; background: white;
+    border: 1px solid #ddd; border-radius: 8px; padding: 4px 0; z-index: 50;
+    min-width: 140px; box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+  .sort-dropdown button {
+    display: block; width: 100%; text-align: left; padding: 8px 14px;
+    border: none; background: none; cursor: pointer; font-size: 13px; color: #222;
+  }
+  .sort-dropdown button:hover { background: #f5f5f5; }
+  .sort-dropdown button.selected { background: #e8f0fe; color: #0066cc; }
 
   .empty { color: #888; font-size: 13px; }
 
@@ -359,16 +395,17 @@
     font-size: 14px;
     padding: 2px 4px;
     flex-shrink: 0;
+    margin-right: -8px;
   }
   .delete:hover { color: #cc3300; }
 
-  .data-menu-wrap { position: relative; }
+  .data-menu-wrap { position: relative; display: flex; }
   .data-menu-btn {
     background: none; border: 1px solid #ddd; border-radius: 8px;
     font-size: 18px; cursor: pointer; padding: 4px 10px;
-    color: #555; line-height: 1;
+    color: #999; line-height: 1; box-sizing: border-box; height: 100%;
   }
-  .data-menu-btn:hover { background: #f0f0f0; }
+  .data-menu-btn:hover { color: #333; background: #f0f0f0; }
   .data-menu {
     position: absolute; top: calc(100% + 4px); right: 0; background: white;
     border: 1px solid #ddd; border-radius: 8px; padding: 4px 0; z-index: 50;

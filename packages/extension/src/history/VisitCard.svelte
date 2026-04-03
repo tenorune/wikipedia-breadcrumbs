@@ -35,8 +35,44 @@
   }
 
   let showCitation = $state(false);
+
+  $effect(() => {
+    if (!showCitation) return;
+    const stamp = () => { stampDismiss(); };
+    const close = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest(".cite-wrap")) showCitation = false;
+    };
+    setTimeout(() => {
+      document.addEventListener("mousedown", stamp, true);
+      document.addEventListener("click", close);
+    });
+    return () => {
+      document.removeEventListener("mousedown", stamp, true);
+      document.removeEventListener("click", close);
+    };
+  });
+
   let editingNote = $state(false);
   let noteText = $state(visit.note ?? "");
+  let cardMenuOpen = $state(false);
+
+  function stampDismiss() { (window as any).__dismissTime = Date.now(); }
+
+  $effect(() => {
+    if (!cardMenuOpen) return;
+    const stamp = () => { stampDismiss(); };
+    const close = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest(".card-menu-wrap")) cardMenuOpen = false;
+    };
+    setTimeout(() => {
+      document.addEventListener("mousedown", stamp, true);
+      document.addEventListener("click", close);
+    });
+    return () => {
+      document.removeEventListener("mousedown", stamp, true);
+      document.removeEventListener("click", close);
+    };
+  });
 
   function formatTime(iso: string): string {
     return new Date(iso).toLocaleString(undefined, {
@@ -59,9 +95,33 @@
     showCitation = false;
   }
 
+  function autoResize(e: Event) {
+    const el = e.target as HTMLTextAreaElement;
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }
+
+  let noteDisplayHeight = 0;
+
+  function captureNoteHeight(el: HTMLElement) {
+    noteDisplayHeight = el.offsetHeight;
+  }
+
+  function autoResizeOnMount(el: HTMLTextAreaElement) {
+    if (noteDisplayHeight > 0) {
+      el.style.height = noteDisplayHeight + "px";
+    } else {
+      requestAnimationFrame(() => {
+        el.style.height = "auto";
+        el.style.height = el.scrollHeight + "px";
+      });
+    }
+  }
+
   function saveNote() {
     onUpdateNote(visit.id, noteText);
     editingNote = false;
+    stampDismiss();
   }
 
   function autoSaveNote() {
@@ -81,7 +141,17 @@
 
 <div class="visit-card">
   <div class="card-body">
-    <button class="delete-x" onclick={() => onDelete(visit.id)} title="Delete visit" aria-label="Delete visit">✕</button>
+    <div class="card-menu-wrap">
+      <button class="card-menu-btn" onclick={() => { cardMenuOpen = !cardMenuOpen; }} title="Actions">⋮</button>
+      {#if cardMenuOpen}
+        <div class="card-menu">
+          {#if onSplit}
+            <button onclick={() => { cardMenuOpen = false; onSplit!(visit.position); }}>Split</button>
+          {/if}
+          <button class="danger" onclick={() => { cardMenuOpen = false; onDelete(visit.id); }}>Delete</button>
+        </div>
+      {/if}
+    </div>
     <div class="main">
       <a href={visit.url} onclick={handleTitleClick} class="title">{visit.title}</a>
       {#if visit.sourceDetail}
@@ -95,13 +165,16 @@
         {/if}
       </div>
     </div>
-    {#if editingNote}
-      <div class="note-edit">
-        <!-- svelte-ignore a11y_autofocus -->
-        <input bind:value={noteText} placeholder="Add a note..." onkeydown={(e) => e.key === "Enter" && saveNote()} onblur={saveNote} oninput={autoSaveNote} autofocus />
+    {#if visit.note || editingNote}
+      <div class="note-area">
+        {#if editingNote}
+          <!-- svelte-ignore a11y_autofocus -->
+          <textarea bind:value={noteText} placeholder="Add a note..." rows="1" onblur={saveNote} oninput={(e) => { autoSaveNote(); autoResize(e); }} autofocus
+            use:autoResizeOnMount></textarea>
+        {:else}
+          <div class="note-display" use:captureNoteHeight onclick={() => { noteText = visit.note ?? ""; editingNote = true; }}>{visit.note}</div>
+        {/if}
       </div>
-    {:else if visit.note}
-      <div class="note-display" onclick={() => { editingNote = true; }}>{visit.note}</div>
     {/if}
     <div class="actions">
       {#if !editingNote && !visit.note}
@@ -120,26 +193,25 @@
     </div>
   </div>
   <div class="split-divider">
-    <hr /><button class:hidden={!onSplit} onclick={() => onSplit?.(visit.position)}>Split</button>
+    <hr />
   </div>
 </div>
 
 <style>
   .visit-card { padding: 0; }
-  .card-body { padding: 10px 0 8px 8px; border-radius: 6px; position: relative; }
-  .delete-x {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    background: none;
-    border: none;
-    color: #bbb;
-    cursor: pointer;
-    font-size: 14px;
-    padding: 2px 4px;
-    line-height: 1;
+  .card-body { padding: 8px 0 8px 8px; border-radius: 6px; position: relative; margin-top: 4px; }
+  .card-menu-wrap { position: absolute; top: 8px; right: 8px; }
+  .card-menu-btn { background: none; border: none; color: #999; cursor: pointer; font-size: 16px; padding: 0 4px; line-height: 1; }
+  .card-menu-btn:hover { color: #333; }
+  .card-menu {
+    position: absolute; top: calc(100% + 4px); right: 0; background: white;
+    border: 1px solid #ddd; border-radius: 6px; padding: 4px 0; z-index: 50;
+    min-width: 100px; box-shadow: 0 4px 12px rgba(0,0,0,0.12);
   }
-  .delete-x:hover { color: #cc3300; }
+  .card-menu button { display: block; width: 100%; text-align: left; padding: 6px 12px; border: none; background: none; cursor: pointer; font-size: 12px; color: #222; }
+  .card-menu button:hover { background: #f5f5f5; }
+  .card-menu button.danger { color: #cc3300; }
+  .card-menu button.danger:hover { background: #fff0ec; }
   .title { color: #0066cc; text-decoration: none; font-size: 15px; font-weight: 500; }
   .title:hover { text-decoration: underline; }
   .redirect { font-size: 12px; color: #999; font-style: italic; }
@@ -148,16 +220,13 @@
   .badge { background: #e8f0fe; color: #1a73e8; padding: 1px 6px; border-radius: 3px; font-size: 11px; }
   .detail { font-style: italic; }
   .actions { display: flex; gap: 8px; margin-top: 6px; }
-  .note-display { font-size: 12px; color: #333; cursor: pointer; text-align: left; margin-top: 6px; }
-  .note-display:hover { color: #0066cc; }
+  .note-display { font-size: 12px; color: #333; background: #fffde7; border: 1px solid transparent; border-radius: 6px; padding: 5px 8px; cursor: pointer; text-align: left; white-space: pre-wrap; word-break: break-word; line-height: 1.4; box-sizing: border-box; }
+  .note-display:hover { background: #fff9c4; }
   .note-btn, .cite-btn { font-size: 12px; padding: 2px 8px; border: 1px solid #ddd; border-radius: 3px; background: white; cursor: pointer; }
-  .split-divider { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
-  .split-divider hr { flex: 1; border: none; border-top: 1px solid #eee; margin: 0; }
-  .split-divider button { font-size: 11px; padding: 1px 8px; border: 1px solid #ddd; border-radius: 3px; background: white; cursor: pointer; color: #999; flex-shrink: 0; }
-  .split-divider button:hover { border-color: #0066cc; color: #0066cc; }
-  .split-divider button.hidden { visibility: hidden; }
-  .note-edit { display: flex; gap: 4px; }
-  .note-edit input { font-size: 12px; padding: 2px 6px; border: 1px solid #ccc; border-radius: 3px; width: 200px; }
+  .split-divider { margin-top: 4px; }
+  .split-divider hr { border: none; border-top: 1px solid #eee; margin: 0; }
+  .note-area { margin-top: 6px; margin-right: 8px; }
+  .note-area textarea { width: 100%; box-sizing: border-box; font-size: 12px; padding: 5px 8px; border: 1px solid transparent; box-shadow: none; border-radius: 6px; font-family: inherit; resize: vertical; line-height: 1.4; outline: none; margin: 0; background: #fffde7; -webkit-text-size-adjust: 100%; display: block; }
   .cite-wrap { position: relative; }
   .cite-menu {
     position: absolute;

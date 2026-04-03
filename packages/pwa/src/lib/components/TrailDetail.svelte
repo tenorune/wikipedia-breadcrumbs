@@ -49,9 +49,29 @@
   // Merge UI
   let showMerge = $state(false);
   let mergeTargetId = $state("");
+  let mergeTargetLabel = $state("Select a trail…");
+  let mergeDropdownOpen = $state(false);
+
+  $effect(() => {
+    if (!mergeDropdownOpen) return;
+    const close = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest(".merge-dropdown-wrap")) mergeDropdownOpen = false;
+    };
+    setTimeout(() => document.addEventListener("click", close));
+    return () => document.removeEventListener("click", close);
+  });
 
   // Detail menu (merge/export)
   let detailMenuOpen = $state(false);
+
+  $effect(() => {
+    if (!detailMenuOpen) return;
+    const close = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest(".detail-menu-wrap")) detailMenuOpen = false;
+    };
+    setTimeout(() => document.addEventListener("click", close));
+    return () => document.removeEventListener("click", close);
+  });
 
   async function loadData() {
     const [t, v, all] = await Promise.all([
@@ -126,6 +146,7 @@
   });
 
   function toggleFocus(visitId: string) {
+    if ((window as any).__dismissTime && Date.now() - (window as any).__dismissTime < 300) return;
     focusedVisitId = focusedVisitId === visitId ? null : visitId;
   }
 
@@ -224,13 +245,11 @@
   <button class="back" onclick={onBack}>← Back</button>
 
   <div class="header-box">
-    {#if !editingName}
-      <button class="star" class:starred={trail.isStarred} onclick={toggleStar}
-        title={trail.isStarred ? "Unstar" : "Star"}
-      >
-        {trail.isStarred ? "★" : "☆"}
-      </button>
-    {/if}
+    <button class="star" class:starred={trail.isStarred} onclick={toggleStar}
+      title={trail.isStarred ? "Unstar" : "Star"}
+    >
+      {trail.isStarred ? "★" : "☆"}
+    </button>
     <div class="header-content">
       <div class="title-row">
         {#if editingName}
@@ -270,9 +289,6 @@
         <span>{visits.length} page{visits.length === 1 ? "" : "s"}</span>
         <span>·</span>
         <span>Started {formatDate(trail.startedAt)}</span>
-        {#if trail.status === TrailStatus.Active}
-          <span class="badge active">Active</span>
-        {/if}
       </div>
       <div class="trail-note-section">
         {#if trail.note && !editingNote}
@@ -303,14 +319,25 @@
 
   {#if showMerge}
     <div class="merge-picker">
-      <select bind:value={mergeTargetId}>
-        <option value="">Select a trail to merge in…</option>
-        {#each allTrails as t}
-          <option value={t.id}>{trailDisplayNames[t.id] ?? "…"}</option>
-        {/each}
-      </select>
+      <div class="merge-dropdown-wrap">
+        <button class="merge-dropdown-btn" onclick={() => { mergeDropdownOpen = !mergeDropdownOpen; }}>
+          <span class="merge-dropdown-label">{mergeTargetLabel}</span>
+          <span class="merge-dropdown-arrow">▾</span>
+        </button>
+        {#if mergeDropdownOpen}
+          <div class="merge-dropdown">
+            {#each allTrails as t}
+              <button class:selected={mergeTargetId === t.id} onclick={() => {
+                mergeTargetId = t.id;
+                mergeTargetLabel = trailDisplayNames[t.id] ?? "…";
+                mergeDropdownOpen = false;
+              }}>{trailDisplayNames[t.id] ?? "…"}</button>
+            {/each}
+          </div>
+        {/if}
+      </div>
       <button class="btn-save" onclick={handleMerge} disabled={!mergeTargetId}>Merge</button>
-      <button class="btn-cancel" onclick={() => { showMerge = false; mergeTargetId = ""; }}>Cancel</button>
+      <button class="btn-cancel" onclick={() => { showMerge = false; mergeTargetId = ""; mergeTargetLabel = "Select a trail…"; }}>Cancel</button>
     </div>
   {/if}
 
@@ -334,8 +361,8 @@
       >
         Visited {sortField === "visited" ? (sortDir === "asc" ? "↑" : "↓") : ""}
       </button>
+      <span class="sort-hint">{sortHint}</span>
     </div>
-    <span class="sort-hint">{sortHint}</span>
   </div>
 
   <!-- Visit list -->
@@ -347,7 +374,7 @@
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div class="focused-grandparent" onclick={(e) => {
-          if ((e.target as HTMLElement).closest("a, button, input, textarea")) return;
+          if ((e.target as HTMLElement).closest("a, button, input, textarea, .note, .card-menu-wrap, .cite-wrap, .note-edit")) return;
           toggleFocus(focusedView.parent!.id);
         }}>
           <VisitCard
@@ -360,7 +387,7 @@
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div class="focused-current" onclick={(e) => {
-        if ((e.target as HTMLElement).closest("a, button, input, textarea")) return;
+        if ((e.target as HTMLElement).closest("a, button, input, textarea, .note, .card-menu-wrap, .cite-wrap, .note-edit")) return;
         toggleFocus(focusedView.focused.id);
       }}>
         <VisitCard
@@ -374,7 +401,7 @@
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div class="focused-child" onclick={(e) => {
-            if ((e.target as HTMLElement).closest("a, button, input, textarea")) return;
+            if ((e.target as HTMLElement).closest("a, button, input, textarea, .note, .card-menu-wrap, .cite-wrap, .note-edit")) return;
             toggleFocus(child.id);
           }}>
             <VisitCard
@@ -392,7 +419,7 @@
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div class="visit-wrapper" class:focusable={sortField === "discovery"} onclick={(e) => {
-          if ((e.target as HTMLElement).closest("a, button, input, textarea")) return;
+          if ((e.target as HTMLElement).closest("a, button, input, textarea, .note, .card-menu-wrap, .cite-wrap, .note-edit")) return;
           if (sortField === "discovery") toggleFocus(visit.id);
         }}>
           <VisitCard
@@ -424,7 +451,7 @@
 
   .header-box {
     display: flex; gap: 10px; padding: 12px; border: 1px solid #e8e8e8;
-    border-radius: 10px; margin-bottom: 14px; align-items: start;
+    border-radius: 10px; margin-bottom: 14px; align-items: start; position: relative;
   }
   .header-content { flex: 1; min-width: 0; }
   .title-row {
@@ -440,6 +467,7 @@
     margin: 0;
     flex: 1;
     word-break: break-word;
+    line-height: 1.3;
   }
   .name-edit-trigger {
     background: none;
@@ -454,12 +482,14 @@
 
   .name-input {
     flex: 1;
-    font-size: 18px;
-    font-weight: 600;
-    padding: 4px 8px;
-    border: 1px solid #0066cc;
-    border-radius: 6px;
+    font-size: 20px;
+    font-weight: 700;
+    padding: 0;
+    border: none;
+    box-shadow: 0 2px 0 #0066cc;
+    border-radius: 0;
     outline: none;
+    line-height: 1.3;
   }
 
   .star {
@@ -473,12 +503,12 @@
   }
   .star.starred { color: #f5a623; }
 
-  .detail-menu-wrap { position: relative; }
+  .detail-menu-wrap { position: absolute; top: 8px; right: 8px; }
   .detail-menu-btn {
-    background: none; border: 1px solid #ddd; border-radius: 6px;
-    font-size: 18px; cursor: pointer; padding: 0 8px; color: #555; line-height: 1;
+    background: none; border: none;
+    font-size: 16px; cursor: pointer; padding: 0 4px; color: #999; line-height: 1;
   }
-  .detail-menu-btn:hover { background: #f0f0f0; }
+  .detail-menu-btn:hover { color: #333; }
   .detail-menu {
     position: absolute; top: calc(100% + 4px); right: 0; background: white;
     border: 1px solid #ddd; border-radius: 8px; padding: 4px 0; z-index: 50;
@@ -501,13 +531,27 @@
     border-radius: 8px;
     border: 1px solid #e0e0e0;
   }
-  .merge-picker select {
-    flex: 1;
-    padding: 6px 8px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    font-size: 13px;
+  .merge-dropdown-wrap { position: relative; flex: 1; min-width: 0; }
+  .merge-dropdown-btn {
+    width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px;
+    background: white; cursor: pointer; font-size: 13px; text-align: left;
+    display: flex; justify-content: space-between; align-items: center;
   }
+  .merge-dropdown-btn:hover { border-color: #bbb; }
+  .merge-dropdown-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .merge-dropdown-arrow { color: #555; flex-shrink: 0; margin-left: 8px; }
+  .merge-dropdown {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: white;
+    border: 1px solid #ddd; border-radius: 8px; padding: 4px 0; z-index: 50;
+    max-height: 200px; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+  .merge-dropdown button {
+    display: block; width: 100%; text-align: left; padding: 8px 12px;
+    border: none; background: none; cursor: pointer; font-size: 13px; color: #222;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .merge-dropdown button:hover { background: #f5f5f5; }
+  .merge-dropdown button.selected { background: #e8f0fe; color: #0066cc; }
 
   .btn-save {
     font-size: 12px; padding: 4px 10px; background: #0066cc; color: white;
@@ -523,8 +567,8 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 12px;
-    color: #888;
+    font-size: 13px;
+    color: #666;
     flex-wrap: wrap;
     margin-top: 4px;
   }
@@ -536,11 +580,11 @@
 
   .trail-note-section { margin-top: 8px; }
   .trail-note {
-    font-size: 13px; color: #333; background: #fffde7;
+    font-size: 13px; color: #333; background: #f8f8f8;
     border-radius: 6px; padding: 8px 10px; cursor: pointer;
     white-space: pre-wrap; word-break: break-word;
   }
-  .trail-note:hover { background: #fff9c4; }
+  .trail-note:hover { background: #f0f0f0; }
   .trail-note-input {
     width: 100%; box-sizing: border-box; padding: 8px 10px;
     border: 1px solid #ddd; border-radius: 6px;
@@ -559,14 +603,14 @@
     margin-bottom: 12px;
     gap: 8px;
   }
-  .sort-buttons { display: flex; gap: 4px; }
+  .sort-buttons { display: flex; gap: 4px; align-items: center; }
   .sort-btn {
     font-size: 12px; padding: 5px 12px;
     border: 1px solid #ddd; border-radius: 6px;
     background: #f8f8f8; cursor: pointer; color: #555;
     min-width: 90px; height: 28px;
   }
-  .sort-btn.active { background: #e8f0fe; color: #0066cc; border-color: #aac4f5; font-weight: 600; }
+  .sort-btn.active { background: #e8f0fe; color: #0066cc; border-color: #aac4f5; }
   .sort-hint { font-size: 11px; color: #aaa; }
 
   .visits { display: flex; flex-direction: column; gap: 8px; }

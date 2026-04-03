@@ -19,7 +19,29 @@
   let displayName = $state(trail.name);
   let showMergePicker = $state(false);
   let detailMenuOpen = $state(false);
+
+  $effect(() => {
+    if (!detailMenuOpen) return;
+    const close = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest(".detail-menu-wrap")) detailMenuOpen = false;
+    };
+    setTimeout(() => document.addEventListener("click", close));
+    return () => document.removeEventListener("click", close);
+  });
+
   let mergeOptions: { trail: Trail; label: string }[] = $state([]);
+  let mergeTargetId = $state("");
+  let mergeTargetLabel = $state("Select a trail…");
+  let mergeDropdownOpen = $state(false);
+
+  $effect(() => {
+    if (!mergeDropdownOpen) return;
+    const close = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest(".merge-dropdown-wrap")) mergeDropdownOpen = false;
+    };
+    setTimeout(() => document.addEventListener("click", close));
+    return () => document.removeEventListener("click", close);
+  });
   let editingNote = $state(false);
   let trailNote = $state(trail.note ?? "");
   let focusedVisitId: string | null = $state(null);
@@ -85,6 +107,8 @@
   });
 
   function toggleFocus(visitId: string) {
+    // Skip if a dropdown/textarea was just dismissed (event still bubbling)
+    if ((window as any).__dismissTime && Date.now() - (window as any).__dismissTime < 300) return;
     focusedVisitId = focusedVisitId === visitId ? null : visitId;
   }
 
@@ -126,6 +150,7 @@
   }
 
   async function handleSplit(afterPosition: number) {
+    if (!confirm("Split trail here? Visits after this point will become a new trail.")) return;
     const [originalId, newTrailId] = await splitTrail(db, trail.id, afterPosition);
     const isActive = trail.status === "active";
 
@@ -183,11 +208,15 @@
     showMergePicker = true;
   }
 
-  async function handleMerge(secondaryId: string) {
-    await mergeTrails(db, trail.id, secondaryId);
+  async function handleMerge() {
+    if (!mergeTargetId) return;
+    const label = mergeOptions.find((o) => o.trail.id === mergeTargetId)?.label ?? "this trail";
+    if (!confirm(`Merge "${label}" into this trail? The other trail will be deleted.`)) return;
+    await mergeTrails(db, trail.id, mergeTargetId);
     chrome.runtime.sendMessage({ type: "trailMutated", trailId: trail.id });
-    chrome.runtime.sendMessage({ type: "trailDeleted", trailId: secondaryId });
+    chrome.runtime.sendMessage({ type: "trailDeleted", trailId: mergeTargetId });
     showMergePicker = false;
+    mergeTargetId = "";
     onMutated();
   }
 
@@ -205,6 +234,7 @@
   }
 
   async function handleDeleteVisit(visitId: string) {
+    if (!confirm("Delete this visit?")) return;
     await visitOps.softDelete(visitId);
     await loadVisits();
   }
@@ -220,7 +250,7 @@
   <button class="back" onclick={onBack}>&larr; Back to trails</button>
 
   <div class="header-box">
-    <button class="star" onclick={toggleStar}>{isStarred ? "★" : "☆"}</button>
+    <button class="star" class:starred={isStarred} onclick={toggleStar}>{isStarred ? "★" : "☆"}</button>
     <div class="header-content">
       <div class="title-row">
         {#if editingName}
@@ -261,12 +291,36 @@
     </div>
   </div>
 
+  {#if showMergePicker}
+    <div class="merge-picker">
+      <div class="merge-dropdown-wrap">
+        <button class="merge-dropdown-btn" onclick={() => { mergeDropdownOpen = !mergeDropdownOpen; }}>
+          <span class="merge-dropdown-label">{mergeTargetLabel}</span>
+          <span class="merge-dropdown-arrow">▾</span>
+        </button>
+        {#if mergeDropdownOpen}
+          <div class="merge-dropdown">
+            {#each mergeOptions as option}
+              <button class:selected={mergeTargetId === option.trail.id} onclick={() => {
+                mergeTargetId = option.trail.id;
+                mergeTargetLabel = option.label;
+                mergeDropdownOpen = false;
+              }}>{option.label}</button>
+            {/each}
+          </div>
+        {/if}
+      </div>
+      <button class="btn-merge" onclick={handleMerge} disabled={!mergeTargetId}>Merge</button>
+      <button class="btn-cancel" onclick={() => { showMergePicker = false; mergeTargetId = ""; mergeTargetLabel = "Select a trail…"; }}>Cancel</button>
+    </div>
+  {/if}
+
   <div class="sort-bar">
     <button class:active={sortField === "discovery"} onclick={() => {
       if (focusedView) { focusedVisitId = null; }
       else { toggleSort("discovery"); }
-    }}>Discovery {focusedView ? "◎" : sortField === "discovery" ? (sortAsc ? "▲" : "▼") : ""}</button>
-    <button class:active={sortField === "visited"} onclick={() => toggleSort("visited")}>Visited {sortField === "visited" ? (sortAsc ? "▲" : "▼") : ""}</button>
+    }}>Discovery {focusedView ? "◎" : sortField === "discovery" ? (sortAsc ? "↑" : "↓") : ""}</button>
+    <button class:active={sortField === "visited"} onclick={() => toggleSort("visited")}>Visited {sortField === "visited" ? (sortAsc ? "↑" : "↓") : ""}</button>
     <span class="sort-hint">{focusedView ? "focused view" : sortAsc ? "oldest to newest" : "newest to oldest"}</span>
   </div>
 
@@ -275,7 +329,7 @@
     {#if focusedView}
       {#if focusedView.parent}
         <div class="visit-wrapper focused-grandparent" onclick={(e) => {
-          if ((e.target as HTMLElement).closest("a, button, input, textarea")) return;
+          if ((e.target as HTMLElement).closest("a, button, input, textarea, .note-display, .card-menu-wrap, .cite-wrap, .note-edit")) return;
           toggleFocus(focusedView.parent!.id);
         }}>
           <!-- <div class="grandparent-label">Discovered from</div> -->
@@ -290,7 +344,7 @@
         </div>
       {/if}
       <div class="visit-wrapper focused-current" onclick={(e) => {
-        if ((e.target as HTMLElement).closest("a, button, input, textarea")) return;
+        if ((e.target as HTMLElement).closest("a, button, input, textarea, .note-display, .card-menu-wrap, .cite-wrap, .note-edit")) return;
         toggleFocus(focusedView.focused.id);
       }}>
         <VisitCard
@@ -306,7 +360,7 @@
         <!-- <div class="children-label">Discovered from this page</div> -->
         {#each focusedView.children as child}
           <div class="visit-wrapper focused-child" onclick={(e) => {
-            if ((e.target as HTMLElement).closest("a, button, input, textarea")) return;
+            if ((e.target as HTMLElement).closest("a, button, input, textarea, .note-display, .card-menu-wrap, .cite-wrap, .note-edit")) return;
             toggleFocus(child.id);
           }}>
             <VisitCard
@@ -329,7 +383,7 @@
         <div class="visit-wrapper" class:focusable={sortField === "discovery"} onclick={(e) => {
           // Don't trigger focus when clicking links, buttons, or inputs
           const target = e.target as HTMLElement;
-          if (target.closest("a, button, input, textarea")) return;
+          if (target.closest("a, button, input, textarea, .note-display, .card-menu-wrap, .cite-wrap, .note-edit")) return;
           if (sortField === "discovery") toggleFocus(visit.id);
         }}>
           <VisitCard
@@ -346,17 +400,7 @@
     {/if}
   </div>
 
-  {#if showMergePicker}
-    <div class="merge-picker">
-      <h3>Merge with another trail:</h3>
-      {#each mergeOptions as option}
-        <button onclick={() => handleMerge(option.trail.id)}>
-          {option.label}
-        </button>
-      {/each}
-      <button class="cancel" onclick={() => showMergePicker = false}>Cancel</button>
-    </div>
-  {/if}
+
 </div>
 
 <style>
@@ -364,16 +408,17 @@
   .back { background: none; border: none; color: #0066cc; cursor: pointer; padding: 0; margin-bottom: 16px; }
   .header-box {
     display: flex; gap: 10px; padding: 12px; border: 1px solid #eee; border-radius: 6px;
-    margin-bottom: 12px; align-items: start;
+    margin-bottom: 12px; align-items: start; position: relative;
   }
   .star { background: none; border: none; font-size: 20px; cursor: pointer; padding: 0; flex-shrink: 0; color: #ccc; }
+  .star.starred { color: #f5a623; }
   .header-content { flex: 1; min-width: 0; }
   .title-row { display: flex; align-items: center; gap: 8px; }
-  .title-row h2 { margin: 0; cursor: pointer; flex: 1; word-break: break-word; }
+  .title-row h2 { margin: 0; cursor: pointer; flex: 1; word-break: break-word; line-height: 1.3; }
   .title-row h2:hover { color: #0066cc; }
-  .detail-menu-wrap { position: relative; }
-  .detail-menu-btn { background: none; border: 1px solid #ddd; border-radius: 3px; font-size: 18px; cursor: pointer; padding: 0 8px; color: #555; line-height: 1; }
-  .detail-menu-btn:hover { background: #f0f0f0; }
+  .detail-menu-wrap { position: absolute; top: 8px; right: 8px; }
+  .detail-menu-btn { background: none; border: none; font-size: 16px; cursor: pointer; padding: 0 4px; color: #999; line-height: 1; }
+  .detail-menu-btn:hover { color: #333; }
   .detail-menu {
     position: absolute; top: calc(100% + 4px); right: 0; background: white;
     border: 1px solid #ddd; border-radius: 6px; padding: 4px 0; z-index: 50;
@@ -383,24 +428,24 @@
   .detail-menu button:hover { background: #f5f5f5; }
   .meta { font-size: 13px; color: #666; margin-top: 4px; }
   .sort-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; font-size: 13px; color: #666; }
-  .sort-bar button { padding: 3px 10px; border: 1px solid #ddd; border-radius: 3px; background: white; cursor: pointer; font-size: 12px; min-width: 90px; height: 24px; line-height: 16px; }
-  .sort-bar button.active { background: #e8f0fe; border-color: #1a73e8; color: #1a73e8; }
-  .sort-hint { font-style: italic; color: #999; }
+  .sort-bar button { padding: 5px 12px; border: 1px solid #ddd; border-radius: 6px; background: #f8f8f8; cursor: pointer; font-size: 12px; color: #555; min-width: 90px; height: 28px; }
+  .sort-bar button.active { background: #e8f0fe; border-color: #aac4f5; color: #0066cc; }
+  .sort-hint { color: #999; }
   .meta { font-size: 13px; color: #666; margin: 8px 0 12px; }
-  .timeline-start { border: none; border-top: 1px solid #eee; margin: 14px 50px 12px -8px; }
+  .timeline-start { border: none; border-top: 1px solid #eee; margin: 14px 0 12px -8px; }
   .visit-wrapper { padding: 0 0 0 8px; margin-left: -16px; }
   .visit-wrapper.focusable { cursor: pointer; }
-  .visit-wrapper.focusable:hover :global(.card-body) { background: #fafafa; margin-right: 50px; }
+  .visit-wrapper.focusable:hover :global(.card-body) { background: #fafafa; margin-right: 0; }
   .focused-grandparent { opacity: 0.6; cursor: pointer; }
   .focused-grandparent:hover { opacity: 0.8; }
-  .focused-grandparent :global(.card-body) { margin-right: 50px; }
+  .focused-grandparent :global(.card-body) { margin-right: 0; }
   .grandparent-label { font-size: 11px; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
   .focused-current { cursor: pointer; }
-  .focused-current :global(.card-body) { background: #f0f7ff; margin-right: 50px; }
+  .focused-current :global(.card-body) { background: #f0f7ff; margin-right: 0; }
   .focused-current:hover :global(.card-body) { background: #e4effa; }
   .children-label { font-size: 11px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 12px 0 4px 16px; }
   .focused-child { margin-left: 16px; border-left: 2px solid #0066cc; padding-left: 12px; cursor: pointer; }
-  .focused-child :global(.card-body) { margin-right: 50px; }
+  .focused-child :global(.card-body) { margin-right: 0; }
   .focused-child:hover :global(.card-body) { background: #fafafa; }
   .no-children { font-size: 13px; color: #999; margin: 12px 0 0 0; }
   .note-section { margin-top: 6px; }
@@ -412,10 +457,34 @@
   .note-actions { display: flex; gap: 8px; margin-top: 6px; }
   .cancel-note { background: none; border: 1px solid #ddd; border-radius: 3px; padding: 4px 10px; cursor: pointer; color: #666; }
   .active-badge { background: #d4edda; color: #155724; padding: 1px 6px; border-radius: 3px; font-size: 11px; margin-left: 4px; }
-  .merge-picker { margin-top: 16px; padding: 12px; border: 1px solid #ddd; border-radius: 4px; }
-  .merge-picker h3 { margin: 0 0 8px; font-size: 14px; }
-  .merge-picker button { display: block; width: 100%; text-align: left; padding: 6px 10px; margin: 4px 0; border: 1px solid #eee; border-radius: 3px; background: white; cursor: pointer; }
-  .merge-picker button:hover { background: #f0f0f0; }
-  .merge-picker .cancel { text-align: center; color: #999; border-style: dashed; }
-  input { font-size: 16px; padding: 4px 8px; border: 1px solid #0066cc; border-radius: 4px; }
+  .merge-picker {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    margin-bottom: 12px; padding: 10px;
+    background: #f8f8f8; border-radius: 6px; border: 1px solid #e0e0e0;
+  }
+  .merge-dropdown-wrap { position: relative; flex: 1; min-width: 0; }
+  .merge-dropdown-btn {
+    width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;
+    background: white; cursor: pointer; font-size: 13px; text-align: left;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .merge-dropdown-btn:hover { border-color: #bbb; }
+  .merge-dropdown-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .merge-dropdown-arrow { color: #555; flex-shrink: 0; margin-left: 8px; }
+  .merge-dropdown {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: white;
+    border: 1px solid #ddd; border-radius: 6px; padding: 4px 0; z-index: 50;
+    max-height: 200px; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+  .merge-dropdown button {
+    display: block; width: 100%; text-align: left; padding: 6px 10px;
+    border: none; background: none; cursor: pointer; font-size: 12px; color: #222;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .merge-dropdown button:hover { background: #f5f5f5; }
+  .merge-dropdown button.selected { background: #e8f0fe; color: #0066cc; }
+  .btn-merge { padding: 6px 12px; background: #0066cc; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
+  .btn-merge:disabled { opacity: 0.5; cursor: default; }
+  .btn-cancel { padding: 6px 12px; background: #eee; color: #333; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
+  .title-row input { font-size: 1.5em; font-weight: bold; padding: 0; margin: 0; border: none; box-shadow: 0 2px 0 #0066cc; border-radius: 0; outline: none; flex: 1; width: 100%; line-height: 1.3; }
 </style>

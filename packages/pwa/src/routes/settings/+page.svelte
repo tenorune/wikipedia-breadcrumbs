@@ -209,7 +209,8 @@
   }
   .toggle-label input { cursor: pointer; width: 16px; height: 16px; }
 
-  .signed-in { display: flex; align-items: center; gap: 12px; }
+  .signed-in { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+  .signed-in .btn-secondary { flex-shrink: 0; white-space: nowrap; }
   .provider-icon { display: inline-flex; vertical-align: middle; margin-left: 4px; }
   .signed-in p { margin: 0; }
 

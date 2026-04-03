@@ -6,6 +6,16 @@
   import { getDeviceId } from "../shared/device-id.js";
 
   let dataMenuOpen = $state(false);
+
+  $effect(() => {
+    if (!dataMenuOpen) return;
+    const close = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest(".data-menu-wrap")) dataMenuOpen = false;
+    };
+    setTimeout(() => document.addEventListener("click", close));
+    return () => document.removeEventListener("click", close);
+  });
+
   let importConflicts = $state<ConflictItem[]>([]);
   let importClean = $state<any[]>([]);
   let importDecisions = $state<Record<string, "skip" | "overwrite" | "copy">>({});
@@ -77,7 +87,19 @@
   let trails: TrailSummary[] = $state([]);
   let searchQuery = $state("");
   let sortBy: "recent" | "oldest" | "starred" = $state("recent");
+  let sortDropdownOpen = $state(false);
   let loading = $state(true);
+
+  const sortLabels: Record<string, string> = { recent: "Most Recent", oldest: "Oldest First", starred: "Starred First" };
+
+  $effect(() => {
+    if (!sortDropdownOpen) return;
+    const close = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest(".sort-dropdown-wrap")) sortDropdownOpen = false;
+    };
+    setTimeout(() => document.addEventListener("click", close));
+    return () => document.removeEventListener("click", close);
+  });
 
   const db = new BreadcrumbsDB();
   const trailOps = trailStore(db);
@@ -129,7 +151,8 @@
     trails = [...trails];
   }
 
-  async function deleteTrail(trailId: string) {
+  async function deleteTrail(trailId: string, name: string) {
+    if (!confirm(`Delete "${name}"?`)) return;
     await trailOps.softDelete(trailId);
     chrome.runtime.sendMessage({ type: "trailDeleted", trailId });
     await refresh();
@@ -145,11 +168,19 @@
 <div class="trail-list">
   <div class="toolbar">
     <input type="text" placeholder="Search trails..." bind:value={searchQuery} />
-    <select bind:value={sortBy}>
-      <option value="recent">Most Recent</option>
-      <option value="oldest">Oldest First</option>
-      <option value="starred">Starred First</option>
-    </select>
+    <div class="sort-dropdown-wrap">
+      <button class="sort-dropdown-btn" onclick={() => { sortDropdownOpen = !sortDropdownOpen; }}>
+        <span>{sortLabels[sortBy]}</span>
+        <span class="sort-dropdown-arrow">▾</span>
+      </button>
+      {#if sortDropdownOpen}
+        <div class="sort-dropdown">
+          {#each ["recent", "oldest", "starred"] as mode}
+            <button class:selected={sortBy === mode} onclick={() => { sortBy = mode as any; sortDropdownOpen = false; }}>{sortLabels[mode]}</button>
+          {/each}
+        </div>
+      {/if}
+    </div>
     <div class="data-menu-wrap">
       <button class="data-menu-btn" onclick={() => { dataMenuOpen = !dataMenuOpen; }} title="Import / Export">⋮</button>
       {#if dataMenuOpen}
@@ -210,7 +241,7 @@
     <ul class="trails">
       {#each filteredTrails as summary}
         <li>
-          <button class="star" onclick={() => toggleStar(summary.trail.id)}>
+          <button class="star" class:starred={summary.trail.isStarred} onclick={() => toggleStar(summary.trail.id)}>
             {summary.trail.isStarred ? "★" : "☆"}
           </button>
           <div class="trail-info" onclick={() => onSelectTrail(summary.trail)}>
@@ -222,7 +253,7 @@
               {/if}
             </span>
           </div>
-          <button class="delete" onclick={() => deleteTrail(summary.trail.id)}>Delete</button>
+          <button class="delete" onclick={() => deleteTrail(summary.trail.id, summary.trail.name ?? (summary.firstTitle ? `${summary.firstTitle} → ${summary.lastTitle}` : "this trail"))} title="Delete trail" aria-label="Delete trail">✕</button>
         </li>
       {/each}
     </ul>
@@ -231,17 +262,30 @@
 
 <style>
   .trail-list { width: 100%; }
-  .toolbar { display: flex; gap: 8px; margin-bottom: 16px; }
-  .toolbar input { flex: 1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
-  .toolbar select {
+  .toolbar { display: flex; gap: 8px; margin-bottom: 16px; align-items: stretch; }
+  .toolbar input { flex: 1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; box-sizing: border-box; }
+  .sort-dropdown-wrap { position: relative; display: flex; }
+  .sort-dropdown-btn {
     padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px;
-    appearance: none;
-    background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23555'/%3E%3C/svg%3E") no-repeat right 10px center;
-    padding-right: 28px;
+    background: white; cursor: pointer; font-size: 13px; box-sizing: border-box;
+    display: flex; align-items: center; gap: 6px; white-space: nowrap; height: 100%;
   }
-  .data-menu-wrap { position: relative; }
-  .data-menu-btn { background: none; border: 1px solid #ccc; border-radius: 4px; font-size: 18px; cursor: pointer; padding: 4px 10px; color: #555; line-height: 1; }
-  .data-menu-btn:hover { background: #f0f0f0; }
+  .sort-dropdown-btn:hover { border-color: #999; }
+  .sort-dropdown-arrow { color: #555; }
+  .sort-dropdown {
+    position: absolute; top: calc(100% + 4px); left: 0; background: white;
+    border: 1px solid #ddd; border-radius: 6px; padding: 4px 0; z-index: 50;
+    min-width: 140px; box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+  .sort-dropdown button {
+    display: block; width: 100%; text-align: left; padding: 6px 12px;
+    border: none; background: none; cursor: pointer; font-size: 12px; color: #222;
+  }
+  .sort-dropdown button:hover { background: #f5f5f5; }
+  .sort-dropdown button.selected { background: #e8f0fe; color: #0066cc; }
+  .data-menu-wrap { position: relative; display: flex; }
+  .data-menu-btn { background: none; border: 1px solid #ccc; border-radius: 4px; font-size: 18px; cursor: pointer; padding: 4px 10px; color: #999; line-height: 1; box-sizing: border-box; height: 100%; }
+  .data-menu-btn:hover { color: #333; background: #f0f0f0; }
   .data-menu {
     position: absolute; top: calc(100% + 4px); right: 0; background: white;
     border: 1px solid #ddd; border-radius: 6px; padding: 4px 0; z-index: 50;
@@ -264,13 +308,15 @@
   .dialog-actions .confirm { background: #0066cc; color: white; border: none; }
   .trails { list-style: none; padding: 0; }
   .trails li { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid #eee; }
-  .star { background: none; border: none; font-size: 18px; cursor: pointer; padding: 0 4px; }
+  .star { background: none; border: none; font-size: 18px; cursor: pointer; padding: 0 4px; color: #ccc; }
+  .star.starred { color: #f5a623; }
   .trail-info { flex: 1; cursor: pointer; }
   .trail-info:hover .name { color: #0066cc; }
   .name { font-weight: 500; display: block; }
   .meta { font-size: 12px; color: #666; }
   .active-badge { background: #d4edda; color: #155724; padding: 1px 6px; border-radius: 3px; font-size: 11px; margin-left: 4px; }
-  .delete { background: none; border: 1px solid #ddd; border-radius: 3px; padding: 4px 8px; font-size: 12px; cursor: pointer; color: #999; }
+  .delete { background: none; border: none; color: #bbb; cursor: pointer; font-size: 14px; padding: 2px 4px; flex-shrink: 0; margin-right: 2px; }
+  .delete:hover { color: #cc3300; }
   .delete:hover { border-color: #dc3545; color: #dc3545; }
   .loading, .empty { text-align: center; color: #666; padding: 24px; }
 </style>
