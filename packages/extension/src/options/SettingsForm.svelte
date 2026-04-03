@@ -141,7 +141,7 @@
       <div class="section">
         <h3>Account</h3>
         {#if authStatus?.isAuthenticated}
-          <p>Signed in as <strong>{authStatus.email}</strong></p>
+          <p>Signed in as <strong>{authStatus.user?.user_metadata?.wikimedia_username ?? authStatus.email}</strong></p>
           <button type="button" class="btn-secondary" onclick={handleSignOut}>Sign out</button>
 
           <hr />

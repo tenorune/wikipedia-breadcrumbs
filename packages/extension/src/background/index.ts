@@ -412,11 +412,22 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
       try {
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
         const redirectUrl = chrome.identity.getRedirectURL();
-        const authUrl = `${supabaseUrl}/auth/v1/authorize?provider=custom%3Awikimedia&redirect_to=${encodeURIComponent(redirectUrl)}`;
+
+        // Get the authorization URL from the Edge Function
+        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+        const authResp = await fetch(
+          `${supabaseUrl}/functions/v1/wikimedia-oauth?action=authorize&redirect_to=${encodeURIComponent(redirectUrl)}`,
+          { headers: { "apikey": supabaseKey, "Authorization": `Bearer ${supabaseKey}` } }
+        );
+        const { url: wikimediaAuthUrl } = await authResp.json();
+        if (!wikimediaAuthUrl) {
+          sendResponse({ success: false, error: "Failed to get authorization URL" });
+          break;
+        }
 
         const responseUrl = await new Promise<string>((resolve, reject) => {
           chrome.identity.launchWebAuthFlow(
-            { url: authUrl, interactive: true },
+            { url: wikimediaAuthUrl, interactive: true },
             (callbackUrl) => {
               if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
               else if (callbackUrl) resolve(callbackUrl);
@@ -425,10 +436,17 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
           );
         });
 
-        const hashStr = new URL(responseUrl).hash.substring(1);
-        const params = new URLSearchParams(hashStr);
-        const accessToken = params.get("access_token");
-        const refreshToken = params.get("refresh_token");
+        console.log("[breadcrumbs] Wikimedia callback URL:", responseUrl);
+        const cbUrl = new URL(responseUrl);
+        // Check hash fragment first, then query params
+        let params = new URLSearchParams(cbUrl.hash.substring(1));
+        let accessToken = params.get("access_token");
+        let refreshToken = params.get("refresh_token");
+        if (!accessToken) {
+          params = cbUrl.searchParams;
+          accessToken = params.get("access_token");
+          refreshToken = params.get("refresh_token");
+        }
 
         if (accessToken && refreshToken) {
           const result = await sendToOffscreen({
@@ -439,7 +457,9 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
           } as any);
           sendResponse(result);
         } else {
-          sendResponse({ success: false, error: "No tokens in callback" });
+          // Check for error in callback
+          const error = cbUrl.searchParams.get("wikimedia_error") ?? "No tokens in callback";
+          sendResponse({ success: false, error });
         }
       } catch (err: any) {
         sendResponse({ success: false, error: err.message ?? "Wikimedia sign-in failed" });

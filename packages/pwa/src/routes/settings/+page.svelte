@@ -94,7 +94,7 @@
       <p class="help">Loading...</p>
     {:else if authState.isAuthenticated}
       <div class="signed-in">
-        <p>Signed in as <strong>{authState.user?.email ?? "Unknown"}</strong></p>
+        <p>Signed in as <strong>{authState.user?.user_metadata?.wikimedia_username ?? authState.user?.email ?? "Unknown"}</strong></p>
         <button class="btn-secondary" onclick={handleSignOut}>Sign out</button>
       </div>
 

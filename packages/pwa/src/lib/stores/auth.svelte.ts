@@ -1,5 +1,6 @@
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "$lib/supabase";
+import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from "$env/static/public";
 
 let _user = $state<User | null>(null);
 let _loading = $state(true);
@@ -72,12 +73,23 @@ export async function signInWithWikimedia(): Promise<{ error?: string }> {
   if (session?.session?.user?.is_anonymous) {
     await supabase.auth.signOut({ scope: "local" });
   }
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: "custom:wikimedia" as any,
-    options: { redirectTo: window.location.origin + "/settings" },
-  });
-  if (error) return { error: error.message };
-  return {};
+  try {
+    const supabaseUrl = PUBLIC_SUPABASE_URL;
+    const supabaseKey = PUBLIC_SUPABASE_ANON_KEY;
+    const redirectTo = window.location.origin + "/settings";
+    const resp = await fetch(
+      `${supabaseUrl}/functions/v1/wikimedia-oauth?action=authorize&redirect_to=${encodeURIComponent(redirectTo)}`,
+      { headers: { "apikey": supabaseKey, "Authorization": `Bearer ${supabaseKey}` } }
+    );
+    const { url } = await resp.json();
+    if (url) {
+      window.location.href = url;
+      return {};
+    }
+    return { error: "Failed to get authorization URL" };
+  } catch (err: any) {
+    return { error: err.message ?? "Wikimedia sign-in failed" };
+  }
 }
 
 export async function signUpWithEmail(email: string, password: string): Promise<{ error?: string }> {
