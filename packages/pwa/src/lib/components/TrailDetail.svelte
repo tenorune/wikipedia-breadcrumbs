@@ -4,6 +4,7 @@
   import type { Trail, Visit } from "@wikipedia-breadcrumbs/shared";
   import { db } from "$lib/stores/db";
   import VisitCard from "./VisitCard.svelte";
+  import ConfirmDialog from "./ConfirmDialog.svelte";
 
   interface Props {
     trailId: string;
@@ -25,6 +26,14 @@
   let nameValue = $state("");
   let editingNote = $state(false);
   let noteValue = $state("");
+
+  // Stamp dismiss on mousedown while editing, so focus toggle is suppressed
+  $effect(() => {
+    if (!editingName && !editingNote) return;
+    const stamp = () => { (window as any).__dismissTime = Date.now(); };
+    document.addEventListener("mousedown", stamp, true);
+    return () => document.removeEventListener("mousedown", stamp, true);
+  });
 
   // Sort state (persisted to localStorage)
   type SortField = "discovery" | "visited";
@@ -173,6 +182,7 @@
     const v = nameValue.trim() || null;
     await ts.update(trail.id, { name: v });
     editingName = false;
+    (window as any).__dismissTime = Date.now();
     await loadData();
   }
 
@@ -186,6 +196,7 @@
     const v = noteValue.trim() || null;
     await ts.update(trail.id, { note: v });
     editingNote = false;
+    (window as any).__dismissTime = Date.now();
     await loadData();
   }
 
@@ -205,26 +216,33 @@
     await loadData();
   }
 
+  let confirmState = $state<{ message: string; confirmLabel: string; action: () => void } | null>(null);
+
   async function handleDeleteVisit(visitId: string) {
-    if (!confirm("Delete this visit?")) return;
-    await vs.softDelete(visitId);
-    await loadData();
+    confirmState = {
+      message: "Delete this visit?",
+      confirmLabel: "Delete",
+      action: async () => { await vs.softDelete(visitId); await loadData(); },
+    };
   }
 
   async function handleSplit(position: number) {
     if (!trail) return;
-    if (!confirm("Split trail here? Visits after this point will become a new trail.")) return;
-    await splitTrail(db, trail.id, position);
-    await loadData();
+    confirmState = {
+      message: "Split trail here? Visits after this point will become a new trail.",
+      confirmLabel: "Split",
+      action: async () => { await splitTrail(db, trail!.id, position); await loadData(); },
+    };
   }
 
   async function handleMerge() {
     if (!mergeTargetId) return;
-    if (!confirm(`Merge "${trailDisplayNames[mergeTargetId]}" into this trail? The other trail will be deleted.`)) return;
-    await mergeTrails(db, trailId, mergeTargetId);
-    showMerge = false;
-    mergeTargetId = "";
-    await loadData();
+    const label = trailDisplayNames[mergeTargetId] ?? "this trail";
+    confirmState = {
+      message: `Merge "${label}" into this trail? The other trail will be deleted.`,
+      confirmLabel: "Merge",
+      action: async () => { await mergeTrails(db, trailId, mergeTargetId); showMerge = false; mergeTargetId = ""; await loadData(); },
+    };
   }
 
   async function handleDetailExport(format: "json" | "csv") {
@@ -242,8 +260,6 @@
 {#if !trail}
   <div class="loading">Loading…</div>
 {:else}
-  <button class="back" onclick={onBack}>← Back</button>
-
   <div class="header-box">
     <button class="star" class:starred={trail.isStarred} onclick={toggleStar}
       title={trail.isStarred ? "Unstar" : "Star"}
@@ -432,6 +448,15 @@
       {/each}
     {/if}
   </div>
+{/if}
+
+{#if confirmState}
+  <ConfirmDialog
+    message={confirmState.message}
+    confirmLabel={confirmState.confirmLabel}
+    onConfirm={() => { confirmState!.action(); confirmState = null; }}
+    onCancel={() => { confirmState = null; }}
+  />
 {/if}
 
 <style>

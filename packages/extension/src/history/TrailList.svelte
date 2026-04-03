@@ -4,6 +4,7 @@
   import { exportTrailsJson, exportTrailsCsv, downloadFile, exportFilename, parseImportJson, detectConflicts, executeImport, pickFile } from "@wikipedia-breadcrumbs/shared";
   import type { ConflictItem, ImportPlan } from "@wikipedia-breadcrumbs/shared";
   import { getDeviceId } from "../shared/device-id.js";
+  import ConfirmDialog from "./ConfirmDialog.svelte";
 
   let dataMenuOpen = $state(false);
 
@@ -151,11 +152,14 @@
     trails = [...trails];
   }
 
+  let confirmState = $state<{ message: string; confirmLabel: string; action: () => void } | null>(null);
+
   async function deleteTrail(trailId: string, name: string) {
-    if (!confirm(`Delete "${name}"?`)) return;
-    await trailOps.softDelete(trailId);
-    chrome.runtime.sendMessage({ type: "trailDeleted", trailId });
-    await refresh();
+    confirmState = {
+      message: `Delete "${name}"?`,
+      confirmLabel: "Delete",
+      action: async () => { await trailOps.softDelete(trailId); chrome.runtime.sendMessage({ type: "trailDeleted", trailId }); await refresh(); },
+    };
   }
 
   function formatDate(iso: string): string {
@@ -259,6 +263,15 @@
     </ul>
   {/if}
 </div>
+
+{#if confirmState}
+  <ConfirmDialog
+    message={confirmState.message}
+    confirmLabel={confirmState.confirmLabel}
+    onConfirm={() => { confirmState!.action(); confirmState = null; }}
+    onCancel={() => { confirmState = null; }}
+  />
+{/if}
 
 <style>
   .trail-list { width: 100%; }

@@ -18,6 +18,12 @@
   function stampDismiss() { (window as any).__dismissTime = Date.now(); }
 
   $effect(() => {
+    const onOtherOpen = () => { showCite = false; cardMenuOpen = false; };
+    document.addEventListener("closeAllMenus", onOtherOpen);
+    return () => document.removeEventListener("closeAllMenus", onOtherOpen);
+  });
+
+  $effect(() => {
     if (!cardMenuOpen) return;
     const stamp = () => { stampDismiss(); };
     const close = (e: MouseEvent) => {
@@ -103,6 +109,14 @@
     }
   }
 
+  function positionCiteMenu(el: HTMLElement) {
+    const rect = el.parentElement!.getBoundingClientRect();
+    if (rect.top < window.innerHeight / 2) {
+      el.style.bottom = "auto";
+      el.style.top = "calc(100% + 4px)";
+    }
+  }
+
   function saveNote() {
     const trimmed = noteValue.trim() || null;
     onUpdateNote(visit.id, trimmed);
@@ -135,7 +149,7 @@
 
 <div class="card">
   <div class="card-menu-wrap">
-    <button class="card-menu-btn" onclick={() => { cardMenuOpen = !cardMenuOpen; }} title="Actions">⋮</button>
+    <button class="card-menu-btn" onclick={() => { document.dispatchEvent(new Event("closeAllMenus")); cardMenuOpen = !cardMenuOpen; }} title="Actions">⋮</button>
     {#if cardMenuOpen}
       <div class="card-menu">
         {#if onSplit}
@@ -177,7 +191,7 @@
       {:else}
         <div class="note" role="button" tabindex="0"
           use:captureNoteHeight
-          onclick={() => { editingNote = true; noteValue = visit.note ?? ""; }}
+          onclick={() => { if ((window as any).__dismissTime && Date.now() - (window as any).__dismissTime < 300) return; editingNote = true; noteValue = visit.note ?? ""; }}
           onkeydown={(e) => e.key === "Enter" && (editingNote = true)}
           title="Click to edit"
         >
@@ -193,11 +207,11 @@
         <button class="action" onclick={() => { editingNote = true; noteValue = ""; }}>Add Note</button>
       {/if}
       <div class="cite-wrap">
-        <button class="action" onclick={() => { showCite = !showCite; }}>
+        <button class="action" onclick={() => { document.dispatchEvent(new Event("closeAllMenus")); showCite = !showCite; }}>
           {citeCopied ? "Copied!" : "Cite"}
         </button>
         {#if showCite}
-          <div class="cite-menu">
+          <div class="cite-menu" use:positionCiteMenu>
             {#each citationFormats as fmt}
               <button class="cite-item" onclick={() => copyCitation(fmt.value)}>{fmt.label}</button>
             {/each}
@@ -288,14 +302,14 @@
 
   .action {
     font-size: 12px;
-    padding: 4px 10px;
+    padding: 2px 8px;
     border: 1px solid #ddd;
-    border-radius: 6px;
-    background: #f8f8f8;
+    border-radius: 3px;
+    background: white;
     cursor: pointer;
     color: #333;
   }
-  .action:hover { background: #eee; }
+  .action:hover { background: #f0f0f0; }
   .action.split { color: #6600cc; border-color: #d0c0f5; }
   .action.split:hover { background: #f5f0ff; }
 

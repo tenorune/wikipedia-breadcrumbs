@@ -17,7 +17,7 @@
 <main>
   <div class="header-row">
     <h1>Wikipedia Breadcrumbs</h1>
-    <span class="icon-spacer">⚙️</span>
+    <span class="icon-spacer"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 17H5"/><path d="M19 7h-9"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg></span>
   </div>
   <button class="back" onclick={openHistory}>&larr; View trails</button>
   <h2>Settings</h2>

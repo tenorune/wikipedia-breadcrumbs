@@ -64,7 +64,7 @@
 <main>
   <div class="header-row">
     <h1>Wikipedia Breadcrumbs</h1>
-    <button class="settings-btn" onclick={() => { window.location.href = chrome.runtime.getURL("src/options/index.html"); }} title="Settings">⚙️</button>
+    <button class="settings-btn" onclick={() => { window.location.href = chrome.runtime.getURL("src/options/index.html"); }} title="Settings"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 17H5"/><path d="M19 7h-9"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg></button>
   </div>
   {#if selectedTrail}
     <TrailDetail trail={selectedTrail} onBack={backToList} onMutated={backToList} />

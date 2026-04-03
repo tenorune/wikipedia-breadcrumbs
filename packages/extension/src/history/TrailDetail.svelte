@@ -3,6 +3,7 @@
   import type { Trail, Visit } from "@wikipedia-breadcrumbs/shared";
   import { BreadcrumbsDB, visitStore, trailStore, splitTrail, mergeTrails, exportTrailsJson, exportTrailsCsv, downloadFile, exportFilename } from "@wikipedia-breadcrumbs/shared";
   import VisitCard from "./VisitCard.svelte";
+  import ConfirmDialog from "./ConfirmDialog.svelte";
 
   interface Props {
     trail: Trail;
@@ -45,6 +46,13 @@
   let editingNote = $state(false);
   let trailNote = $state(trail.note ?? "");
   let focusedVisitId: string | null = $state(null);
+
+  $effect(() => {
+    if (!editingName && !editingNote) return;
+    const stamp = () => { (window as any).__dismissTime = Date.now(); };
+    document.addEventListener("mousedown", stamp, true);
+    return () => document.removeEventListener("mousedown", stamp, true);
+  });
   // Persist sort preferences across trail detail views
   function loadSortPrefs() {
     try {
@@ -135,6 +143,7 @@
       chrome.runtime.sendMessage({ type: "trailMutated", trailId: trail.id });
     }
     editingName = false;
+    (window as any).__dismissTime = Date.now();
   }
 
   async function autoSaveName() {
@@ -149,8 +158,17 @@
     await trailOps.update(trail.id, { isStarred });
   }
 
+  let confirmState = $state<{ message: string; confirmLabel: string; action: () => void } | null>(null);
+
   async function handleSplit(afterPosition: number) {
-    if (!confirm("Split trail here? Visits after this point will become a new trail.")) return;
+    confirmState = {
+      message: "Split trail here? Visits after this point will become a new trail.",
+      confirmLabel: "Split",
+      action: async () => { await doSplit(afterPosition); },
+    };
+  }
+
+  async function doSplit(afterPosition: number) {
     const [originalId, newTrailId] = await splitTrail(db, trail.id, afterPosition);
     const isActive = trail.status === "active";
 
@@ -185,6 +203,7 @@
   async function saveNote() {
     await trailOps.update(trail.id, { note: trailNote.trim() || null });
     editingNote = false;
+    (window as any).__dismissTime = Date.now();
   }
 
   async function autoSaveNote() {
@@ -211,13 +230,19 @@
   async function handleMerge() {
     if (!mergeTargetId) return;
     const label = mergeOptions.find((o) => o.trail.id === mergeTargetId)?.label ?? "this trail";
-    if (!confirm(`Merge "${label}" into this trail? The other trail will be deleted.`)) return;
-    await mergeTrails(db, trail.id, mergeTargetId);
-    chrome.runtime.sendMessage({ type: "trailMutated", trailId: trail.id });
-    chrome.runtime.sendMessage({ type: "trailDeleted", trailId: mergeTargetId });
-    showMergePicker = false;
-    mergeTargetId = "";
-    onMutated();
+    const targetId = mergeTargetId;
+    confirmState = {
+      message: `Merge "${label}" into this trail? The other trail will be deleted.`,
+      confirmLabel: "Merge",
+      action: async () => {
+        await mergeTrails(db, trail.id, targetId);
+        chrome.runtime.sendMessage({ type: "trailMutated", trailId: trail.id });
+        chrome.runtime.sendMessage({ type: "trailDeleted", trailId: targetId });
+        showMergePicker = false;
+        mergeTargetId = "";
+        onMutated();
+      },
+    };
   }
 
   async function handleDetailExport(format: "json" | "csv") {
@@ -234,9 +259,11 @@
   }
 
   async function handleDeleteVisit(visitId: string) {
-    if (!confirm("Delete this visit?")) return;
-    await visitOps.softDelete(visitId);
-    await loadVisits();
+    confirmState = {
+      message: "Delete this visit?",
+      confirmLabel: "Delete",
+      action: async () => { await visitOps.softDelete(visitId); await loadVisits(); },
+    };
   }
 
   function formatDate(iso: string): string {
@@ -402,6 +429,15 @@
 
 
 </div>
+
+{#if confirmState}
+  <ConfirmDialog
+    message={confirmState.message}
+    confirmLabel={confirmState.confirmLabel}
+    onConfirm={() => { confirmState!.action(); confirmState = null; }}
+    onCancel={() => { confirmState = null; }}
+  />
+{/if}
 
 <style>
   .trail-detail { }

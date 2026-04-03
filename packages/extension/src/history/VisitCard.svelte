@@ -36,6 +36,13 @@
 
   let showCitation = $state(false);
 
+  // Close this cite menu when another one opens
+  $effect(() => {
+    const onOtherOpen = () => { showCitation = false; cardMenuOpen = false; };
+    document.addEventListener("closeAllMenus", onOtherOpen);
+    return () => document.removeEventListener("closeAllMenus", onOtherOpen);
+  });
+
   $effect(() => {
     if (!showCitation) return;
     const stamp = () => { stampDismiss(); };
@@ -118,6 +125,14 @@
     }
   }
 
+  function positionCiteMenu(el: HTMLElement) {
+    const rect = el.parentElement!.getBoundingClientRect();
+    if (rect.top < window.innerHeight / 2) {
+      el.style.bottom = "auto";
+      el.style.top = "calc(100% + 4px)";
+    }
+  }
+
   function saveNote() {
     onUpdateNote(visit.id, noteText);
     editingNote = false;
@@ -142,7 +157,7 @@
 <div class="visit-card">
   <div class="card-body">
     <div class="card-menu-wrap">
-      <button class="card-menu-btn" onclick={() => { cardMenuOpen = !cardMenuOpen; }} title="Actions">⋮</button>
+      <button class="card-menu-btn" onclick={() => { document.dispatchEvent(new Event("closeAllMenus")); cardMenuOpen = !cardMenuOpen; }} title="Actions">⋮</button>
       {#if cardMenuOpen}
         <div class="card-menu">
           {#if onSplit}
@@ -172,7 +187,7 @@
           <textarea bind:value={noteText} placeholder="Add a note..." rows="1" onblur={saveNote} oninput={(e) => { autoSaveNote(); autoResize(e); }} autofocus
             use:autoResizeOnMount></textarea>
         {:else}
-          <div class="note-display" use:captureNoteHeight onclick={() => { noteText = visit.note ?? ""; editingNote = true; }}>{visit.note}</div>
+          <div class="note-display" use:captureNoteHeight onclick={() => { if ((window as any).__dismissTime && Date.now() - (window as any).__dismissTime < 300) return; noteText = visit.note ?? ""; editingNote = true; }}>{visit.note}</div>
         {/if}
       </div>
     {/if}
@@ -181,9 +196,9 @@
         <button class="note-btn" onclick={() => { editingNote = true; }}>Add Note</button>
       {/if}
       <div class="cite-wrap">
-        <button class="cite-btn" onclick={() => showCitation = !showCitation}>Cite</button>
+        <button class="cite-btn" onclick={() => { document.dispatchEvent(new Event("closeAllMenus")); showCitation = !showCitation; }}>Cite</button>
         {#if showCitation}
-          <div class="cite-menu">
+          <div class="cite-menu" use:positionCiteMenu>
             {#each citationFormats as fmt}
               <button class="cite-item" onclick={() => copyCitation(fmt.key)}>{fmt.label}</button>
             {/each}

@@ -3,6 +3,7 @@
   import { goto } from "$app/navigation";
   import { trailStore, visitStore } from "@wikipedia-breadcrumbs/shared";
   import type { Trail } from "@wikipedia-breadcrumbs/shared";
+  import ConfirmDialog from "./ConfirmDialog.svelte";
   import { db } from "$lib/stores/db";
   import { exportTrailsJson, exportTrailsCsv, downloadFile, exportFilename, parseImportJson, detectConflicts, executeImport, pickFile } from "@wikipedia-breadcrumbs/shared";
   import type { ConflictItem, ImportPlan } from "@wikipedia-breadcrumbs/shared";
@@ -101,11 +102,14 @@
     await loadTrails();
   }
 
+  let confirmState = $state<{ message: string; action: () => void } | null>(null);
+
   async function deleteTrail(trail: Trail, e: Event) {
     e.stopPropagation();
-    if (!confirm(`Delete "${displayNames[trail.id] ?? "this trail"}"?`)) return;
-    await ts.softDelete(trail.id);
-    await loadTrails();
+    confirmState = {
+      message: `Delete "${displayNames[trail.id] ?? "this trail"}"?`,
+      action: async () => { await ts.softDelete(trail.id); await loadTrails(); },
+    };
   }
 
   function formatDate(iso: string): string {
@@ -297,6 +301,15 @@
       </li>
     {/each}
   </ul>
+{/if}
+
+{#if confirmState}
+  <ConfirmDialog
+    message={confirmState.message}
+    confirmLabel="Delete"
+    onConfirm={() => { confirmState!.action(); confirmState = null; }}
+    onCancel={() => { confirmState = null; }}
+  />
 {/if}
 
 <style>
