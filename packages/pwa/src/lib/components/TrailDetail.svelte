@@ -588,7 +588,7 @@
   .trail-note-input {
     width: 100%; box-sizing: border-box; padding: 8px 10px;
     border: 1px solid #ddd; border-radius: 6px;
-    font-size: 13px; font-family: inherit; resize: vertical;
+    font-size: 16px; font-family: inherit; resize: vertical;
   }
   .add-note {
     background: none; border: none; color: #0066cc;

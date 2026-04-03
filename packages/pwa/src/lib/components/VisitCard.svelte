@@ -267,7 +267,7 @@
     padding: 5px 8px;
     border: 1px solid transparent;
     border-radius: 6px;
-    font-size: 13px;
+    font-size: 16px;
     font-family: inherit;
     resize: vertical;
     line-height: 1.4;
