@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { authState, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut } from "$lib/stores/auth.svelte";
+  import { authState, signInWithGoogle, signInWithWikimedia, signInWithEmail, signUpWithEmail, signOut } from "$lib/stores/auth.svelte";
   import { syncState, enableSync, disableSync, syncNow, upgradeToAuthenticatedUser } from "$lib/stores/sync.svelte";
   import { getDeviceId } from "$lib/stores/device-id";
   import { onMount } from "svelte";
@@ -41,6 +41,12 @@
   async function handleGoogleSignIn() {
     authError = "";
     const result = await signInWithGoogle();
+    if (result.error) authError = result.error;
+  }
+
+  async function handleWikimediaSignIn() {
+    authError = "";
+    const result = await signInWithWikimedia();
     if (result.error) authError = result.error;
   }
 
@@ -111,6 +117,10 @@
         Sign in with Google
       </button>
 
+      <button class="btn-wikimedia" onclick={handleWikimediaSignIn}>
+        Sign in with Wikipedia
+      </button>
+
       <div class="divider"><span>or</span></div>
 
       <form onsubmit={(e) => { e.preventDefault(); handleEmailSubmit(); }}>
@@ -154,6 +164,12 @@
     background: white; cursor: pointer; font-size: 14px; font-weight: 500;
   }
   .btn-google:hover { background: #f8f8f8; }
+  .btn-wikimedia {
+    width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;
+    background: white; cursor: pointer; font-size: 14px; font-weight: 500;
+    margin-top: 8px;
+  }
+  .btn-wikimedia:hover { background: #f8f8f8; }
   .btn-primary {
     padding: 10px; background: #0066cc; color: white; border: none;
     border-radius: 4px; cursor: pointer; font-size: 14px; width: 100%;

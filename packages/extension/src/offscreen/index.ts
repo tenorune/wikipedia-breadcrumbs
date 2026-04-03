@@ -6,7 +6,7 @@ import type { OffscreenEnvelope } from "../shared/messaging.js";
 
 const db = new BreadcrumbsDB();
 
-const AUTH_TYPES = new Set(["signInWithGoogle", "signInWithEmail", "signUpWithEmail", "signOut", "getAuthStatus"]);
+const AUTH_TYPES = new Set(["signInWithGoogle", "signInWithWikimedia", "signInWithEmail", "signUpWithEmail", "signOut", "getAuthStatus"]);
 const SYNC_TYPES = new Set(["enableSync", "disableSync", "syncNow", "getSyncStatus", "reinitSync"]);
 
 chrome.runtime.onMessage.addListener(

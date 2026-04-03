@@ -408,6 +408,44 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
       sendResponse(result);
       break;
     }
+    case "signInWithWikimedia": {
+      try {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+        const redirectUrl = chrome.identity.getRedirectURL();
+        const authUrl = `${supabaseUrl}/auth/v1/authorize?provider=custom%3Awikimedia&redirect_to=${encodeURIComponent(redirectUrl)}`;
+
+        const responseUrl = await new Promise<string>((resolve, reject) => {
+          chrome.identity.launchWebAuthFlow(
+            { url: authUrl, interactive: true },
+            (callbackUrl) => {
+              if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+              else if (callbackUrl) resolve(callbackUrl);
+              else reject(new Error("No callback URL"));
+            }
+          );
+        });
+
+        const hashStr = new URL(responseUrl).hash.substring(1);
+        const params = new URLSearchParams(hashStr);
+        const accessToken = params.get("access_token");
+        const refreshToken = params.get("refresh_token");
+
+        if (accessToken && refreshToken) {
+          const result = await sendToOffscreen({
+            type: "signInWithWikimedia",
+            redirectUrl: "",
+            accessToken,
+            refreshToken,
+          } as any);
+          sendResponse(result);
+        } else {
+          sendResponse({ success: false, error: "No tokens in callback" });
+        }
+      } catch (err: any) {
+        sendResponse({ success: false, error: err.message ?? "Wikimedia sign-in failed" });
+      }
+      break;
+    }
     case "signInWithGoogle":
     case "signInWithEmail":
     case "signUpWithEmail":

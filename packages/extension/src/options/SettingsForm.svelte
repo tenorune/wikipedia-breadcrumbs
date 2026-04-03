@@ -67,6 +67,17 @@
     }
   }
 
+  async function handleWikimediaSignIn() {
+    authError = "";
+    const response = await chrome.runtime.sendMessage({ type: "signInWithWikimedia" });
+    if (response?.success) {
+      await loadAuthStatus();
+      await chrome.runtime.sendMessage({ type: "reinitSync" });
+    } else {
+      authError = response?.error ?? "Wikipedia sign-in failed";
+    }
+  }
+
   async function handleEmailAuth() {
     authError = "";
     authSubmitting = true;
@@ -151,6 +162,7 @@
         {:else}
           <p class="help" style="margin-bottom: 12px;">Sign in to enable cloud backup and sync.</p>
           <button type="button" class="btn-google" onclick={handleGoogleSignIn}>Sign in with Google</button>
+          <button type="button" class="btn-wikimedia" onclick={handleWikimediaSignIn}>Sign in with Wikipedia</button>
           <div class="divider"><span>or</span></div>
           <div class="email-form">
             <input type="email" placeholder="Email" bind:value={authEmail} />
@@ -185,6 +197,12 @@
     background: white; cursor: pointer; font-size: 14px; font-weight: 500;
   }
   .btn-google:hover { background: #f8f8f8; }
+  .btn-wikimedia {
+    width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;
+    background: white; cursor: pointer; font-size: 14px; font-weight: 500;
+    margin-top: 8px;
+  }
+  .btn-wikimedia:hover { background: #f8f8f8; }
   .btn-primary {
     padding: 10px; background: #0066cc; color: white; border: none;
     border-radius: 4px; cursor: pointer; font-size: 14px; width: 100%;

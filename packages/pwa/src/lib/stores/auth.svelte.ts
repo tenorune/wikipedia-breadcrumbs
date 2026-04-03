@@ -66,6 +66,20 @@ export async function signInWithGoogle(): Promise<{ error?: string }> {
   return {};
 }
 
+export async function signInWithWikimedia(): Promise<{ error?: string }> {
+  localStorage.setItem("pendingAuthUpgrade", "true");
+  const { data: session } = await supabase.auth.getSession();
+  if (session?.session?.user?.is_anonymous) {
+    await supabase.auth.signOut({ scope: "local" });
+  }
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: "custom:wikimedia" as any,
+    options: { redirectTo: window.location.origin + "/settings" },
+  });
+  if (error) return { error: error.message };
+  return {};
+}
+
 export async function signUpWithEmail(email: string, password: string): Promise<{ error?: string }> {
   const { error } = await supabase.auth.signUp({ email, password });
   if (error) return { error: error.message };

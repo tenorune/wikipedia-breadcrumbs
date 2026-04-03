@@ -29,6 +29,21 @@ export async function handleAuthMessage(
       if (error) return { success: false, error: error.message };
       return { success: true, data: { user: data.user } };
     }
+    case "signInWithWikimedia": {
+      // The extension handles the OAuth flow via chrome.identity.launchWebAuthFlow
+      // in the background script. The offscreen receives the tokens to set the session.
+      const accessToken = payload.accessToken as string;
+      const refreshToken = payload.refreshToken as string;
+      if (accessToken && refreshToken) {
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (error) return { success: false, error: error.message };
+        return { success: true, data: { user: data.user } };
+      }
+      return { success: false, error: "No tokens provided" };
+    }
     case "signInWithEmail": {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: payload.email as string,
