@@ -14,8 +14,15 @@
   let authError = $state("");
   let authSubmitting = $state(false);
 
+  let isOnline = $state(typeof navigator !== "undefined" ? navigator.onLine : true);
+
   onMount(() => {
     deviceId = getDeviceId();
+    const goOnline = () => { isOnline = true; };
+    const goOffline = () => { isOnline = false; };
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => { window.removeEventListener("online", goOnline); window.removeEventListener("offline", goOffline); };
   });
 
   // Persist syncEnabled to localStorage whenever it changes
@@ -137,8 +144,8 @@
 
       <div class="section">
         <h3>Sync</h3>
-        <button class="btn-sync" onclick={syncNow} disabled={syncState.syncing}>
-          {syncState.syncing ? "Syncing…" : "Sync now"}
+        <button class="btn-sync" onclick={syncNow} disabled={syncState.syncing || !isOnline}>
+          {syncState.syncing ? "Syncing…" : isOnline ? "Sync now" : "Offline"}
         </button>
         <p class="help">
           Last synced: {syncState.lastSyncTime ? formatDate(syncState.lastSyncTime) : "Never"}
@@ -194,7 +201,7 @@
 {/if}
 
 <style>
-  h1 { margin: 0 0 20px; font-size: 24px; }
+  h1 { margin: 0 0 20px; font-size: 22px; font-weight: 700; }
   h3 { margin: 0 0 12px; font-size: 18px; }
   .field { margin-bottom: 20px; }
   .section { margin-bottom: 20px; }

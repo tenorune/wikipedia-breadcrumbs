@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { trailStore, visitStore } from "@wikipedia-breadcrumbs/shared";
+  import type { Trail } from "@wikipedia-breadcrumbs/shared";
   import { db } from "$lib/stores/db";
-  import { syncState } from "$lib/stores/sync.svelte";
+  import { syncState, syncNow } from "$lib/stores/sync.svelte";
   import { authState } from "$lib/stores/auth.svelte";
 
   const ts = trailStore(db);
@@ -10,6 +11,8 @@
 
   let totalTrails = $state(0);
   let totalVisits = $state(0);
+  let totalNotes = $state(0);
+  let starredTrails = $state<Array<{ id: string; displayName: string; updatedAt: string }>>([]);
   let recentTrails = $state<Array<{ id: string; displayName: string; updatedAt: string }>>([]);
 
   async function loadData() {
@@ -19,31 +22,54 @@
     ]);
     totalTrails = trails.length;
     totalVisits = allVisits.length;
-    const sorted = [...trails].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5);
-    const items = await Promise.all(
-      sorted.map(async (t) => {
-        let displayName = t.name;
-        if (!displayName) {
-          const visits = await vs.getByTrailId(t.id);
-          if (visits.length > 0) {
-            displayName = visits.length === 1
-              ? visits[0].title
-              : `${visits[0].title} → ${visits[visits.length - 1].title}`;
-          } else {
-            displayName = "Empty trail";
-          }
+
+    // Count notes: trail notes + visit notes
+    const trailNoteCount = trails.filter((t) => t.note).length;
+    const visitNoteCount = allVisits.filter((v) => v.note).length;
+    totalNotes = trailNoteCount + visitNoteCount;
+
+    // Build display names for all trails
+    async function buildItem(t: Trail) {
+      let displayName = t.name;
+      if (!displayName) {
+        const visits = await vs.getByTrailId(t.id);
+        if (visits.length > 0) {
+          displayName = visits.length === 1
+            ? visits[0].title
+            : `${visits[0].title} → ${visits[visits.length - 1].title}`;
+        } else {
+          displayName = "Empty trail";
         }
-        return { id: t.id, displayName, updatedAt: t.updatedAt };
-      })
-    );
-    recentTrails = items;
+      }
+      return { id: t.id, displayName, updatedAt: t.updatedAt };
+    }
+
+    // Starred trails
+    const starred = trails.filter((t) => t.isStarred);
+    const starredIds = new Set(starred.map((t) => t.id));
+    starredTrails = await Promise.all(starred.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map(buildItem));
+
+    // Recent trails (excluding starred)
+    const nonStarred = trails.filter((t) => !starredIds.has(t.id));
+    const sorted = nonStarred.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5);
+    recentTrails = await Promise.all(sorted.map(buildItem));
   }
+
+  let isOnline = $state(typeof navigator !== "undefined" ? navigator.onLine : true);
 
   onMount(() => {
     loadData();
     const onVisible = () => { if (document.visibilityState === "visible") loadData(); };
+    const goOnline = () => { isOnline = true; };
+    const goOffline = () => { isOnline = false; };
     document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
   });
 
   function formatDate(iso: string): string {
@@ -52,6 +78,33 @@
       hour: "numeric", minute: "2-digit",
     });
   }
+
+  function formatSyncAge(iso: string): string {
+    const ms = Date.now() - new Date(iso).getTime();
+    const minutes = Math.floor(ms / 60000);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    const remainHours = hours % 24;
+    const remainMinutes = minutes % 60;
+
+    if (days > 0) {
+      const parts = [`${days} day${days === 1 ? "" : "s"}`];
+      if (remainHours > 0) parts.push(`${remainHours} hour${remainHours === 1 ? "" : "s"}`);
+      if (remainMinutes > 0) parts.push(`${remainMinutes} minute${remainMinutes === 1 ? "" : "s"}`);
+      return parts.join(", ") + " ago";
+    }
+    if (hours > 0) {
+      const parts = [`${hours} hour${hours === 1 ? "" : "s"}`];
+      if (remainMinutes > 0) parts.push(`${remainMinutes} minute${remainMinutes === 1 ? "" : "s"}`);
+      return parts.join(", ") + " ago";
+    }
+    if (minutes > 0) {
+      return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+    }
+    return "just now";
+  }
+
+  const syncAgeText = $derived(syncState.lastSyncTime ? formatSyncAge(syncState.lastSyncTime) : null);
 </script>
 
 <h1>Wikipedia Breadcrumbs</h1>
@@ -66,19 +119,55 @@
     <span class="stat-label">Pages visited</span>
   </div>
   <div class="stat">
-    <span class="stat-value">{syncState.lastSyncTime ? formatDate(syncState.lastSyncTime) : "Never"}</span>
-    <span class="stat-label">Last synced</span>
+    <span class="stat-value">{totalNotes}</span>
+    <span class="stat-label">Notes</span>
   </div>
 </div>
 
 {#if !authState.isAuthenticated}
   <a href="/settings" class="sign-in-prompt">Sign in to sync across devices →</a>
+{:else if syncAgeText}
+  <div class="sync-info">
+    Last synced {syncAgeText} ·
+    {#if isOnline}
+      <button class="sync-link" onclick={syncNow} disabled={syncState.syncing}>{syncState.syncing ? "Syncing…" : "Sync"}</button>
+    {:else}
+      <span class="offline">(offline)</span>
+    {/if}
+  </div>
+{:else}
+  <div class="sync-info">
+    Not yet synced ·
+    {#if isOnline}
+      <button class="sync-link" onclick={syncNow} disabled={syncState.syncing}>{syncState.syncing ? "Syncing…" : "Sync"}</button>
+    {:else}
+      <span class="offline">(offline)</span>
+    {/if}
+  </div>
+{/if}
+
+{#if starredTrails.length > 0}
+  <section class="starred">
+    <h2>Starred</h2>
+    <ul class="trail-list">
+      {#each starredTrails as trail}
+        <li>
+          <a href="/trails/{trail.id}" class="trail-link">
+            <span class="trail-name">★ {trail.displayName}</span>
+            <span class="trail-date">{formatDate(trail.updatedAt)}</span>
+          </a>
+        </li>
+      {/each}
+    </ul>
+  </section>
 {/if}
 
 <section class="recent">
   <h2>Recent Trails</h2>
-  {#if recentTrails.length === 0}
+  {#if recentTrails.length === 0 && starredTrails.length === 0}
     <p class="empty">No trails yet. Install the extension to start browsing!</p>
+  {:else if recentTrails.length === 0}
+    <p class="empty">All trails are starred.</p>
   {:else}
     <ul class="trail-list">
       {#each recentTrails as trail}
@@ -116,6 +205,26 @@
   .stat-value { font-size: 18px; font-weight: 700; word-break: break-all; text-align: center; }
   .stat-label { font-size: 11px; color: #666; text-align: center; }
 
+  .sync-info {
+    text-align: center;
+    font-size: 13px;
+    color: #888;
+    padding: 8px;
+    margin-bottom: 8px;
+  }
+  .sync-link {
+    background: none;
+    border: none;
+    color: #0066cc;
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0;
+  }
+  .sync-link:hover { text-decoration: underline; }
+  .sync-link:disabled { color: #999; cursor: default; }
+  .offline { color: #999; font-style: italic; }
+
+  .starred { margin-bottom: 16px; }
   .recent { }
   .trail-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
   .trail-link {

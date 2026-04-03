@@ -33,8 +33,12 @@
 </div>
 
 <style>
-  :global(body) {
+  :global(html, body) {
     margin: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+  :global(body) {
     font-family: system-ui, -apple-system, sans-serif;
     font-size: 14px;
     color: #1a1a1a;
@@ -43,8 +47,15 @@
   .app {
     max-width: 900px;
     margin: 0 auto;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
   }
   .content {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     padding: 16px 16px 80px;
   }
 </style>
