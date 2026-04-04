@@ -10,9 +10,10 @@
     onDelete: (visitId: string) => void;
     onSplit?: (position: number) => void;
     onResumed?: () => void;
+    showLanguageBadge?: boolean;
   }
 
-  let { visit, trailId, trailStatus, onUpdateNote, onDelete, onSplit, onResumed }: Props = $props();
+  let { visit, trailId, trailStatus, onUpdateNote, onDelete, onSplit, onResumed, showLanguageBadge }: Props = $props();
 
   async function handleTitleClick(e: MouseEvent) {
     e.preventDefault();
@@ -169,6 +170,9 @@
     </div>
     <div class="main">
       <a href={visit.url} onclick={handleTitleClick} class="title">{visit.title}</a>
+      {#if showLanguageBadge}
+        <span class="lang-badge">{visit.language.toUpperCase()}</span>
+      {/if}
       {#if visit.sourceDetail}
         <span class="redirect">({visit.sourceDetail})</span>
       {/if}
@@ -234,6 +238,7 @@
   .meta { font-size: 12px; color: #666; margin-top: 4px; display: flex; gap: 4px; align-items: center; }
   .sep { color: #999; }
   .badge { background: #e8f0fe; color: #1a73e8; padding: 1px 6px; border-radius: 3px; font-size: 11px; }
+  .lang-badge { background: #e8f0fe; color: #1a73e8; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; letter-spacing: 0.5px; vertical-align: middle; margin-left: 4px; }
   .detail { font-style: italic; }
   .actions { display: flex; gap: 8px; margin-top: 6px; }
   .note-display { font-size: 12px; color: #333; background: #fffde7; border: 1px solid transparent; border-radius: 6px; padding: 5px 8px; cursor: pointer; text-align: left; white-space: pre-wrap; word-break: break-word; line-height: 1.4; box-sizing: border-box; }

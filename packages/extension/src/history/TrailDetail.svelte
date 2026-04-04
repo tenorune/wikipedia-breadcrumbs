@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { Trail, Visit } from "@wikipedia-breadcrumbs/shared";
-  import { BreadcrumbsDB, visitStore, trailStore, splitTrail, mergeTrails, exportTrailsJson, exportTrailsCsv, downloadFile, exportFilename } from "@wikipedia-breadcrumbs/shared";
+  import type { Trail, Visit, LanguageBadgeSettings } from "@wikipedia-breadcrumbs/shared";
+  import { BreadcrumbsDB, visitStore, trailStore, splitTrail, mergeTrails, exportTrailsJson, exportTrailsCsv, downloadFile, exportFilename, getLanguageBadgeSettings, shouldShowLanguageBadge } from "@wikipedia-breadcrumbs/shared";
   import VisitCard from "./VisitCard.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
 
@@ -20,6 +20,7 @@
   let displayName = $state(trail.name);
   let showMergePicker = $state(false);
   let detailMenuOpen = $state(false);
+  let langSettings: LanguageBadgeSettings | null = $state(null);
 
   $effect(() => {
     if (!detailMenuOpen) return;
@@ -271,6 +272,7 @@
   }
 
   loadVisits();
+  getLanguageBadgeSettings(db).then((s) => { langSettings = s; });
 </script>
 
 <div class="trail-detail">
@@ -367,6 +369,7 @@
             onUpdateNote={handleUpdateNote}
             onDelete={handleDeleteVisit}
             onResumed={onMutated}
+            showLanguageBadge={langSettings ? shouldShowLanguageBadge(focusedView.parent.language, langSettings) : false}
           />
         </div>
       {/if}
@@ -381,6 +384,7 @@
           onUpdateNote={handleUpdateNote}
           onDelete={handleDeleteVisit}
           onResumed={onMutated}
+          showLanguageBadge={langSettings ? shouldShowLanguageBadge(focusedView.focused.language, langSettings) : false}
         />
       </div>
       {#if focusedView.children.length > 0}
@@ -397,6 +401,7 @@
               onUpdateNote={handleUpdateNote}
               onDelete={handleDeleteVisit}
               onResumed={onMutated}
+              showLanguageBadge={langSettings ? shouldShowLanguageBadge(child.language, langSettings) : false}
             />
           </div>
         {/each}
@@ -421,6 +426,7 @@
             onDelete={handleDeleteVisit}
             onSplit={sortField === "discovery" && sortAsc && i < sortedVisits.length - 1 ? handleSplit : undefined}
             onResumed={onMutated}
+            showLanguageBadge={langSettings ? shouldShowLanguageBadge(visit.language, langSettings) : false}
           />
         </div>
       {/each}
