@@ -5,6 +5,8 @@
   import { db } from "$lib/stores/db";
   import { syncState, syncNow } from "$lib/stores/sync.svelte";
   import { authState } from "$lib/stores/auth.svelte";
+  import { installState, reopenInstallPrompt } from "$lib/stores/install.svelte";
+  import InstallPrompt from "$lib/components/InstallPrompt.svelte";
 
   const ts = trailStore(db);
   const vs = visitStore(db);
@@ -15,6 +17,12 @@
   let totalNotes = $state(0);
   let starredTrails = $state<Array<{ id: string; displayName: string; updatedAt: string }>>([]);
   let recentTrails = $state<Array<{ id: string; displayName: string; updatedAt: string }>>([]);
+
+  const showInstallPrompt = $derived(
+    installState.eligible
+    && authState.isAuthenticated
+    && !!syncState.lastSyncTime
+  );
 
   async function loadData() {
     const [trails, allVisits] = await Promise.all([
@@ -119,7 +127,14 @@
 
 {#if loaded}
 <div class="fade-in">
-<h1>Wikipedia Breadcrumbs</h1>
+<div class="home-header">
+  <h1>Wikipedia Breadcrumbs</h1>
+  {#if showInstallPrompt && installState.dismissed && !installState.showPromptOverride}
+    <button class="install-icon" onclick={reopenInstallPrompt} aria-label="Install app">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    </button>
+  {/if}
+</div>
 
 <div class="stats">
   <div class="stat">
@@ -135,6 +150,10 @@
     <span class="stat-label">Notes</span>
   </div>
 </div>
+
+{#if showInstallPrompt && (!installState.dismissed || installState.showPromptOverride)}
+  <InstallPrompt />
+{/if}
 
 {#if !authState.isAuthenticated}
   <a href="/settings" class="sign-in-prompt">Sign in to sync across devices →</a>
@@ -200,7 +219,7 @@
 <style>
   .fade-in { animation: fadeIn 0.1s ease-in; }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-  h1 { font-size: 22px; font-weight: 700; margin: 0 0 20px; }
+  h1 { font-size: 22px; font-weight: 700; margin: 0; }
   h2 { font-size: 16px; font-weight: 600; margin: 0 0 12px; }
 
   .stats {
@@ -262,5 +281,9 @@
   .empty { color: #767676; font-size: 13px; margin: 0 0 12px; }
   .see-all { font-size: 13px; color: #0066cc; text-decoration: none; }
   .see-all:hover { text-decoration: underline; }
+  .home-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .home-header h1 { margin: 0; }
+  .install-icon { background: none; border: none; color: #0066cc; cursor: pointer; padding: 4px; }
+  .install-icon:hover { color: #0052a3; }
   .sign-in-prompt { display: block; text-align: center; padding: 8px; color: #0066cc; text-decoration: none; font-size: 13px; margin-bottom: 8px; }
 </style>
