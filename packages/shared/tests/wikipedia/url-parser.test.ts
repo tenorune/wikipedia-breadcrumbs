@@ -25,6 +25,14 @@ describe("isWikipediaUrl", () => {
     expect(isWikipediaUrl("https://en.wikipedia.org/wiki/User:Example")).toBe(false);
     expect(isWikipediaUrl("https://en.wikipedia.org/wiki/Category:Programming_languages")).toBe(false);
   });
+  it("returns false for localized non-article pages", () => {
+    expect(isWikipediaUrl("https://de.wikipedia.org/wiki/Diskussion:Zucker")).toBe(false);
+    expect(isWikipediaUrl("https://fr.wikipedia.org/wiki/Discussion:Paris")).toBe(false);
+    expect(isWikipediaUrl("https://de.wikipedia.org/wiki/Benutzer:Example")).toBe(false);
+    expect(isWikipediaUrl("https://fr.wikipedia.org/wiki/Catégorie:Informatique")).toBe(false);
+    expect(isWikipediaUrl("https://de.wikipedia.org/wiki/Spezial:Suche")).toBe(false);
+    expect(isWikipediaUrl("https://en.wikipedia.org/wiki/User_talk:Example")).toBe(false);
+  });
   it("returns true for Wikipedia Main Page", () => {
     expect(isWikipediaUrl("https://en.wikipedia.org/wiki/Main_Page")).toBe(true);
   });

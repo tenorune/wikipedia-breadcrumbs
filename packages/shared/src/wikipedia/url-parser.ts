@@ -1,6 +1,30 @@
+// English namespace prefixes
 const NON_ARTICLE_PREFIXES = [
   "Special:", "Wikipedia:", "Help:", "Talk:", "User:", "User_talk:",
   "Category:", "File:", "Template:", "Portal:", "Draft:", "Module:", "MediaWiki:",
+];
+
+// Localized talk/meta namespace prefixes across major languages
+const LOCALIZED_NON_ARTICLE_PREFIXES = [
+  // Talk namespaces (various languages)
+  "Diskussion:", "Discussion:", "Discussione:", "Discusión:",
+  "Discussão:", "Обсуждение:", "Overleg:", "Dyskusja:",
+  "Keskustelu:", "Tartışma:", "トーク:", "讨论:", "토론:",
+  // User namespaces
+  "Benutzer:", "Utilisateur:", "Utente:", "Usuario:",
+  "Usuário:", "Участник:", "Gebruiker:", "Użytkownik:",
+  "利用者:", "用户:", "사용자:",
+  // Wikipedia/Project namespaces
+  "Wikipédia:", "Vikipedi:",
+  // Category namespaces
+  "Kategorie:", "Catégorie:", "Categoria:", "Categoría:",
+  "Категория:", "Categorie:", "Kategoria:", "Kategori:",
+  // Help namespaces
+  "Hilfe:", "Aide:", "Aiuto:", "Ayuda:", "Ajuda:", "Справка:",
+  // Template namespaces
+  "Vorlage:", "Modèle:", "Modello:", "Plantilla:", "Predefinição:", "Шаблон:",
+  // Special namespaces
+  "Spezial:", "Spécial:", "Speciale:", "Especial:", "Служебная:",
 ];
 
 export interface ParsedWikipediaUrl {
@@ -27,7 +51,12 @@ function extractParts(url: string): { language: string; rawTitle: string } | nul
 }
 
 function isArticlePage(rawTitle: string): boolean {
-  return !NON_ARTICLE_PREFIXES.some((prefix) => rawTitle.startsWith(prefix));
+  const decoded = decodeURIComponent(rawTitle);
+  if (NON_ARTICLE_PREFIXES.some((prefix) => decoded.startsWith(prefix))) return false;
+  if (LOCALIZED_NON_ARTICLE_PREFIXES.some((prefix) => decoded.startsWith(prefix))) return false;
+  // Catch any remaining talk pages: "*_talk:" or "*_Talk:" pattern
+  if (/^[A-Za-z\u00C0-\u024F_]+_[Tt]alk:/i.test(decoded)) return false;
+  return true;
 }
 
 export function isWikipediaUrl(url: string): boolean {
