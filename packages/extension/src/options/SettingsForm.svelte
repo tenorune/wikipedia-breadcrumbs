@@ -43,9 +43,12 @@
     if (response?.success) authStatus = response.data;
   }
 
+  const SIGN_IN_TIMEOUT = 120000; // 2 minutes
+
   async function handleGoogleSignIn() {
     authError = "";
     googleSigningIn = true;
+    const timeout = setTimeout(() => { googleSigningIn = false; authError = "Sign-in timed out. Please try again."; }, SIGN_IN_TIMEOUT);
     try {
       const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string;
       const redirectUrl = chrome.identity.getRedirectURL();
@@ -75,6 +78,7 @@
     } catch (err) {
       authError = String(err);
     } finally {
+      clearTimeout(timeout);
       googleSigningIn = false;
     }
   }
@@ -82,16 +86,23 @@
   async function handleWikimediaSignIn() {
     authError = "";
     wikimediaSigningIn = true;
-    const response = await chrome.runtime.sendMessage({ type: "signInWithWikimedia" });
-    if (response?.success) {
-      await loadAuthStatus();
-      await chrome.runtime.sendMessage({ type: "reinitSync" });
-      await new Promise((r) => setTimeout(r, 3000));
-      await loadSyncStatus();
-    } else {
-      authError = response?.error ?? "Wikipedia sign-in failed";
+    const timeout = setTimeout(() => { wikimediaSigningIn = false; authError = "Sign-in timed out. Please try again."; }, SIGN_IN_TIMEOUT);
+    try {
+      const response = await chrome.runtime.sendMessage({ type: "signInWithWikimedia" });
+      if (response?.success) {
+        await loadAuthStatus();
+        await chrome.runtime.sendMessage({ type: "reinitSync" });
+        await new Promise((r) => setTimeout(r, 3000));
+        await loadSyncStatus();
+      } else {
+        authError = response?.error ?? "Wikipedia sign-in failed";
+      }
+    } catch (err) {
+      authError = String(err);
+    } finally {
+      clearTimeout(timeout);
+      wikimediaSigningIn = false;
     }
-    wikimediaSigningIn = false;
   }
 
   async function handleEmailAuth() {
@@ -225,9 +236,9 @@
           <button type="button" class="btn-wikimedia" onclick={handleWikimediaSignIn} disabled={googleSigningIn || wikimediaSigningIn}>{wikimediaSigningIn ? "Signing in with Wikipedia..." : "Sign in with Wikipedia"}</button>
           <div class="divider"><span>or</span></div>
           <div class="email-form">
-            <input type="email" placeholder="Email" bind:value={authEmail} />
-            <input type="password" placeholder="Password" bind:value={authPassword} />
-            <button type="button" class="btn-primary" onclick={handleEmailAuth} disabled={authSubmitting}>
+            <input type="email" placeholder="Email" bind:value={authEmail} disabled={googleSigningIn || wikimediaSigningIn} />
+            <input type="password" placeholder="Password" bind:value={authPassword} disabled={googleSigningIn || wikimediaSigningIn} />
+            <button type="button" class="btn-primary" onclick={handleEmailAuth} disabled={authSubmitting || googleSigningIn || wikimediaSigningIn}>
               {authSubmitting ? "..." : authIsSignUp ? "Sign up" : "Sign in"}
             </button>
           </div>

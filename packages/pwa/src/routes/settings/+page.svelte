@@ -170,9 +170,9 @@
       <div class="divider"><span>or</span></div>
 
       <form onsubmit={(e) => { e.preventDefault(); handleEmailSubmit(); }}>
-        <input type="email" placeholder="Email" bind:value={email} required />
-        <input type="password" placeholder="Password" bind:value={password} required minlength="6" />
-        <button type="submit" class="btn-primary" disabled={authSubmitting}>
+        <input type="email" placeholder="Email" bind:value={email} required disabled={googleSigningIn || wikimediaSigningIn} />
+        <input type="password" placeholder="Password" bind:value={password} required minlength="6" disabled={googleSigningIn || wikimediaSigningIn} />
+        <button type="submit" class="btn-primary" disabled={authSubmitting || googleSigningIn || wikimediaSigningIn}>
           {authSubmitting ? "..." : isSignUp ? "Sign up" : "Sign in"}
         </button>
       </form>
