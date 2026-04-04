@@ -9,3 +9,4 @@ export * from "./trail/index.js";
 export * from "./citation/index.js";
 export * from "./sync/index.js";
 export * from "./export/index.js";
+export * from "./language-badges/index.js";
