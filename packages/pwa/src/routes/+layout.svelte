@@ -26,9 +26,9 @@
 </script>
 
 <div class="app">
-  <div class="content">
+  <main class="content">
     {@render children()}
-  </div>
+  </main>
   <TabBar />
 </div>
 
