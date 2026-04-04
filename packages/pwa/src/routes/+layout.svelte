@@ -3,11 +3,13 @@
   import { initSync } from "$lib/stores/sync.svelte";
   import { initAuth, authState } from "$lib/stores/auth.svelte";
   import { upgradeToAuthenticatedUser } from "$lib/stores/sync.svelte";
+  import { initInstallStore } from "$lib/stores/install.svelte";
   import { onMount } from "svelte";
 
   let { children } = $props();
 
   onMount(async () => {
+    initInstallStore();
     await initAuth();
 
     // If returning from Google OAuth redirect, wait a moment for Supabase
