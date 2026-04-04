@@ -215,7 +215,6 @@
   .toggle-label input { cursor: pointer; width: 16px; height: 16px; }
 
   .provider-icon { display: inline-flex; vertical-align: middle; margin-left: 4px; }
-  .signed-in p { margin: 0; }
 
   .btn-google {
     width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;

@@ -310,8 +310,6 @@
     color: #333;
   }
   .action:hover { background: #f0f0f0; }
-  .action.split { color: #6600cc; border-color: #d0c0f5; }
-  .action.split:hover { background: #f5f0ff; }
 
   .cite-wrap { position: relative; }
   .cite-menu {

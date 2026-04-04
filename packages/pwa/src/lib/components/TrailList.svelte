@@ -400,14 +400,6 @@
   .name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .meta { font-size: 11px; color: #888; display: flex; align-items: center; gap: 6px; }
 
-  .badge {
-    font-size: 10px;
-    padding: 1px 6px;
-    border-radius: 10px;
-    font-weight: 600;
-  }
-  .badge.active { background: #d4f0d4; color: #2a7a2a; }
-
   .delete {
     background: none;
     border: none;

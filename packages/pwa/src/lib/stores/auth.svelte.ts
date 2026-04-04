@@ -42,7 +42,8 @@ export async function initAuth(): Promise<void> {
     }
 
     // Clean the hash from the URL
-    window.history.replaceState({}, "", window.location.pathname);
+    const { replaceState } = await import("$app/navigation");
+    replaceState(window.location.pathname, {});
     _loading = false;
     return;
   }

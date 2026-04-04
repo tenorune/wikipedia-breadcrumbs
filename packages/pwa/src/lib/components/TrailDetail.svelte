@@ -460,20 +460,6 @@
 {/if}
 
 <style>
-  .loading { color: #888; padding: 20px 0; }
-
-  .back {
-    background: none;
-    border: none;
-    color: #0066cc;
-    cursor: pointer;
-    font-size: 14px;
-    padding: 0;
-    margin-bottom: 10px;
-    display: inline-block;
-  }
-  .back:hover { text-decoration: underline; }
-
   .header-box {
     display: flex; gap: 10px; padding: 12px; border: 1px solid #e8e8e8;
     border-radius: 10px; margin-bottom: 14px; align-items: start; position: relative;
@@ -597,11 +583,6 @@
     flex-wrap: wrap;
     margin-top: 4px;
   }
-
-  .badge {
-    font-size: 10px; padding: 1px 6px; border-radius: 10px; font-weight: 600;
-  }
-  .badge.active { background: #d4f0d4; color: #2a7a2a; }
 
   .trail-note-section { margin-top: 8px; }
   .trail-note {
