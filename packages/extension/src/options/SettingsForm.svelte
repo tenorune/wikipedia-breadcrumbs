@@ -15,6 +15,8 @@
   let authIsSignUp = $state(false);
   let authError = $state("");
   let authSubmitting = $state(false);
+  let googleSigningIn = $state(false);
+  let wikimediaSigningIn = $state(false);
 
   async function loadSyncStatus() {
     const { lastSyncTime } = await chrome.storage.local.get("lastSyncTime");
@@ -43,6 +45,7 @@
 
   async function handleGoogleSignIn() {
     authError = "";
+    googleSigningIn = true;
     try {
       const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string;
       const redirectUrl = chrome.identity.getRedirectURL();
@@ -71,11 +74,14 @@
       }
     } catch (err) {
       authError = String(err);
+    } finally {
+      googleSigningIn = false;
     }
   }
 
   async function handleWikimediaSignIn() {
     authError = "";
+    wikimediaSigningIn = true;
     const response = await chrome.runtime.sendMessage({ type: "signInWithWikimedia" });
     if (response?.success) {
       await loadAuthStatus();
@@ -85,6 +91,7 @@
     } else {
       authError = response?.error ?? "Wikipedia sign-in failed";
     }
+    wikimediaSigningIn = false;
   }
 
   async function handleEmailAuth() {
@@ -214,8 +221,8 @@
           </div>
         {:else}
           <p class="help" style="margin-bottom: 12px;">Sign in to enable cloud backup and sync.</p>
-          <button type="button" class="btn-google" onclick={handleGoogleSignIn}>Sign in with Google</button>
-          <button type="button" class="btn-wikimedia" onclick={handleWikimediaSignIn}>Sign in with Wikipedia</button>
+          <button type="button" class="btn-google" onclick={handleGoogleSignIn} disabled={googleSigningIn || wikimediaSigningIn}>{googleSigningIn ? "Signing in with Google..." : "Sign in with Google"}</button>
+          <button type="button" class="btn-wikimedia" onclick={handleWikimediaSignIn} disabled={googleSigningIn || wikimediaSigningIn}>{wikimediaSigningIn ? "Signing in with Wikipedia..." : "Sign in with Wikipedia"}</button>
           <div class="divider"><span>or</span></div>
           <div class="email-form">
             <input type="email" placeholder="Email" bind:value={authEmail} />

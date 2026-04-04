@@ -13,6 +13,8 @@
   let isSignUp = $state(false);
   let authError = $state("");
   let authSubmitting = $state(false);
+  let googleSigningIn = $state(false);
+  let wikimediaSigningIn = $state(false);
 
   let isOnline = $state(typeof navigator !== "undefined" ? navigator.onLine : true);
 
@@ -48,14 +50,16 @@
 
   async function handleGoogleSignIn() {
     authError = "";
+    googleSigningIn = true;
     const result = await signInWithGoogle();
-    if (result.error) authError = result.error;
+    if (result.error) { authError = result.error; googleSigningIn = false; }
   }
 
   async function handleWikimediaSignIn() {
     authError = "";
+    wikimediaSigningIn = true;
     const result = await signInWithWikimedia();
-    if (result.error) authError = result.error;
+    if (result.error) { authError = result.error; wikimediaSigningIn = false; }
   }
 
   async function handleEmailSubmit() {
@@ -155,12 +159,12 @@
     {:else}
       <p class="help" style="margin-bottom: 12px;">Sign in to enable cloud backup and sync.</p>
 
-      <button class="btn-google" onclick={handleGoogleSignIn}>
-        Sign in with Google
+      <button class="btn-google" onclick={handleGoogleSignIn} disabled={googleSigningIn || wikimediaSigningIn}>
+        {googleSigningIn ? "Signing in with Google..." : "Sign in with Google"}
       </button>
 
-      <button class="btn-wikimedia" onclick={handleWikimediaSignIn}>
-        Sign in with Wikipedia
+      <button class="btn-wikimedia" onclick={handleWikimediaSignIn} disabled={googleSigningIn || wikimediaSigningIn}>
+        {wikimediaSigningIn ? "Signing in with Wikipedia..." : "Sign in with Wikipedia"}
       </button>
 
       <div class="divider"><span>or</span></div>
