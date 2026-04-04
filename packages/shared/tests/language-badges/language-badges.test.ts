@@ -21,12 +21,36 @@ beforeEach(async () => {
 describe("getLanguageBadgeSettings", () => {
   it("returns defaults when no settings saved", async () => {
     const settings = await getLanguageBadgeSettings(db);
-    expect(settings.enabled).toBe(false);
+    expect(settings.enabled).toBe(true);
     expect(settings.excludedLanguages).toEqual([]);
   });
 
-  it("returns saved settings", async () => {
-    await db.languageSettings.put({ id: "default", enabled: true, excludedLanguages: ["en"] });
+  it("auto-excludes first language when no settings saved", async () => {
+    const base = { trailId: "t1", position: 1, sourceType: SourceType.Link, articleId: "a" };
+    await db.visits.add(createVisit({ ...base, url: "https://en.wikipedia.org/wiki/A", title: "A", language: "en" }));
+    await db.visits.add(createVisit({ ...base, url: "https://fr.wikipedia.org/wiki/B", title: "B", language: "fr", position: 2 }));
+    const settings = await getLanguageBadgeSettings(db);
+    expect(settings.excludedLanguages).toEqual(["en"]);
+  });
+
+  it("auto-excludes first language even with unconfigured saved record", async () => {
+    const base = { trailId: "t1", position: 1, sourceType: SourceType.Link, articleId: "a" };
+    await db.visits.add(createVisit({ ...base, url: "https://en.wikipedia.org/wiki/A", title: "A", language: "en" }));
+    await db.languageSettings.put({ id: "default", enabled: true, excludedLanguages: [] });
+    const settings = await getLanguageBadgeSettings(db);
+    expect(settings.excludedLanguages).toEqual(["en"]);
+  });
+
+  it("respects configured settings", async () => {
+    const base = { trailId: "t1", position: 1, sourceType: SourceType.Link, articleId: "a" };
+    await db.visits.add(createVisit({ ...base, url: "https://en.wikipedia.org/wiki/A", title: "A", language: "en" }));
+    await db.languageSettings.put({ id: "default", enabled: true, excludedLanguages: [], configured: true });
+    const settings = await getLanguageBadgeSettings(db);
+    expect(settings.excludedLanguages).toEqual([]);
+  });
+
+  it("returns saved configured settings", async () => {
+    await db.languageSettings.put({ id: "default", enabled: true, excludedLanguages: ["en"], configured: true });
     const settings = await getLanguageBadgeSettings(db);
     expect(settings.enabled).toBe(true);
     expect(settings.excludedLanguages).toEqual(["en"]);
@@ -35,15 +59,15 @@ describe("getLanguageBadgeSettings", () => {
 
 describe("saveLanguageBadgeSettings", () => {
   it("saves and retrieves settings", async () => {
-    await saveLanguageBadgeSettings(db, { id: "default", enabled: true, excludedLanguages: ["en", "es"] });
+    await saveLanguageBadgeSettings(db, { id: "default", enabled: true, excludedLanguages: ["en", "es"], configured: true });
     const settings = await getLanguageBadgeSettings(db);
     expect(settings.enabled).toBe(true);
     expect(settings.excludedLanguages).toEqual(["en", "es"]);
   });
 
   it("overwrites previous settings", async () => {
-    await saveLanguageBadgeSettings(db, { id: "default", enabled: true, excludedLanguages: ["en"] });
-    await saveLanguageBadgeSettings(db, { id: "default", enabled: false, excludedLanguages: [] });
+    await saveLanguageBadgeSettings(db, { id: "default", enabled: true, excludedLanguages: ["en"], configured: true });
+    await saveLanguageBadgeSettings(db, { id: "default", enabled: false, excludedLanguages: [], configured: true });
     const settings = await getLanguageBadgeSettings(db);
     expect(settings.enabled).toBe(false);
     expect(settings.excludedLanguages).toEqual([]);
@@ -51,18 +75,26 @@ describe("saveLanguageBadgeSettings", () => {
 });
 
 describe("getDistinctLanguages", () => {
-  it("returns empty array when no visits", async () => {
-    const langs = await getDistinctLanguages(db);
-    expect(langs).toEqual([]);
+  it("returns empty result when no visits", async () => {
+    const result = await getDistinctLanguages(db);
+    expect(result.languages).toEqual([]);
+    expect(result.firstLanguage).toBeNull();
   });
 
-  it("returns unique languages from visits", async () => {
+  it("returns unique languages ordered by first occurrence", async () => {
     const base = { trailId: "t1", position: 1, sourceType: SourceType.Link, articleId: "a" };
-    await db.visits.add(createVisit({ ...base, url: "https://en.wikipedia.org/wiki/A", title: "A", language: "en" }));
-    await db.visits.add(createVisit({ ...base, url: "https://fr.wikipedia.org/wiki/B", title: "B", language: "fr", position: 2 }));
-    await db.visits.add(createVisit({ ...base, url: "https://en.wikipedia.org/wiki/C", title: "C", language: "en", position: 3 }));
-    const langs = await getDistinctLanguages(db);
-    expect(langs.sort()).toEqual(["en", "fr"]);
+    const v1 = createVisit({ ...base, url: "https://en.wikipedia.org/wiki/A", title: "A", language: "en" });
+    v1.timestamp = "2026-01-01T00:00:00.000Z";
+    const v2 = createVisit({ ...base, url: "https://fr.wikipedia.org/wiki/B", title: "B", language: "fr", position: 2 });
+    v2.timestamp = "2026-01-01T00:01:00.000Z";
+    const v3 = createVisit({ ...base, url: "https://en.wikipedia.org/wiki/C", title: "C", language: "en", position: 3 });
+    v3.timestamp = "2026-01-01T00:02:00.000Z";
+    await db.visits.add(v1);
+    await db.visits.add(v2);
+    await db.visits.add(v3);
+    const result = await getDistinctLanguages(db);
+    expect(result.languages).toEqual(["en", "fr"]);
+    expect(result.firstLanguage).toBe("en");
   });
 
   it("excludes soft-deleted visits", async () => {
@@ -70,8 +102,9 @@ describe("getDistinctLanguages", () => {
     const visit = createVisit({ ...base, url: "https://de.wikipedia.org/wiki/A", title: "A", language: "de" });
     await db.visits.add(visit);
     await db.visits.update(visit.id, { deletedAt: new Date().toISOString() });
-    const langs = await getDistinctLanguages(db);
-    expect(langs).toEqual([]);
+    const result = await getDistinctLanguages(db);
+    expect(result.languages).toEqual([]);
+    expect(result.firstLanguage).toBeNull();
   });
 });
 

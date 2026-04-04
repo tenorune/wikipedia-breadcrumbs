@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { Trail, Visit } from "@wikipedia-breadcrumbs/shared";
-  import { BreadcrumbsDB, trailStore, visitStore } from "@wikipedia-breadcrumbs/shared";
+  import type { Trail, Visit, LanguageBadgeSettings } from "@wikipedia-breadcrumbs/shared";
+  import { BreadcrumbsDB, trailStore, visitStore, getLanguageBadgeSettings, shouldShowLanguageBadge } from "@wikipedia-breadcrumbs/shared";
 
   interface Props {
     trail: Trail | null;
@@ -29,6 +29,7 @@
   let totalTrails = $state(0);
   let totalVisits = $state(0);
   let totalNotes = $state(0);
+  let langSettings: LanguageBadgeSettings | null = $state(null);
 
   async function loadStats() {
     const db = new BreadcrumbsDB();
@@ -38,6 +39,7 @@
     totalTrails = trails.length;
     totalVisits = allVisits.length;
     totalNotes = trails.filter((t) => t.note).length + allVisits.filter((v) => v.note).length;
+    langSettings = await getLanguageBadgeSettings(db);
   }
 
   loadStats();
@@ -211,7 +213,12 @@
     <ul class="visits" onscroll={handleScroll} use:scrollToCurrent>
       {#each visibleVisits as item}
         <li class={item.relation}>
-          <a href={item.visit.url} onclick={(e) => navigateToVisit(item.visit.url, e)}>{item.visit.title}</a>
+          <span class="title-wrap">
+            <a href={item.visit.url} onclick={(e) => navigateToVisit(item.visit.url, e)}>{item.visit.title}</a>
+            {#if langSettings && shouldShowLanguageBadge(item.visit.language, langSettings)}
+              <span class="lang-badge">{item.visit.language.toUpperCase()}</span>
+            {/if}
+          </span>
           <span class="time">{timeAgo(item.visit.timestamp)}</span>
         </li>
       {/each}
@@ -259,6 +266,9 @@
   .visits li.current a { font-weight: 700; }
   .visits li.child { margin-left: 12px; border-left: 2px solid #0066cc; padding-left: 8px; }
   .visits li.other { opacity: 0.65; }
+  .title-wrap { display: flex; align-items: center; gap: 4px; overflow: hidden; min-width: 0; }
+  .title-wrap a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lang-badge { background: #e8f0fe; color: #1a73e8; padding: 1px 5px; border-radius: 3px; font-size: 9px; font-weight: 600; letter-spacing: 0.5px; flex-shrink: 0; }
   .time { font-size: 11px; color: #999; flex-shrink: 0; }
 
   .see-all-wrap {

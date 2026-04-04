@@ -8,6 +8,7 @@ export interface LanguageBadgeSettings {
   id: string;                  // always "default"
   enabled: boolean;
   excludedLanguages: string[];
+  configured?: boolean;        // true once user has explicitly changed settings
 }
 
 export class BreadcrumbsDB extends Dexie {

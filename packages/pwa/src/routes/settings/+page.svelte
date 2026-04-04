@@ -8,11 +8,12 @@
     saveLanguageBadgeSettings,
     getDistinctLanguages,
     LANGUAGE_NAMES,
+    formatExcludedLabel,
     type LanguageBadgeSettings,
   } from "@wikipedia-breadcrumbs/shared";
   import { onMount } from "svelte";
 
-  let syncEnabled = $state(localStorage.getItem("syncEnabled") === "true");
+  let syncEnabled = $state(localStorage.getItem("syncEnabled") !== "false");
   let deviceId = $state("");
 
   let email = $state("");
@@ -23,23 +24,33 @@
   let googleSigningIn = $state(false);
   let wikimediaSigningIn = $state(false);
 
-  let langBadgeEnabled = $state(false);
+  let langBadgeEnabled = $state(true);
   let excludedLanguages: string[] = $state([]);
   let availableLanguages: string[] = $state([]);
+  let langSettingsLoaded = $state(false);
+  let langSettingsInitialRun = true;
+  let lastClickedLang: string | null = null;
+  let ready = $state(false);
 
-  getLanguageBadgeSettings(db).then((s) => {
+  onMount(async () => {
+    const [s, { languages }] = await Promise.all([
+      getLanguageBadgeSettings(db),
+      getDistinctLanguages(db),
+    ]);
     langBadgeEnabled = s.enabled;
     excludedLanguages = [...s.excludedLanguages];
+    availableLanguages = languages;
+    langSettingsLoaded = true;
+    requestAnimationFrame(() => { ready = true; });
   });
-  getDistinctLanguages(db).then((langs) => { availableLanguages = langs; });
 
-  async function saveLangSettings() {
-    await saveLanguageBadgeSettings(db, {
-      id: "default",
-      enabled: langBadgeEnabled,
-      excludedLanguages,
-    });
-  }
+  $effect(() => {
+    const enabled = langBadgeEnabled;
+    const excluded = [...excludedLanguages];
+    if (!langSettingsLoaded) return;
+    if (langSettingsInitialRun) { langSettingsInitialRun = false; return; }
+    saveLanguageBadgeSettings(db, { id: "default", enabled, excludedLanguages: excluded, configured: true });
+  });
 
   let isOnline = $state(typeof navigator !== "undefined" ? navigator.onLine : true);
 
@@ -136,58 +147,33 @@
   const deviceIdShort = $derived(deviceId ? deviceId.slice(0, 8) + "…" : "—");
 </script>
 
+<div class:ready>
 <h1>Settings</h1>
 
-<div class="field">
-  <label class="toggle-label">
-    <input type="checkbox" bind:checked={syncEnabled} />
-    Sync to cloud
-  </label>
-  <p class="help">Back up and sync trails across devices.</p>
-</div>
+<div class="settings-card">
+  <div class="field">
+    <label class="toggle">
+      <input type="checkbox" bind:checked={syncEnabled} />
+      <span class="toggle-switch"></span>
+      Sync to cloud
+    </label>
+    <p class="help">Back up and sync trails across devices.</p>
+  </div>
 
-<fieldset>
-  <legend>Language badges</legend>
-  <label>
-    <input type="checkbox" bind:checked={langBadgeEnabled} onchange={saveLangSettings} />
-    Show language badges on visit cards
-  </label>
-  {#if langBadgeEnabled}
-    {#if availableLanguages.length > 0}
-      <p class="hint">Hide badges for:</p>
-      {#each availableLanguages as lang}
-        <label class="lang-option">
-          <input
-            type="checkbox"
-            checked={excludedLanguages.includes(lang)}
-            onchange={() => {
-              if (excludedLanguages.includes(lang)) {
-                excludedLanguages = excludedLanguages.filter((l) => l !== lang);
-              } else {
-                excludedLanguages = [...excludedLanguages, lang];
-              }
-              saveLangSettings();
-            }}
-          />
-          {LANGUAGE_NAMES[lang] ?? lang.toUpperCase()} ({lang.toUpperCase()})
-        </label>
-      {/each}
-    {:else}
-      <p class="hint">Languages will appear here as you browse Wikipedia</p>
-    {/if}
-  {/if}
-</fieldset>
-
-{#if syncEnabled}
-  <hr />
-
-  <div class="section">
-    <h3>Account</h3>
+  {#if syncEnabled}
+    <div class="section">
 
     {#if authState.loading}
       <p class="help"></p>
     {:else if authState.isAuthenticated}
-      <p>Signed in as
+      <button class="btn-sync" onclick={syncNow} disabled={syncState.syncing || !isOnline}>
+        {syncState.syncing ? "Syncing…" : isOnline ? "Sync now" : "Offline"}
+      </button>
+      <p class="help-sm">
+        Last synced: {syncState.lastSyncTime ? formatDate(syncState.lastSyncTime) : "Never"}
+      </p>
+
+      <p class="help-sm">Signed in as
         {#if authState.user?.user_metadata?.provider === "wikimedia"}
           <span class="provider-icon" title="Wikipedia">
             <svg viewBox="0 0 97.75 97.75" width="16" height="16" fill="currentColor"><path d="M48.875,0C21.883,0,0,21.883,0,48.875S21.883,97.75,48.875,97.75S97.75,75.867,97.75,48.875S75.867,0,48.875,0z M77.691,37.503c-2.779,6.28-11.279,26.171-16.951,39.136c-0.008,0.006-1.486-0.003-1.49-0.005l-8.945-21.069c-3.545,6.953-7.473,14.181-10.832,21.059c-0.02,0.035-1.625,0.016-1.627-0.006c-5.135-11.986-10.459-23.893-15.621-35.87c-1.195-2.928-5.387-7.637-8.256-7.61c0-0.34-0.016-1.099-0.02-1.558l17.682-0.002l-0.014,1.531c-2.076,0.096-5.664,1.421-4.734,3.713c2.492,5.381,11.316,26.227,13.701,31.519c1.664-3.257,6.311-11.939,8.225-15.609c-1.5-3.078-6.457-14.57-7.943-17.464c-1.121-1.887-3.934-2.118-6.1-2.151c0-0.483,0.025-0.855,0.016-1.518l15.543,0.048v1.412c-2.104,0.058-4.096,0.841-3.193,2.853c2.091,4.34,3.312,7.43,5.231,11.444c0.613-1.176,3.755-7.622,5.253-11.024c0.905-2.262-0.447-3.109-4.232-3.211c0.05-0.372,0.017-1.119,0.05-1.475l13.424,0.013l0.006,1.401c-2.467,0.096-5.021,1.41-6.354,3.45l-6.464,13.406c0.709,1.773,6.924,15.58,7.578,17.111L74.988,36.18c-0.951-2.497-3.984-3.055-5.17-3.082c0.008-0.398,0.01-1.005,0.012-1.512l13.951,0.04l0.02,0.07l-0.023,1.394C80.717,33.183,78.824,34.82,77.691,37.503z"/></svg>
@@ -199,22 +185,8 @@
         {/if}
         <strong>{authState.user?.user_metadata?.wikimedia_username ?? authState.user?.email ?? "Unknown"}</strong>
       </p>
-      <button class="btn-secondary" onclick={() => { showSignOutDialog = true; }}>Sign out</button>
-
-      <hr />
-
-      <div class="section">
-        <h3>Sync</h3>
-        <button class="btn-sync" onclick={syncNow} disabled={syncState.syncing || !isOnline}>
-          {syncState.syncing ? "Syncing…" : isOnline ? "Sync now" : "Offline"}
-        </button>
-        <p class="help">
-          Last synced: {syncState.lastSyncTime ? formatDate(syncState.lastSyncTime) : "Never"}
-        </p>
-        <p class="help device-id" title={deviceId}>Device ID: {deviceIdShort}</p>
-      </div>
+      <button class="link-btn" onclick={() => { showSignOutDialog = true; }}>Sign out</button>
     {:else}
-      <p class="help" style="margin-bottom: 12px;">Sign in to enable cloud backup and sync.</p>
 
       <button class="btn-google" onclick={handleGoogleSignIn} disabled={googleSigningIn || wikimediaSigningIn}>
         {googleSigningIn ? "Signing in with Google..." : "Sign in with Google"}
@@ -243,7 +215,60 @@
       {/if}
     {/if}
   </div>
-{/if}
+  {/if}
+</div>
+
+<div class="settings-card">
+  <label class="toggle">
+    <input type="checkbox" bind:checked={langBadgeEnabled} />
+    <span class="toggle-switch"></span>
+    Show language of visits
+  </label>
+  {#if langBadgeEnabled}
+    {#if availableLanguages.length > 0}
+      <p class="hint">Except for {#if excludedLanguages.length > 0}{formatExcludedLabel(excludedLanguages)}{/if}</p>
+      <div class="lang-listbox" role="listbox" aria-label="Languages to exclude from badges" aria-multiselectable="true">
+        {#each availableLanguages as lang}
+          <button
+            type="button"
+            role="option"
+            class="lang-item"
+            class:selected={excludedLanguages.includes(lang)}
+            aria-selected={excludedLanguages.includes(lang)}
+            onclick={(e) => {
+              if (e.shiftKey && lastClickedLang) {
+                const startIdx = availableLanguages.indexOf(lastClickedLang);
+                const endIdx = availableLanguages.indexOf(lang);
+                const range = availableLanguages.slice(Math.min(startIdx, endIdx), Math.max(startIdx, endIdx) + 1);
+                const allSelected = range.every((l) => excludedLanguages.includes(l));
+                if (allSelected) {
+                  excludedLanguages = excludedLanguages.filter((l) => !range.includes(l));
+                } else {
+                  excludedLanguages = [...new Set([...excludedLanguages, ...range])];
+                }
+              } else {
+                if (excludedLanguages.includes(lang)) {
+                  excludedLanguages = excludedLanguages.filter((l) => l !== lang);
+                } else {
+                  excludedLanguages = [...excludedLanguages, lang];
+                }
+              }
+              lastClickedLang = lang;
+            }}
+          >
+            {LANGUAGE_NAMES[lang] ?? lang.toUpperCase()} ({lang.toUpperCase()})
+          </button>
+        {/each}
+        {#if availableLanguages.length === 1}
+          <span class="lang-hint">More languages will appear here as you browse Wikipedia</span>
+        {/if}
+      </div>
+    {:else}
+      <p class="hint">Languages will appear here as you browse Wikipedia</p>
+    {/if}
+  {/if}
+</div>
+</div>
 
 {#if showSignOutDialog}
   <div class="dialog-overlay">
@@ -264,16 +289,33 @@
 <style>
   h1 { margin: 0 0 20px; font-size: 22px; font-weight: 700; }
   h3 { margin: 0 0 12px; font-size: 18px; }
+  .settings-card { background: #f8f9fa; border-radius: 10px; padding: 16px 20px; margin-bottom: 12px; }
+  .settings-card .field:last-child { margin-bottom: 0; }
+  .help-sm { font-size: 11px; color: #666; margin: 4px 0 0; }
+  .link-btn { background: none; border: none; color: #0066cc; cursor: pointer; font-size: 11px; padding: 0; text-decoration: underline; }
+  .link-btn:hover { color: #0052a3; }
+  .settings-card legend { font-weight: 600; font-size: 14px; margin-bottom: 12px; }
   .field { margin-bottom: 20px; }
   .section { margin-bottom: 20px; }
+  .section:last-child { margin-bottom: 0; }
   .help { font-size: 13px; color: #666; margin: 4px 0 0; }
   hr { border: none; border-top: 1px solid #eee; margin: 24px 0; }
 
-  .toggle-label {
-    display: flex; align-items: center; gap: 8px;
-    font-size: 14px; font-weight: 600; cursor: pointer;
+  .toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; }
+  .toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .toggle-switch {
+    position: relative; width: 36px; height: 20px; background: #ccc; border-radius: 10px;
+    flex-shrink: 0; transition: none;
   }
-  .toggle-label input { cursor: pointer; width: 16px; height: 16px; }
+  .toggle-switch::after {
+    content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+    background: white; border-radius: 50%; transition: none;
+  }
+  :global(.ready) .toggle-switch { transition: background 0.2s; }
+  :global(.ready) .toggle-switch::after { transition: transform 0.2s; }
+  .toggle input:checked + .toggle-switch { background: #0066cc; }
+  .toggle input:checked + .toggle-switch::after { transform: translateX(16px); }
+  .toggle input:focus-visible + .toggle-switch { outline: 2px solid #0066cc; outline-offset: 2px; }
 
   .provider-icon { display: inline-flex; vertical-align: middle; margin-left: 4px; }
 
@@ -317,7 +359,12 @@
     font-size: 13px; padding: 8px 0; text-align: center; width: 100%;
   }
   .error { color: #dc3545; font-size: 13px; margin-top: 8px; }
-  .lang-option { display: block; margin: 4px 0 4px 16px; font-size: 13px; }
+  .lang-listbox { border: 1px solid #ddd; border-radius: 4px; margin-top: 4px; max-height: 130px; overflow-y: auto; }
+  .lang-item { display: block; width: 100%; text-align: left; padding: 5px 10px; border: none; background: none; cursor: pointer; font-size: 13px; font-weight: normal; }
+  .lang-item:hover { background: #f0f0f0; }
+  .lang-item.selected { background: #e8f0fe; color: #1a73e8; }
+  .lang-item.selected:hover { background: #d4e4fc; }
+  .lang-hint { display: block; padding: 5px 10px; font-size: 11px; color: #999; font-weight: normal; }
   .hint { font-size: 12px; color: #666; margin: 8px 0 4px; }
 
   .dialog-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 100; }

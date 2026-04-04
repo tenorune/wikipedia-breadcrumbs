@@ -340,6 +340,6 @@
     color: #222;
   }
   .cite-item:hover { background: #f5f5f5; }
-  .lang-badge { background: #e8f0fe; color: #1a73e8; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; letter-spacing: 0.5px; vertical-align: middle; margin-left: 4px; }
+  .lang-badge { background: #e8f0fe; color: #1a73e8; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; letter-spacing: 0.5px; vertical-align: 2px; margin-left: 4px; }
 
 </style>
