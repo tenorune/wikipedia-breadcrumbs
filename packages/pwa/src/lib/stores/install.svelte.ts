@@ -13,10 +13,9 @@ export function initInstallStore() {
   _dismissed = localStorage.getItem("installPromptState") === "dismissed";
   _hasViewedTrail = localStorage.getItem("hasViewedTrail") === "true";
 
+  // iOS 17+ supports PWA install from Safari, Chrome, and Edge via Share → Add to Home Screen
   _isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
-    && !(window as any).MSStream
-    && /Safari/.test(navigator.userAgent)
-    && !/CriOS|FxiOS/.test(navigator.userAgent);
+    && !(window as any).MSStream;
 
   _isStandalone = window.matchMedia("(display-mode: standalone)").matches
     || (navigator as any).standalone === true;
