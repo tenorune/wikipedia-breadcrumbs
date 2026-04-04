@@ -10,6 +10,18 @@
 
   onMount(async () => {
     initInstallStore();
+
+    // Slowly cycle status bar through rainbow colors (only when installed as PWA)
+    if (window.matchMedia("(display-mode: standalone)").matches) {
+      let hue = 0;
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) {
+        setInterval(() => {
+          hue = (hue + 0.5) % 360;
+          meta.setAttribute("content", `hsl(${hue}, 70%, 50%)`);
+        }, 100);
+      }
+    }
     await initAuth();
 
     // If returning from Google OAuth redirect, wait a moment for Supabase
