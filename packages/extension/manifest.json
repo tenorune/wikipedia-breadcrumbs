@@ -33,7 +33,7 @@
   "web_accessible_resources": [
     {
       "resources": ["src/history/index.html"],
-      "matches": ["<all_urls>"]
+      "matches": ["*://*.wikipedia.org/*"]
     }
   ]
 }
