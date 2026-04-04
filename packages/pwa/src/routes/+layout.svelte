@@ -41,6 +41,10 @@
   :global(*, *::before, *::after) {
     -webkit-tap-highlight-color: transparent;
   }
+  :global(*:focus-visible) {
+    outline: 2px solid #0066cc;
+    outline-offset: 2px;
+  }
   :global(.delayed-spinner) {
     opacity: 0;
     animation: fadeInSpinner 0.3s ease-in 2s forwards;

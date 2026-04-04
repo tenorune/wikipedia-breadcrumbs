@@ -236,8 +236,8 @@
           <button type="button" class="btn-wikimedia" onclick={handleWikimediaSignIn} disabled={googleSigningIn || wikimediaSigningIn}>{wikimediaSigningIn ? "Signing in with Wikipedia..." : "Sign in with Wikipedia"}</button>
           <div class="divider"><span>or</span></div>
           <div class="email-form">
-            <input type="email" placeholder="Email" bind:value={authEmail} disabled={googleSigningIn || wikimediaSigningIn} />
-            <input type="password" placeholder="Password" bind:value={authPassword} disabled={googleSigningIn || wikimediaSigningIn} />
+            <input type="email" placeholder="Email" bind:value={authEmail} disabled={googleSigningIn || wikimediaSigningIn} aria-label="Email" />
+            <input type="password" placeholder="Password" bind:value={authPassword} disabled={googleSigningIn || wikimediaSigningIn} aria-label="Password" />
             <button type="button" class="btn-primary" onclick={handleEmailAuth} disabled={authSubmitting || googleSigningIn || wikimediaSigningIn}>
               {authSubmitting ? "..." : authIsSignUp ? "Sign up" : "Sign in"}
             </button>

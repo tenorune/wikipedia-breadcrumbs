@@ -263,6 +263,7 @@
   <div class="header-box">
     <button class="star" class:starred={trail.isStarred} onclick={toggleStar}
       title={trail.isStarred ? "Unstar" : "Star"}
+      aria-label={trail.isStarred ? "Unstar" : "Star"}
     >
       {trail.isStarred ? "★" : "☆"}
     </button>
@@ -290,7 +291,7 @@
             </button>
           </h1>
           <div class="detail-menu-wrap">
-            <button class="detail-menu-btn" onclick={() => { detailMenuOpen = !detailMenuOpen; }} title="Actions">⋮</button>
+            <button class="detail-menu-btn" onclick={() => { detailMenuOpen = !detailMenuOpen; }} title="Actions" aria-label="Actions">⋮</button>
             {#if detailMenuOpen}
               <div class="detail-menu">
                 <button onclick={() => { detailMenuOpen = false; showMerge = !showMerge; }}>Merge</button>
@@ -338,7 +339,7 @@
       <div class="merge-dropdown-wrap">
         <button class="merge-dropdown-btn" onclick={() => { mergeDropdownOpen = !mergeDropdownOpen; }}>
           <span class="merge-dropdown-label">{mergeTargetLabel}</span>
-          <span class="merge-dropdown-arrow">▾</span>
+          <span class="merge-dropdown-arrow" aria-hidden="true">▾</span>
         </button>
         {#if mergeDropdownOpen}
           <div class="merge-dropdown">

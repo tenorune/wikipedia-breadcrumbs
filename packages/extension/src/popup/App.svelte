@@ -54,6 +54,7 @@
 </main>
 
 <style>
+  :global(*:focus-visible) { outline: 2px solid #0066cc; outline-offset: 2px; }
   main { display: flex; flex-direction: column; height: 435px; }
   .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
   .delayed-spinner {

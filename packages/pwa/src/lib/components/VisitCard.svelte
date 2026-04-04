@@ -149,7 +149,7 @@
 
 <div class="card">
   <div class="card-menu-wrap">
-    <button class="card-menu-btn" onclick={() => { document.dispatchEvent(new Event("closeAllMenus")); cardMenuOpen = !cardMenuOpen; }} title="Actions">⋮</button>
+    <button class="card-menu-btn" onclick={() => { document.dispatchEvent(new Event("closeAllMenus")); cardMenuOpen = !cardMenuOpen; }} title="Actions" aria-label="Actions">⋮</button>
     {#if cardMenuOpen}
       <div class="card-menu">
         {#if onSplit}

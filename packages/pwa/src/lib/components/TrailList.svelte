@@ -211,7 +211,7 @@
   <div class="sort-dropdown-wrap">
     <button class="sort-dropdown-btn" onclick={() => { sortDropdownOpen = !sortDropdownOpen; }}>
       <span>{sortLabels[sortMode]}</span>
-      <span class="sort-dropdown-arrow">▾</span>
+      <span class="sort-dropdown-arrow" aria-hidden="true">▾</span>
     </button>
     {#if sortDropdownOpen}
       <div class="sort-dropdown">
@@ -222,7 +222,7 @@
     {/if}
   </div>
   <div class="data-menu-wrap">
-    <button class="data-menu-btn" onclick={() => { dataMenuOpen = !dataMenuOpen; }} title="Import / Export">⋮</button>
+    <button class="data-menu-btn" onclick={() => { dataMenuOpen = !dataMenuOpen; }} title="Import / Export" aria-label="Import / Export">⋮</button>
     {#if dataMenuOpen}
       <div class="data-menu">
         <button onclick={handleImport}>Import</button>

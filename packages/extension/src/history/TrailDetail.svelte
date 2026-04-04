@@ -277,19 +277,19 @@
   <button class="back" onclick={onBack}>&larr; Back to trails</button>
 
   <div class="header-box">
-    <button class="star" class:starred={isStarred} onclick={toggleStar}>{isStarred ? "★" : "☆"}</button>
+    <button class="star" class:starred={isStarred} onclick={toggleStar} aria-label={isStarred ? "Unstar" : "Star"}>{isStarred ? "★" : "☆"}</button>
     <div class="header-content">
       <div class="title-row">
         {#if editingName}
           <!-- svelte-ignore a11y_autofocus -->
-          <input bind:value={nameText} onkeydown={(e) => e.key === "Enter" && saveName()} onblur={saveName} oninput={autoSaveName} autofocus />
+          <input bind:value={nameText} onkeydown={(e) => e.key === "Enter" && saveName()} onblur={saveName} oninput={autoSaveName} autofocus aria-label="Trail name" />
         {:else}
-          <h2 onclick={() => { editingName = true; nameText = displayName ?? ""; }}>
+          <h2 role="button" tabindex="0" onclick={() => { editingName = true; nameText = displayName ?? ""; }} onkeydown={(e) => { if (e.key === "Enter") { editingName = true; nameText = displayName ?? ""; } }}>
             {displayName ?? (visits.length > 0 ? `${visits[0].title} → ${visits[visits.length - 1].title}` : "New trail")}
           </h2>
         {/if}
         <div class="detail-menu-wrap">
-          <button class="detail-menu-btn" onclick={() => { detailMenuOpen = !detailMenuOpen; }} title="Actions">⋮</button>
+          <button class="detail-menu-btn" onclick={() => { detailMenuOpen = !detailMenuOpen; }} title="Actions" aria-label="Actions">⋮</button>
           {#if detailMenuOpen}
             <div class="detail-menu">
               <button onclick={() => { detailMenuOpen = false; openMergePicker(); }}>Merge</button>
@@ -307,10 +307,10 @@
       <div class="note-section">
         {#if editingNote}
           <!-- svelte-ignore a11y_autofocus -->
-          <textarea bind:value={trailNote} placeholder="Add a note about this trail..." rows="3"
+          <textarea bind:value={trailNote} placeholder="Add a note about this trail..." rows="3" aria-label="Trail note"
             onblur={saveNote} oninput={autoSaveNote} autofocus></textarea>
         {:else if trailNote}
-          <p class="trail-note" onclick={() => editingNote = true}>{trailNote}</p>
+          <p class="trail-note" role="button" tabindex="0" onclick={() => editingNote = true} onkeydown={(e) => e.key === "Enter" && (editingNote = true)}>{trailNote}</p>
         {:else}
           <button class="add-note" onclick={() => editingNote = true}>+ Add trail note</button>
         {/if}
@@ -323,7 +323,7 @@
       <div class="merge-dropdown-wrap">
         <button class="merge-dropdown-btn" onclick={() => { mergeDropdownOpen = !mergeDropdownOpen; }}>
           <span class="merge-dropdown-label">{mergeTargetLabel}</span>
-          <span class="merge-dropdown-arrow">▾</span>
+          <span class="merge-dropdown-arrow" aria-hidden="true">▾</span>
         </button>
         {#if mergeDropdownOpen}
           <div class="merge-dropdown">

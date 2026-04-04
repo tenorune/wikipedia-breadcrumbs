@@ -171,11 +171,11 @@
 
 <div class="trail-list">
   <div class="toolbar">
-    <input type="text" placeholder="Search trails..." bind:value={searchQuery} />
+    <input type="text" placeholder="Search trails..." bind:value={searchQuery} aria-label="Search trails" />
     <div class="sort-dropdown-wrap">
       <button class="sort-dropdown-btn" onclick={() => { sortDropdownOpen = !sortDropdownOpen; }}>
         <span>{sortLabels[sortBy]}</span>
-        <span class="sort-dropdown-arrow">▾</span>
+        <span class="sort-dropdown-arrow" aria-hidden="true">▾</span>
       </button>
       {#if sortDropdownOpen}
         <div class="sort-dropdown">
@@ -186,7 +186,7 @@
       {/if}
     </div>
     <div class="data-menu-wrap">
-      <button class="data-menu-btn" onclick={() => { dataMenuOpen = !dataMenuOpen; }} title="Import / Export">⋮</button>
+      <button class="data-menu-btn" onclick={() => { dataMenuOpen = !dataMenuOpen; }} title="Import / Export" aria-label="Import / Export">⋮</button>
       {#if dataMenuOpen}
         <div class="data-menu">
           <button onclick={handleImport}>Import</button>
@@ -245,10 +245,10 @@
     <ul class="trails">
       {#each filteredTrails as summary}
         <li>
-          <button class="star" class:starred={summary.trail.isStarred} onclick={() => toggleStar(summary.trail.id)}>
+          <button class="star" class:starred={summary.trail.isStarred} onclick={() => toggleStar(summary.trail.id)} aria-label={summary.trail.isStarred ? "Unstar" : "Star"}>
             {summary.trail.isStarred ? "★" : "☆"}
           </button>
-          <div class="trail-info" onclick={() => onSelectTrail(summary.trail)}>
+          <div class="trail-info" role="button" tabindex="0" onclick={() => onSelectTrail(summary.trail)} onkeydown={(e) => e.key === "Enter" && onSelectTrail(summary.trail)}>
             <span class="name">{summary.trail.name ?? `${summary.firstTitle} → ${summary.lastTitle}`}</span>
             <span class="meta">
               {summary.visitCount} pages &middot; {formatDate(summary.trail.startedAt)}{#if formatDate(summary.trail.startedAt) !== formatDate(summary.lastDiscoveredAt)}{" "}&mdash; {formatDate(summary.lastDiscoveredAt)}{/if}

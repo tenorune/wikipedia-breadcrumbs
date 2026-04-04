@@ -157,7 +157,7 @@
 <div class="visit-card">
   <div class="card-body">
     <div class="card-menu-wrap">
-      <button class="card-menu-btn" onclick={() => { document.dispatchEvent(new Event("closeAllMenus")); cardMenuOpen = !cardMenuOpen; }} title="Actions">⋮</button>
+      <button class="card-menu-btn" onclick={() => { document.dispatchEvent(new Event("closeAllMenus")); cardMenuOpen = !cardMenuOpen; }} title="Actions" aria-label="Actions">⋮</button>
       {#if cardMenuOpen}
         <div class="card-menu">
           {#if onSplit}
@@ -184,7 +184,7 @@
       <div class="note-area">
         {#if editingNote}
           <!-- svelte-ignore a11y_autofocus -->
-          <textarea bind:value={noteText} placeholder="Add a note..." rows="1" onblur={saveNote} oninput={(e) => { autoSaveNote(); autoResize(e); }} autofocus
+          <textarea bind:value={noteText} placeholder="Add a note..." rows="1" onblur={saveNote} oninput={(e) => { autoSaveNote(); autoResize(e); }} autofocus aria-label="Visit note"
             use:autoResizeOnMount></textarea>
         {:else}
           <div class="note-display" use:captureNoteHeight onclick={() => { if ((window as any).__dismissTime && Date.now() - (window as any).__dismissTime < 300) return; noteText = visit.note ?? ""; editingNote = true; }}>{visit.note}</div>

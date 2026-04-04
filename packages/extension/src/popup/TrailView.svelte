@@ -202,9 +202,9 @@
     <div class="header">
       {#if editing}
         <!-- svelte-ignore a11y_autofocus -->
-        <input bind:value={editName} onkeydown={(e) => e.key === "Enter" && saveEdit()} onblur={saveEdit} autofocus />
+        <input bind:value={editName} onkeydown={(e) => e.key === "Enter" && saveEdit()} onblur={saveEdit} autofocus aria-label="Trail name" />
       {:else}
-        <h2 onclick={startEdit}>{trailName}</h2>
+        <h2 role="button" tabindex="0" onclick={startEdit} onkeydown={(e) => e.key === "Enter" && startEdit()}>{trailName}</h2>
       {/if}
       <span class="meta">{visits.length} pages &middot; Started {timeAgo(trail.startedAt)}</span>
     </div>
