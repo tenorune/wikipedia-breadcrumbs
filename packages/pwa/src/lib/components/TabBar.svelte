@@ -47,7 +47,7 @@
     flex-direction: column;
     align-items: center;
     text-decoration: none;
-    color: #999;
+    color: #767676;
     font-size: 11px;
     padding: 4px 12px;
     gap: 2px;
