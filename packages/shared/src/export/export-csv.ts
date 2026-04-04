@@ -9,8 +9,12 @@ const HEADER = [
 ].join(",");
 
 function csvEscape(value: unknown): string {
-  const str = value == null ? "" : String(value);
-  if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+  let str = value == null ? "" : String(value);
+  // Prevent formula injection in spreadsheet applications
+  if (/^[=+\-@]/.test(str)) {
+    str = "'" + str;
+  }
+  if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("'")) {
     return `"${str.replace(/"/g, '""')}"`;
   }
   return str;
