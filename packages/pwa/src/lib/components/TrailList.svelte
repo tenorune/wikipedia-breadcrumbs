@@ -357,7 +357,7 @@
   .sort-dropdown button:hover { background: #f5f5f5; }
   .sort-dropdown button.selected { background: #e8f0fe; color: #0066cc; }
 
-  .empty { color: #888; font-size: 13px; }
+  .empty { color: #767676; font-size: 13px; }
 
   .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
   .item {

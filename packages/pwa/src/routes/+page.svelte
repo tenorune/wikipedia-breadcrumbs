@@ -259,7 +259,7 @@
   .trail-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .trail-date { font-size: 11px; color: #888; flex-shrink: 0; }
 
-  .empty { color: #888; font-size: 13px; margin: 0 0 12px; }
+  .empty { color: #767676; font-size: 13px; margin: 0 0 12px; }
   .see-all { font-size: 13px; color: #0066cc; text-decoration: none; }
   .see-all:hover { text-decoration: underline; }
   .sign-in-prompt { display: block; text-align: center; padding: 8px; color: #0066cc; text-decoration: none; font-size: 13px; margin-bottom: 8px; }

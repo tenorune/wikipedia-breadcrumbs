@@ -620,7 +620,7 @@
   .sort-hint { font-size: 11px; color: #aaa; }
 
   .visits { display: flex; flex-direction: column; gap: 8px; }
-  .empty { color: #888; font-size: 13px; }
+  .empty { color: #767676; font-size: 13px; }
 
   .visit-wrapper.focusable { cursor: pointer; border-radius: 10px; }
   .visit-wrapper.focusable:hover { background: #fafafa; }
