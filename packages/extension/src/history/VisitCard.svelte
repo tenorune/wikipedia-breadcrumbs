@@ -227,6 +227,7 @@
   .card-menu button:hover { background: #f5f5f5; }
   .card-menu button.danger { color: #cc3300; }
   .card-menu button.danger:hover { background: #fff0ec; }
+  .main { padding-right: 24px; }
   .title { color: #0066cc; text-decoration: none; font-size: 15px; font-weight: 500; }
   .title:hover { text-decoration: underline; }
   .redirect { font-size: 12px; color: #999; font-style: italic; }

@@ -1,16 +1,8 @@
 <script lang="ts">
   import SettingsForm from "./SettingsForm.svelte";
 
-  async function openHistory() {
-    const historyUrl = chrome.runtime.getURL("src/history/index.html");
-    const tabs = await chrome.tabs.query({ url: historyUrl + "*" });
-    if (tabs.length > 0 && tabs[0].id != null) {
-      chrome.tabs.update(tabs[0].id, { active: true });
-      chrome.windows.update(tabs[0].windowId!, { focused: true });
-    } else {
-      // Open history in the current tab
-      window.location.href = historyUrl;
-    }
+  function openHistory() {
+    window.location.href = chrome.runtime.getURL("src/history/index.html");
   }
 </script>
 

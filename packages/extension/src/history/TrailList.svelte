@@ -236,7 +236,7 @@
   {/if}
 
   {#if loading}
-    <p class="loading">Loading trails...</p>
+    <div class="delayed-spinner"></div>
   {:else if filteredTrails.length === 0}
     <p class="empty">
       {searchQuery ? "No trails match your search." : "No trails yet. Browse Wikipedia to start!"}

@@ -42,7 +42,7 @@
   <h3>Account</h3>
 
   {#if authState.loading}
-    <p class="help">Loading...</p>
+    <p class="help"></p>
   {:else if authState.isAuthenticated}
     <div class="signed-in">
       <p>Signed in as <strong>{authState.user?.email ?? "Unknown"}</strong></p>

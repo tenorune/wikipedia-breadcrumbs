@@ -14,6 +14,7 @@
 
   type SortMode = "recent" | "oldest" | "starred";
 
+  let loaded = $state(false);
   let trails = $state<Trail[]>([]);
   let displayNames = $state<Record<string, string>>({});
   let visitCounts = $state<Record<string, number>>({});
@@ -67,6 +68,7 @@
     visitCounts = counts;
     lastDiscovered = discovered;
     searchTexts = texts;
+    loaded = true;
   }
 
   onMount(() => {
@@ -197,6 +199,8 @@
   }
 </script>
 
+{#if loaded}
+<div class="fade-in">
 <div class="controls">
   <input
     class="search"
@@ -311,8 +315,12 @@
     onCancel={() => { confirmState = null; }}
   />
 {/if}
+</div>
+{/if}
 
 <style>
+  .fade-in { animation: fadeIn 0.1s ease-in; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   .controls {
     display: flex;
     gap: 8px;

@@ -9,6 +9,7 @@
   const ts = trailStore(db);
   const vs = visitStore(db);
 
+  let loaded = $state(false);
   let totalTrails = $state(0);
   let totalVisits = $state(0);
   let totalNotes = $state(0);
@@ -53,6 +54,7 @@
     const nonStarred = trails.filter((t) => !starredIds.has(t.id));
     const sorted = nonStarred.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5);
     recentTrails = await Promise.all(sorted.map(buildItem));
+    loaded = true;
   }
 
   let isOnline = $state(typeof navigator !== "undefined" ? navigator.onLine : true);
@@ -75,10 +77,10 @@
   });
 
   function formatDate(iso: string): string {
-    return new Date(iso).toLocaleString(undefined, {
-      year: "numeric", month: "short", day: "numeric",
-      hour: "numeric", minute: "2-digit",
-    });
+    const d = new Date(iso);
+    const date = d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    return `${date} at ${time}`;
   }
 
   function formatSyncAge(iso: string): string {
@@ -115,6 +117,8 @@
   });
 </script>
 
+{#if loaded}
+<div class="fade-in">
 <h1>Wikipedia Breadcrumbs</h1>
 
 <div class="stats">
@@ -190,8 +194,12 @@
   {/if}
   <a href="/trails" class="see-all">See all trails →</a>
 </section>
+</div>
+{/if}
 
 <style>
+  .fade-in { animation: fadeIn 0.1s ease-in; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   h1 { font-size: 22px; font-weight: 700; margin: 0 0 20px; }
   h2 { font-size: 16px; font-weight: 600; margin: 0 0 12px; }
 

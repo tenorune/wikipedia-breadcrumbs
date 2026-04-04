@@ -6,12 +6,14 @@
   let trail: Trail | null = $state(null);
   let visits: Visit[] = $state([]);
   let tabId = $state(0);
+  let currentUrl = $state("");
   let loading = $state(true);
 
   async function loadCurrentTrail() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) { loading = false; return; }
     tabId = tab.id;
+    currentUrl = tab.url ?? "";
     const response = await chrome.runtime.sendMessage({ type: "getCurrentTrail", tabId: tab.id });
     trail = response.trail;
     visits = response.visits ?? [];
@@ -42,14 +44,27 @@
 
 <main>
   {#if loading}
-    <div class="loading">Loading...</div>
+    <div class="delayed-spinner"></div>
   {:else}
-    <TrailView {trail} {visits} onRename={renameTrail} />
+    <div class="content">
+      <TrailView {trail} {visits} {currentUrl} {tabId} onRename={renameTrail} />
+    </div>
     <Controls hasActiveTrail={trail !== null} trailId={trail?.id ?? null} {tabId} onStartNew={startNewTrail} onEndTrail={endTrail} />
   {/if}
 </main>
 
 <style>
-  main { display: flex; flex-direction: column; min-height: 200px; }
-  .loading { padding: 24px; text-align: center; color: #666; }
+  main { display: flex; flex-direction: column; height: 435px; }
+  .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+  .delayed-spinner {
+    opacity: 0; animation: fadeInSpinner 0.3s ease-in 2s forwards;
+    display: flex; justify-content: center; padding: 24px 0;
+  }
+  .delayed-spinner::after {
+    content: ""; width: 20px; height: 20px;
+    border: 2px solid #e0e0e0; border-top-color: #999;
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  @keyframes fadeInSpinner { to { opacity: 1; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>

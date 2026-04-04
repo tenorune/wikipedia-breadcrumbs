@@ -79,4 +79,15 @@
   h1 { margin: 0; font-size: 24px; }
   .settings-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 4px; }
   .settings-btn:hover { opacity: 0.7; }
+  :global(.delayed-spinner) {
+    opacity: 0; animation: fadeInSpinner 0.3s ease-in 2s forwards;
+    display: flex; justify-content: center; padding: 24px 0;
+  }
+  :global(.delayed-spinner::after) {
+    content: ""; width: 20px; height: 20px;
+    border: 2px solid #e0e0e0; border-top-color: #999;
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  @keyframes fadeInSpinner { to { opacity: 1; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>

@@ -38,6 +38,27 @@
     height: 100%;
     overflow: hidden;
   }
+  :global(*, *::before, *::after) {
+    -webkit-tap-highlight-color: transparent;
+  }
+  :global(.delayed-spinner) {
+    opacity: 0;
+    animation: fadeInSpinner 0.3s ease-in 2s forwards;
+    display: flex;
+    justify-content: center;
+    padding: 24px 0;
+  }
+  :global(.delayed-spinner::after) {
+    content: "";
+    width: 20px;
+    height: 20px;
+    border: 2px solid #e0e0e0;
+    border-top-color: #999;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes fadeInSpinner { to { opacity: 1; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
   :global(body) {
     font-family: system-ui, -apple-system, sans-serif;
     font-size: 14px;

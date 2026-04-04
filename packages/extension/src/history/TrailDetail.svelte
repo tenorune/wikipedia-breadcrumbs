@@ -448,7 +448,7 @@
   }
   .star { background: none; border: none; font-size: 20px; cursor: pointer; padding: 0; flex-shrink: 0; color: #ccc; }
   .star.starred { color: #f5a623; }
-  .header-content { flex: 1; min-width: 0; }
+  .header-content { flex: 1; min-width: 0; padding-right: 20px; }
   .title-row { display: flex; align-items: center; gap: 8px; }
   .title-row h2 { margin: 0; cursor: pointer; flex: 1; word-break: break-word; line-height: 1.3; }
   .title-row h2:hover { color: #0066cc; }

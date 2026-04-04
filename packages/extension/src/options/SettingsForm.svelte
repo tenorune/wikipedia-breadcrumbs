@@ -185,7 +185,7 @@
       <div class="section">
         <h3>Account</h3>
         {#if authStatus === null}
-          <p class="help">Loading...</p>
+          <p class="help"></p>
         {:else if authStatus.isAuthenticated}
           <p>Signed in as
             {#if authStatus.user?.user_metadata?.provider === "wikimedia"}
@@ -233,7 +233,7 @@
     {/if}
   </div>
 {:else}
-  <p>Loading...</p>
+  <p></p>
 {/if}
 
 {#if showSignOutDialog}

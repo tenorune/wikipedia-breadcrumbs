@@ -258,7 +258,7 @@
 </script>
 
 {#if !trail}
-  <div class="loading">Loading…</div>
+  <div class="delayed-spinner"></div>
 {:else}
   <div class="header-box">
     <button class="star" class:starred={trail.isStarred} onclick={toggleStar}
@@ -478,7 +478,7 @@
     display: flex; gap: 10px; padding: 12px; border: 1px solid #e8e8e8;
     border-radius: 10px; margin-bottom: 14px; align-items: start; position: relative;
   }
-  .header-content { flex: 1; min-width: 0; }
+  .header-content { flex: 1; min-width: 0; padding-right: 20px; }
   .title-row {
     display: flex;
     align-items: center;

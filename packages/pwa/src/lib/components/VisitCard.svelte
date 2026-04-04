@@ -247,7 +247,7 @@
   .card-menu button.danger { color: #cc3300; }
   .card-menu button.danger:hover { background: #fff0ec; }
 
-  .header { }
+  .header { padding-right: 20px; }
   .title {
     font-weight: 600;
     color: #0066cc;
