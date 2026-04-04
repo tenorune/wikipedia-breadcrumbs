@@ -1,5 +1,13 @@
 <script lang="ts">
   import { getSettings, updateSettings, type ExtensionSettings } from "../shared/settings.js";
+  import {
+    BreadcrumbsDB,
+    getLanguageBadgeSettings,
+    saveLanguageBadgeSettings,
+    getDistinctLanguages,
+    LANGUAGE_NAMES,
+    type LanguageBadgeSettings,
+  } from "@wikipedia-breadcrumbs/shared";
 
   let settings: ExtensionSettings | null = $state(null);
   let syncing = $state(false);
@@ -8,6 +16,25 @@
 
   window.addEventListener("online", () => { isOnline = true; });
   window.addEventListener("offline", () => { isOnline = false; });
+
+  let langBadgeEnabled = $state(false);
+  let excludedLanguages: string[] = $state([]);
+  let availableLanguages: string[] = $state([]);
+  const langDb = new BreadcrumbsDB();
+
+  getLanguageBadgeSettings(langDb).then((s) => {
+    langBadgeEnabled = s.enabled;
+    excludedLanguages = [...s.excludedLanguages];
+  });
+  getDistinctLanguages(langDb).then((langs) => { availableLanguages = langs; });
+
+  async function saveLangSettings() {
+    await saveLanguageBadgeSettings(langDb, {
+      id: "default",
+      enabled: langBadgeEnabled,
+      excludedLanguages,
+    });
+  }
 
   let authStatus: any = $state(null);
   let authEmail = $state("");
@@ -197,6 +224,38 @@
       <p class="help">Back up and sync trails across devices.</p>
     </div>
 
+    <fieldset>
+      <legend>Language badges</legend>
+      <label>
+        <input type="checkbox" bind:checked={langBadgeEnabled} onchange={saveLangSettings} />
+        Show language badges on visit cards
+      </label>
+      {#if langBadgeEnabled}
+        {#if availableLanguages.length > 0}
+          <p class="hint">Hide badges for:</p>
+          {#each availableLanguages as lang}
+            <label class="lang-option">
+              <input
+                type="checkbox"
+                checked={excludedLanguages.includes(lang)}
+                onchange={() => {
+                  if (excludedLanguages.includes(lang)) {
+                    excludedLanguages = excludedLanguages.filter((l) => l !== lang);
+                  } else {
+                    excludedLanguages = [...excludedLanguages, lang];
+                  }
+                  saveLangSettings();
+                }}
+              />
+              {LANGUAGE_NAMES[lang] ?? lang.toUpperCase()} ({lang.toUpperCase()})
+            </label>
+          {/each}
+        {:else}
+          <p class="hint">Languages will appear here as you browse Wikipedia</p>
+        {/if}
+      {/if}
+    </fieldset>
+
     {#if settings.syncEnabled}
       <hr />
 
@@ -320,6 +379,8 @@
     font-size: 13px; padding: 8px 0; text-align: center; width: 100%;
   }
   .error { color: #dc3545; font-size: 13px; margin-top: 8px; }
+  .lang-option { display: block; margin: 4px 0 4px 16px; font-size: 13px; }
+  .hint { font-size: 12px; color: #666; margin: 8px 0 4px; }
 
   .dialog-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 100; }
   .dialog { background: white; border-radius: 8px; padding: 20px; max-width: 400px; width: 90%; }
