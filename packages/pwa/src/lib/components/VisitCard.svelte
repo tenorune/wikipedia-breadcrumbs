@@ -7,9 +7,10 @@
     onUpdateNote: (id: string, note: string | null) => void;
     onDelete: (id: string) => void;
     onSplit?: (position: number) => void;
+    showLanguageBadge?: boolean;
   }
 
-  let { visit, onUpdateNote, onDelete, onSplit }: Props = $props();
+  let { visit, onUpdateNote, onDelete, onSplit, showLanguageBadge }: Props = $props();
 
   let editingNote = $state(false);
   let noteValue = $state("");
@@ -163,6 +164,9 @@
     <a class="title" href={visit.url} target="_blank" rel="noopener noreferrer">
       {visit.title}
     </a>
+    {#if showLanguageBadge}
+      <span class="lang-badge">{visit.language.toUpperCase()}</span>
+    {/if}
     {#if visit.sourceDetail}
       <span class="redirect">({visit.sourceDetail})</span>
     {/if}
@@ -336,5 +340,6 @@
     color: #222;
   }
   .cite-item:hover { background: #f5f5f5; }
+  .lang-badge { background: #e8f0fe; color: #1a73e8; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; letter-spacing: 0.5px; vertical-align: middle; margin-left: 4px; }
 
 </style>
