@@ -36,10 +36,8 @@ export async function enableSync(): Promise<void> {
   const { data: sessionData } = await supabase.auth.getSession();
   if (sessionData?.session?.user) {
     userId = sessionData.session.user.id;
-    console.log("[pwa] enableSync: using existing session, userId:", userId.slice(0, 8));
   } else {
     // No session — require sign-in, don't create anonymous user
-    console.log("[pwa] enableSync: no session, sync requires sign-in");
     return;
   }
 
@@ -72,7 +70,6 @@ export async function syncNow(): Promise<void> {
   try {
     const report = await engine.syncNow();
     _lastReport = report;
-    console.log("[pwa] Sync complete:", report);
   } catch (err) {
     console.error("[pwa] Sync error:", err);
   } finally {

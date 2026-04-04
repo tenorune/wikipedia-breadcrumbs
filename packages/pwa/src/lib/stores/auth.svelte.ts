@@ -15,14 +15,13 @@ export const authState = {
 export async function initAuth(): Promise<void> {
   // Set up persistent listener
   supabase.auth.onAuthStateChange((event, session) => {
-    console.log("[pwa] Auth state change:", event, session?.user?.email ?? "no user");
+    // Auth state change tracked internally
     _user = session?.user ?? null;
     _loading = false;
   });
 
   // Check if returning from OAuth redirect — hash contains access_token + refresh_token
   if (window.location.hash.includes("access_token")) {
-    console.log("[pwa] Detected OAuth callback, extracting tokens...");
     const params = new URLSearchParams(window.location.hash.substring(1));
     const accessToken = params.get("access_token");
     const refreshToken = params.get("refresh_token");
@@ -36,7 +35,6 @@ export async function initAuth(): Promise<void> {
       if (error) {
         console.error("[pwa] Failed to set session from OAuth tokens:", error.message);
       } else {
-        console.log("[pwa] OAuth session established:", data.user?.email);
         // Refresh to get full user_metadata (magic link sessions may have stale JWT)
         const { data: refreshed } = await supabase.auth.refreshSession();
         _user = refreshed.user ?? data.user;

@@ -436,7 +436,6 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
           );
         });
 
-        console.log("[breadcrumbs] Wikimedia callback URL:", responseUrl);
         const cbUrl = new URL(responseUrl);
         // Check hash fragment first, then query params
         let params = new URLSearchParams(cbUrl.hash.substring(1));

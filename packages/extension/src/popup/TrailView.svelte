@@ -94,7 +94,6 @@
         idx = visits.findIndex((v) => v.title.toLowerCase() === decoded);
       }
     }
-    console.log("[popup] currentUrl:", currentUrl, "matched index:", idx);
     return idx;
   });
 

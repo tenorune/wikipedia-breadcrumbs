@@ -37,9 +37,7 @@ async function ensureInitialized(db: BreadcrumbsDB): Promise<boolean> {
   const { data: sessionData } = await supabase.auth.getSession();
   if (sessionData?.session?.user) {
     userId = sessionData.session.user.id;
-    console.log("[breadcrumbs] Restored existing session:", userId);
   } else {
-    console.log("[breadcrumbs] No session — sync requires sign-in");
     return false;
   }
 
@@ -47,14 +45,12 @@ async function ensureInitialized(db: BreadcrumbsDB): Promise<boolean> {
   // Re-stamps all trails (not just null) in case the anonymous user changed
   const allTrails = await db.trails.toArray();
   const trailsToStamp = allTrails.filter((t) => t.userId !== userId);
-  console.log(`[breadcrumbs] Stamping ${trailsToStamp.length} trails with userId ${userId}`);
   for (const trail of trailsToStamp) {
     await db.trails.update(trail.id, { userId, syncStatus: SyncStatus.PendingSync });
   }
 
   // Ensure all unsynced visits are marked for push
   const allVisits = await db.visits.filter((v) => v.syncStatus !== SyncStatus.Synced).toArray();
-  console.log(`[breadcrumbs] Marking ${allVisits.length} visits as pending_sync`);
   for (const visit of allVisits) {
     await db.visits.update(visit.id, { syncStatus: SyncStatus.PendingSync });
   }
@@ -77,7 +73,6 @@ export async function handleSyncMessage(
       // Start sync in background, don't block the response
       engine!.syncNow().then((report) => {
         lastReport = report;
-        console.log("[breadcrumbs] enableSync sync complete:", JSON.stringify(report));
         chrome.runtime.sendMessage({ type: "syncComplete", completedAt: report.completedAt });
       }).catch((err) => console.error("[breadcrumbs] enableSync sync error:", err));
       return { success: true, data: { started: true } };
@@ -93,11 +88,9 @@ export async function handleSyncMessage(
         const ok = await ensureInitialized(db);
         if (!ok) return { success: false, error: "Sync not initialized" };
       }
-      console.log("[breadcrumbs] Starting sync...");
       // Don't block the response — sync runs async
       engine!.syncNow().then((report) => {
         lastReport = report;
-        console.log("[breadcrumbs] Sync complete:", JSON.stringify(report));
         chrome.runtime.sendMessage({ type: "syncComplete", completedAt: report.completedAt });
       }).catch((err) => console.error("[breadcrumbs] Sync error:", err));
       return { success: true, data: { started: true } };

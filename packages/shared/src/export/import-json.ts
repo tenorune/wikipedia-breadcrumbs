@@ -9,6 +9,8 @@ const VALID_VISIBILITY = new Set(Object.values(Visibility));
 const VALID_START_REASON = new Set(Object.values(StartReason));
 const VALID_SOURCE_TYPE = new Set(Object.values(SourceType));
 
+const MAX_LENGTHS = { url: 2048, title: 500, note: 10000, name: 500, sourceDetail: 500 , tags: 20 };
+
 export function parseImportJson(jsonString: string): { trails: ExportTrail[]; errors: string[] } {
   let data: any;
   try {
@@ -47,6 +49,9 @@ export function parseImportJson(jsonString: string): { trails: ExportTrail[]; er
     if (!VALID_VISIBILITY.has(t.visibility)) { errors.push(`${prefix}: invalid visibility "${t.visibility}"`); continue; }
     if (!VALID_START_REASON.has(t.startReason)) { errors.push(`${prefix}: invalid startReason "${t.startReason}"`); continue; }
     if (!Array.isArray(t.visits)) { errors.push(`${prefix}: missing visits array`); continue; }
+    if (t.name && typeof t.name === "string" && t.name.length > MAX_LENGTHS.name) { errors.push(`${prefix}: name too long`); continue; }
+    if (t.note && typeof t.note === "string" && t.note.length > MAX_LENGTHS.note) { errors.push(`${prefix}: note too long`); continue; }
+    if (Array.isArray(t.tags) && t.tags.length > MAX_LENGTHS.tags) { errors.push(`${prefix}: too many tags`); continue; }
 
     const visits: ExportVisit[] = [];
     let visitErrors = false;
@@ -54,10 +59,12 @@ export function parseImportJson(jsonString: string): { trails: ExportTrail[]; er
       const v = t.visits[j];
       const vPrefix = `${prefix}, Visit ${j + 1}`;
       if (!v.id || typeof v.id !== "string") { errors.push(`${vPrefix}: missing id`); visitErrors = true; continue; }
-      if (!v.url || typeof v.url !== "string") { errors.push(`${vPrefix}: missing url`); visitErrors = true; continue; }
-      if (typeof v.title !== "string") { errors.push(`${vPrefix}: missing title`); visitErrors = true; continue; }
+      if (!v.url || typeof v.url !== "string" || v.url.length > MAX_LENGTHS.url) { errors.push(`${vPrefix}: missing or invalid url`); visitErrors = true; continue; }
+      if (typeof v.title !== "string" || v.title.length > MAX_LENGTHS.title) { errors.push(`${vPrefix}: missing or invalid title`); visitErrors = true; continue; }
       if (typeof v.position !== "number" || v.position < 0) { errors.push(`${vPrefix}: invalid position`); visitErrors = true; continue; }
       if (!VALID_SOURCE_TYPE.has(v.sourceType)) { errors.push(`${vPrefix}: invalid sourceType "${v.sourceType}"`); visitErrors = true; continue; }
+      if (v.note && typeof v.note === "string" && v.note.length > MAX_LENGTHS.note) { errors.push(`${vPrefix}: note too long`); visitErrors = true; continue; }
+      if (v.sourceDetail && typeof v.sourceDetail === "string" && v.sourceDetail.length > MAX_LENGTHS.sourceDetail) { errors.push(`${vPrefix}: sourceDetail too long`); visitErrors = true; continue; }
       visits.push(v as ExportVisit);
     }
 

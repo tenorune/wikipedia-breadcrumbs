@@ -29,6 +29,9 @@
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
   },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self';"
+  },
   "options_page": "src/options/index.html",
   "web_accessible_resources": [
     {
