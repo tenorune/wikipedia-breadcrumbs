@@ -4,6 +4,7 @@ import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from "$env/static/publi
 
 let _user = $state<User | null>(null);
 let _loading = $state(true);
+let _initialized = false;
 
 export const authState = {
   get user() { return _user; },
@@ -13,11 +14,10 @@ export const authState = {
 };
 
 export async function initAuth(): Promise<void> {
-  // Set up persistent listener
+  // Set up persistent listener — but don't set loading=false until init completes
   supabase.auth.onAuthStateChange((event, session) => {
-    // Auth state change tracked internally
     _user = session?.user ?? null;
-    _loading = false;
+    if (_initialized) _loading = false;
   });
 
   // Check if returning from OAuth redirect — hash contains access_token + refresh_token
@@ -27,23 +27,19 @@ export async function initAuth(): Promise<void> {
     const refreshToken = params.get("refresh_token");
 
     if (accessToken && refreshToken) {
-      // Manually set the session from the hash tokens
       const { data, error } = await supabase.auth.setSession({
         access_token: accessToken,
         refresh_token: refreshToken,
       });
-      if (error) {
-        console.error("[pwa] Failed to set session from OAuth tokens:", error.message);
-      } else {
-        // Refresh to get full user_metadata (magic link sessions may have stale JWT)
+      if (!error) {
         const { data: refreshed } = await supabase.auth.refreshSession();
         _user = refreshed.user ?? data.user;
       }
     }
 
-    // Clean the hash from the URL
     const { replaceState } = await import("$app/navigation");
     replaceState(window.location.pathname, {});
+    _initialized = true;
     _loading = false;
     return;
   }
@@ -53,6 +49,7 @@ export async function initAuth(): Promise<void> {
   if (data.session?.user) {
     _user = data.session.user;
   }
+  _initialized = true;
   _loading = false;
 }
 
