@@ -8,6 +8,50 @@
   import { installState, reopenInstallPrompt } from "$lib/stores/install.svelte";
   import InstallPrompt from "$lib/components/InstallPrompt.svelte";
 
+  const titleText = "Wikipedia Breadcrumbs";
+  const titleLetters = titleText.split("");
+  let letterColors: string[] = $state(titleLetters.map(() => "#000000"));
+
+  const waveColors = [
+    "#000000", "#0f1318", "#1e2730", "#2d3b49", "#3d4e61",
+    "#4c627a", "#5b7692", "#6b89aa", "#7a9dc3", "#89b1db", "#99c5f4",
+  ];
+
+  function runTitleWave() {
+    // Each letter cycles through waveColors over ~550ms (11 steps × 50ms)
+    // Letters are staggered by ~130ms each → last letter starts at ~2.5s, ends at ~3s
+    const stagger = 3000 / (titleLetters.length + (waveColors.length - 1));
+    titleLetters.forEach((_, i) => {
+      setTimeout(() => {
+        let step = 0;
+        const iv = setInterval(() => {
+          if (step < waveColors.length) {
+            letterColors[i] = waveColors[step];
+            letterColors = letterColors;
+            step++;
+          } else {
+            // Reverse back to black
+            const revStep = step - waveColors.length;
+            if (revStep < waveColors.length) {
+              letterColors[i] = waveColors[waveColors.length - 1 - revStep];
+              letterColors = letterColors;
+              step++;
+            } else {
+              letterColors[i] = "#000000";
+              letterColors = letterColors;
+              clearInterval(iv);
+            }
+          }
+        }, 50);
+      }, i * stagger);
+    });
+  }
+
+  function handleSyncWithWave() {
+    syncNow();
+    runTitleWave();
+  }
+
   const ts = trailStore(db);
   const vs = visitStore(db);
 
@@ -128,7 +172,7 @@
 {#if loaded}
 <div class="fade-in">
 <div class="home-header">
-  <h1>Wikipedia Breadcrumbs</h1>
+  <h1>{#each titleLetters as letter, i}<span style="color: {letterColors[i]}">{letter}</span>{/each}</h1>
   {#if showInstallPrompt && installState.dismissed && !installState.showPromptOverride}
     <button class="install-icon" onclick={reopenInstallPrompt} aria-label="Install app">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -161,7 +205,7 @@
   <div class="sync-info">
     Last synced {syncAgeText} ·
     {#if isOnline}
-      <button class="sync-link" onclick={syncNow} disabled={syncState.syncing}>{syncState.syncing ? "Syncing…" : "Sync"}</button>
+      <button class="sync-link" onclick={handleSyncWithWave} disabled={syncState.syncing}>{syncState.syncing ? "Syncing…" : "Sync"}</button>
     {:else}
       <span class="offline">(offline)</span>
     {/if}
@@ -170,7 +214,7 @@
   <div class="sync-info">
     Not yet synced ·
     {#if isOnline}
-      <button class="sync-link" onclick={syncNow} disabled={syncState.syncing}>{syncState.syncing ? "Syncing…" : "Sync"}</button>
+      <button class="sync-link" onclick={handleSyncWithWave} disabled={syncState.syncing}>{syncState.syncing ? "Syncing…" : "Sync"}</button>
     {:else}
       <span class="offline">(offline)</span>
     {/if}
