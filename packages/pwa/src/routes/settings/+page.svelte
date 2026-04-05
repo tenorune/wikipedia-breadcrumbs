@@ -307,12 +307,10 @@
   .help-sm { font-size: 11px; color: #666; margin: 4px 0 0; }
   .link-btn { background: none; border: none; color: #0066cc; cursor: pointer; font-size: 11px; padding: 0; text-decoration: underline; }
   .link-btn:hover { color: #0052a3; }
-  .settings-card legend { font-weight: 600; font-size: 14px; margin-bottom: 12px; }
   .field { margin-bottom: 20px; }
   .section { margin-bottom: 20px; }
   .section:last-child { margin-bottom: 0; }
   .help { font-size: 13px; color: #666; margin: 4px 0 0; }
-  hr { border: none; border-top: 1px solid #eee; margin: 24px 0; }
 
   .toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; }
   .toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
@@ -391,5 +389,4 @@
     background: none; border: none; color: #666; cursor: pointer;
     font-size: 13px; padding: 8px; text-align: center;
   }
-  .device-id { font-family: monospace; font-size: 12px; }
 </style>
