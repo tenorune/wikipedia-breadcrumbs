@@ -283,6 +283,10 @@
 </div>
 </div>
 
+<div class="footer-links">
+  <a href="/privacy">Privacy Policy</a>
+</div>
+
 {#if showSignOutDialog}
   <div class="dialog-overlay">
     <div class="dialog">
@@ -389,4 +393,11 @@
     background: none; border: none; color: #666; cursor: pointer;
     font-size: 13px; padding: 8px; text-align: center;
   }
+  .footer-links {
+    text-align: center;
+    padding: 12px 0;
+    font-size: 12px;
+  }
+  .footer-links a { color: #888; text-decoration: none; }
+  .footer-links a:hover { text-decoration: underline; }
 </style>

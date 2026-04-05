@@ -6,11 +6,14 @@
   "scripts": {
     "dev": "vite build --watch --mode development",
     "build": "vite build",
+    "build:dev": "cp .env.dev .env && vite build && rm -rf dist-dev && cp -r dist dist-dev && node -e \"const f='dist-dev/manifest.json';const m=JSON.parse(require('fs').readFileSync(f));m.name='Wikipedia Breadcrumbs (Dev)';m.version='1.0';require('fs').writeFileSync(f,JSON.stringify(m,null,2))\"",
+    "build:prod": "cp .env.prod .env && vite build && rm -rf dist-prod && cp -r dist dist-prod && node -e \"const f='dist-prod/manifest.json';const m=JSON.parse(require('fs').readFileSync(f));m.name='Wikipedia Breadcrumbs';m.version='0.9';require('fs').writeFileSync(f,JSON.stringify(m,null,2))\"",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@wikipedia-breadcrumbs/shared": "workspace:*"
+    "@wikipedia-breadcrumbs/shared": "workspace:*",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
