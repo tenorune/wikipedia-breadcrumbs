@@ -3,6 +3,8 @@
   import { trailStore, visitStore, splitTrail, mergeTrails, TrailStatus, exportTrailsJson, exportTrailsCsv, downloadFile, exportFilename, getLanguageBadgeSettings, shouldShowLanguageBadge } from "@wikipedia-breadcrumbs/shared";
   import type { Trail, Visit, LanguageBadgeSettings } from "@wikipedia-breadcrumbs/shared";
   import { db } from "$lib/stores/db";
+  import { syncState } from "$lib/stores/sync.svelte";
+  import { runTitleWave, makeLetterColors } from "$lib/utils/title-wave";
   import VisitCard from "./VisitCard.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
 
@@ -173,6 +175,20 @@
     return `${visits[0].title} → ${visits[visits.length - 1].title}`;
   });
 
+  const trailNameLetters = $derived(trailDisplayName.split(""));
+  let trailNameColors = $state<string[]>([]);
+  $effect(() => {
+    trailNameColors = makeLetterColors(trailDisplayName);
+  });
+
+  let _prevSyncing = false;
+  $effect(() => {
+    if (syncState.syncing && !_prevSyncing && trailNameColors.length > 0) {
+      runTitleWave(trailNameColors, (c) => { trailNameColors = c; });
+    }
+    _prevSyncing = syncState.syncing;
+  });
+
   function formatDate(iso: string): string {
     return new Date(iso).toLocaleString(undefined, {
       year: "numeric", month: "short", day: "numeric",
@@ -289,7 +305,7 @@
               onclick={() => { editingName = true; nameValue = trail?.name ?? ""; }}
               title="Click to edit name"
             >
-              {trailDisplayName}
+              {#each trailNameLetters as letter, i}<span style="color: {trailNameColors[i] ?? '#000000'}">{letter}</span>{/each}
             </button>
           </h1>
           <div class="detail-menu-wrap">

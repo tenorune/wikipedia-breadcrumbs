@@ -7,50 +7,25 @@
   import { authState } from "$lib/stores/auth.svelte";
   import { installState, reopenInstallPrompt } from "$lib/stores/install.svelte";
   import InstallPrompt from "$lib/components/InstallPrompt.svelte";
+  import { runTitleWave, makeLetterColors } from "$lib/utils/title-wave";
 
   const titleText = "Wikipedia Breadcrumbs";
   const titleLetters = titleText.split("");
-  let letterColors: string[] = $state(titleLetters.map(() => "#000000"));
-
-  const waveColors = [
-    "#000000", "#0f1318", "#1e2730", "#2d3b49", "#3d4e61",
-    "#4c627a", "#5b7692", "#6b89aa", "#7a9dc3", "#89b1db", "#99c5f4",
-  ];
-
-  function runTitleWave() {
-    // Each letter cycles through waveColors over ~550ms (11 steps × 50ms)
-    // Letters are staggered by ~130ms each → last letter starts at ~2.5s, ends at ~3s
-    const stagger = 3000 / (titleLetters.length + (waveColors.length - 1));
-    titleLetters.forEach((_, i) => {
-      setTimeout(() => {
-        let step = 0;
-        const iv = setInterval(() => {
-          if (step < waveColors.length) {
-            letterColors[i] = waveColors[step];
-            letterColors = letterColors;
-            step++;
-          } else {
-            // Reverse back to black
-            const revStep = step - waveColors.length;
-            if (revStep < waveColors.length) {
-              letterColors[i] = waveColors[waveColors.length - 1 - revStep];
-              letterColors = letterColors;
-              step++;
-            } else {
-              letterColors[i] = "#000000";
-              letterColors = letterColors;
-              clearInterval(iv);
-            }
-          }
-        }, 50);
-      }, i * stagger);
-    });
-  }
+  let letterColors = $state(makeLetterColors(titleText));
 
   function handleSyncWithWave() {
     syncNow();
-    runTitleWave();
+    runTitleWave(letterColors, (c) => { letterColors = c; });
   }
+
+  // Also trigger wave on automatic sync
+  let _prevSyncing = false;
+  $effect(() => {
+    if (syncState.syncing && !_prevSyncing) {
+      runTitleWave(letterColors, (c) => { letterColors = c; });
+    }
+    _prevSyncing = syncState.syncing;
+  });
 
   const ts = trailStore(db);
   const vs = visitStore(db);

@@ -12,6 +12,19 @@
     type LanguageBadgeSettings,
   } from "@wikipedia-breadcrumbs/shared";
   import { onMount } from "svelte";
+  import { runTitleWave, makeLetterColors } from "$lib/utils/title-wave";
+
+  const settingsTitle = "Settings";
+  const settingsLetters = settingsTitle.split("");
+  let settingsColors = $state(makeLetterColors(settingsTitle));
+
+  let _prevSyncing = false;
+  $effect(() => {
+    if (syncState.syncing && !_prevSyncing) {
+      runTitleWave(settingsColors, (c) => { settingsColors = c; });
+    }
+    _prevSyncing = syncState.syncing;
+  });
 
   let syncEnabled = $state(localStorage.getItem("syncEnabled") !== "false");
   let deviceId = $state("");
@@ -148,7 +161,7 @@
 </script>
 
 <div class:ready>
-<h1>Settings</h1>
+<h1>{#each settingsLetters as letter, i}<span style="color: {settingsColors[i]}">{letter}</span>{/each}</h1>
 
 <div class="settings-card">
   <div class="field">
