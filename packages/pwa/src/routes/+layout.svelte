@@ -11,15 +11,25 @@
   onMount(async () => {
     initInstallStore();
 
-    // Slowly cycle status bar through rainbow colors (only when installed as PWA)
+    // Set status bar color based on current route (only when installed as PWA)
     if (window.matchMedia("(display-mode: standalone)").matches) {
-      let hue = 0;
       const meta = document.querySelector('meta[name="theme-color"]');
       if (meta) {
-        setInterval(() => {
-          hue = (hue + 0.5) % 360;
-          meta.setAttribute("content", `hsl(${hue}, 70%, 50%)`);
-        }, 100);
+        const routeColors: Record<string, string> = {
+          "/": "#f0f7ff",
+          "/trails": "#f5a623",
+          "/settings": "#f8f9fa",
+        };
+        const updateThemeColor = () => {
+          const path = window.location.pathname;
+          // Trail detail (/trails/[id]) uses the star color too
+          const color = path.startsWith("/trails/") ? "#f5a623" : (routeColors[path] ?? "#0066cc");
+          meta.setAttribute("content", color);
+        };
+        updateThemeColor();
+        // SvelteKit client-side navigation doesn't trigger popstate reliably,
+        // so poll on a short interval
+        setInterval(updateThemeColor, 500);
       }
     }
     await initAuth();
