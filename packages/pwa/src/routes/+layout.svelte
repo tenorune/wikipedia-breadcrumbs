@@ -33,7 +33,7 @@
             tintIdx = 0;
             tintDir = 1;
           }
-        }, 80);
+        }, 150);
       }
     }
     await initAuth();
