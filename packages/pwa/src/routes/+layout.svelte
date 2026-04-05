@@ -1,6 +1,6 @@
 <script lang="ts">
   import TabBar from "$lib/components/TabBar.svelte";
-  import { initSync } from "$lib/stores/sync.svelte";
+  import { initSync, syncState } from "$lib/stores/sync.svelte";
   import { initAuth, authState } from "$lib/stores/auth.svelte";
   import { upgradeToAuthenticatedUser } from "$lib/stores/sync.svelte";
   import { initInstallStore } from "$lib/stores/install.svelte";
@@ -11,25 +11,29 @@
   onMount(async () => {
     initInstallStore();
 
-    // Set status bar color based on current route (only when installed as PWA)
+    // Dynamic status bar color (only when installed as PWA)
     if (window.matchMedia("(display-mode: standalone)").matches) {
       const meta = document.querySelector('meta[name="theme-color"]');
       if (meta) {
-        const routeColors: Record<string, string> = {
-          "/": "#f0f7ff",
-          "/trails": "#f5a623",
-          "/settings": "#f8f9fa",
-        };
-        const updateThemeColor = () => {
-          const path = window.location.pathname;
-          // Trail detail (/trails/[id]) uses the star color too
-          const color = path.startsWith("/trails/") ? "#f5a623" : (routeColors[path] ?? "#0066cc");
-          meta.setAttribute("content", color);
-        };
-        updateThemeColor();
-        // SvelteKit client-side navigation doesn't trigger popstate reliably,
-        // so poll on a short interval
-        setInterval(updateThemeColor, 500);
+        const syncTints = [
+          "#99c5f4", "#a3caf5", "#add0f6", "#b7d6f7", "#c1dcf8",
+          "#cce2f9", "#d6e7fa", "#e0edfb", "#eaf3fc", "#f4f9fd", "#ffffff",
+        ];
+        let tintIdx = 0;
+        let tintDir = 1;
+        setInterval(() => {
+          const isBusy = document.body.dataset.syncing === "true" || document.body.dataset.signingIn === "true";
+          if (isBusy) {
+            meta.setAttribute("content", syncTints[tintIdx]);
+            tintIdx += tintDir;
+            if (tintIdx >= syncTints.length - 1) tintDir = -1;
+            if (tintIdx <= 0) tintDir = 1;
+          } else {
+            meta.setAttribute("content", "#99c5f4");
+            tintIdx = 0;
+            tintDir = 1;
+          }
+        }, 80);
       }
     }
     await initAuth();
@@ -46,6 +50,14 @@
       localStorage.removeItem("pendingAuthUpgrade");
     }
     await initSync();
+  });
+
+  // Bridge reactive sync/auth state to body data attributes for status bar animation
+  $effect(() => {
+    document.body.dataset.syncing = String(syncState.syncing);
+  });
+  $effect(() => {
+    document.body.dataset.signingIn = String(authState.loading);
   });
 </script>
 
