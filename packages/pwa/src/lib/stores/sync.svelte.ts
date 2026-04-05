@@ -106,6 +106,13 @@ export async function upgradeToAuthenticatedUser(newUserId: string): Promise<voi
   await syncNow();
 }
 
+export async function hasPendingChanges(): Promise<boolean> {
+  const pendingTrails = await db.trails.filter((t) => t.syncStatus !== SyncStatus.Synced).count();
+  if (pendingTrails > 0) return true;
+  const pendingVisits = await db.visits.filter((v) => v.syncStatus !== SyncStatus.Synced).count();
+  return pendingVisits > 0;
+}
+
 export async function initSync(): Promise<void> {
   if (localStorage.getItem("syncEnabled") === "true") {
     await enableSync();

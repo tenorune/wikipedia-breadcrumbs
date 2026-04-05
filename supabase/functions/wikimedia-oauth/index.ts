@@ -10,13 +10,8 @@ const WIKIMEDIA_TOKEN_URL = "https://meta.wikimedia.org/w/rest.php/oauth2/access
 const WIKIMEDIA_PROFILE_URL = "https://meta.wikimedia.org/w/rest.php/oauth2/resource/profile";
 const CALLBACK_URL = `${SUPABASE_URL}/functions/v1/wikimedia-oauth`;
 
-// Allowed redirect origins — only our own domains
-const ALLOWED_ORIGINS = [
-  "https://breadcrumbs-17c29.web.app",
-  "https://breadcrumbs-17c29--dev-fqixmewt.web.app",
-  "http://localhost:5173",
-  "http://localhost:4173",
-];
+// Allowed redirect origins — comma-separated list from env
+const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 
 // Also allow chromiumapp.org extension callbacks
 function isAllowedRedirect(url: string): boolean {

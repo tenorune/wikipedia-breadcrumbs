@@ -3,7 +3,7 @@
   import { trailStore, visitStore } from "@wikipedia-breadcrumbs/shared";
   import type { Trail } from "@wikipedia-breadcrumbs/shared";
   import { db } from "$lib/stores/db";
-  import { syncState, syncNow } from "$lib/stores/sync.svelte";
+  import { syncState, syncNow, hasPendingChanges } from "$lib/stores/sync.svelte";
   import { authState } from "$lib/stores/auth.svelte";
   import { installState, reopenInstallPrompt } from "$lib/stores/install.svelte";
   import InstallPrompt from "$lib/components/InstallPrompt.svelte";
@@ -13,12 +13,12 @@
   const titleLetters = titleText.split("");
   let letterColors = $state(makeLetterColors(titleText));
 
-  function handleSyncWithWave() {
-    syncNow();
-    runTitleWave(letterColors, (c) => { letterColors = c; });
+  async function handleSyncWithWave() {
+    await syncNow();
+    pendingChanges = await hasPendingChanges();
   }
 
-  // Also trigger wave on automatic sync
+  // Trigger wave when any sync starts (manual or automatic)
   let _prevSyncing = false;
   $effect(() => {
     if (syncState.syncing && !_prevSyncing) {
@@ -37,10 +37,17 @@
   let starredTrails = $state<Array<{ id: string; displayName: string; updatedAt: string }>>([]);
   let recentTrails = $state<Array<{ id: string; displayName: string; updatedAt: string }>>([]);
 
+  let pendingChanges = $state(false);
+
   const showInstallPrompt = $derived(
     installState.eligible
     && authState.isAuthenticated
     && !!syncState.lastSyncTime
+  );
+
+  // On iOS, storage is not shared with the installed PWA, so warn if unsynced
+  const needsSyncFirst = $derived(
+    showInstallPrompt && !installState.storageShared && pendingChanges
   );
 
   async function loadData() {
@@ -82,12 +89,19 @@
     const sorted = nonStarred.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5);
     recentTrails = await Promise.all(sorted.map(buildItem));
     loaded = true;
+    pendingChanges = await hasPendingChanges();
   }
 
   let isOnline = $state(typeof navigator !== "undefined" ? navigator.onLine : true);
 
   onMount(() => {
     loadData();
+    const isStandalone = window.matchMedia("(display-mode: standalone)").matches
+      || (navigator as any).standalone === true;
+    if (isStandalone && !localStorage.getItem("installedWavePlayed")) {
+      localStorage.setItem("installedWavePlayed", "true");
+      runTitleWave(letterColors, (c) => { letterColors = c; });
+    }
     const onVisible = () => { if (document.visibilityState === "visible") loadData(); };
     const goOnline = () => { isOnline = true; };
     const goOffline = () => { isOnline = false; };
@@ -171,20 +185,27 @@
 </div>
 
 {#if showInstallPrompt && (!installState.dismissed || installState.showPromptOverride)}
-  <InstallPrompt />
+  <InstallPrompt
+    {needsSyncFirst}
+    syncing={syncState.syncing}
+    {isOnline}
+    onSync={handleSyncWithWave}
+  />
 {/if}
 
 {#if !authState.isAuthenticated}
-  <a href="/settings" class="sign-in-prompt">Sign in to sync across devices →</a>
+  <a href="/settings" class="sign-in-prompt">{installState.installed && !installState.storageShared ? "Sign in to restore your trails →" : "Sign in to sync across devices →"}</a>
 {:else if syncAgeText}
-  <div class="sync-info">
-    Last synced {syncAgeText} ·
-    {#if isOnline}
-      <button class="sync-link" onclick={handleSyncWithWave} disabled={syncState.syncing}>{syncState.syncing ? "Syncing…" : "Sync"}</button>
-    {:else}
-      <span class="offline">(offline)</span>
-    {/if}
-  </div>
+  {#if !needsSyncFirst}
+    <div class="sync-info">
+      Last synced {syncAgeText} ·
+      {#if isOnline}
+        <button class="sync-link" onclick={handleSyncWithWave} disabled={syncState.syncing}>{syncState.syncing ? "Syncing…" : "Sync"}</button>
+      {:else}
+        <span class="offline">(offline)</span>
+      {/if}
+    </div>
+  {/if}
 {:else}
   <div class="sync-info">
     Not yet synced ·
@@ -275,7 +296,7 @@
     padding: 0;
   }
   .sync-link:hover { text-decoration: underline; }
-  .sync-link:disabled { color: #999; cursor: default; }
+  .sync-link:disabled { color: #999; cursor: default; text-decoration: none; }
   .offline { color: #999; font-style: italic; }
 
   .starred { margin-bottom: 16px; }

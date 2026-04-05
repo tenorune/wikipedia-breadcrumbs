@@ -3,13 +3,19 @@ const WAVE_COLORS = [
   "#4c627a", "#5b7692", "#6b89aa", "#7a9dc3", "#89b1db", "#99c5f4",
 ];
 
+let _active = false;
+
 export function runTitleWave(
   letterColors: string[],
   onUpdate: (colors: string[]) => void,
   durationMs = 3000,
 ) {
+  if (_active) return;
+  _active = true;
+
   const totalLetters = letterColors.length;
   const stagger = durationMs / (totalLetters + (WAVE_COLORS.length - 1));
+  let remaining = totalLetters;
 
   for (let i = 0; i < totalLetters; i++) {
     setTimeout(() => {
@@ -29,6 +35,8 @@ export function runTitleWave(
             letterColors[i] = "#000000";
             onUpdate([...letterColors]);
             clearInterval(iv);
+            remaining--;
+            if (remaining === 0) _active = false;
           }
         }
       }, 50);
