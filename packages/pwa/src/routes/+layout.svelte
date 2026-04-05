@@ -15,25 +15,30 @@
     if (window.matchMedia("(display-mode: standalone)").matches) {
       const meta = document.querySelector('meta[name="theme-color"]');
       if (meta) {
-        const syncTints = [
+        meta.setAttribute("content", "#99c5f4");
+        const tints = [
           "#99c5f4", "#a3caf5", "#add0f6", "#b7d6f7", "#c1dcf8",
           "#cce2f9", "#d6e7fa", "#e0edfb", "#eaf3fc", "#f4f9fd", "#ffffff",
         ];
-        let tintIdx = 0;
-        let tintDir = 1;
-        setInterval(() => {
-          const isBusy = document.body.dataset.syncing === "true" || document.body.dataset.signingIn === "true";
-          if (isBusy) {
-            meta.setAttribute("content", syncTints[tintIdx]);
-            tintIdx += tintDir;
-            if (tintIdx >= syncTints.length - 1) tintDir = -1;
-            if (tintIdx <= 0) tintDir = 1;
-          } else {
-            meta.setAttribute("content", "#99c5f4");
-            tintIdx = 0;
-            tintDir = 1;
-          }
-        }, 150);
+        // 20 steps (11 up + 9 back) over 3s = 150ms per step
+        const stepMs = 150;
+        let animating = false;
+        (window as any).__runStatusBarCycle = () => {
+          if (animating) return;
+          animating = true;
+          let idx = 0;
+          let dir = 1;
+          const iv = setInterval(() => {
+            meta.setAttribute("content", tints[idx]);
+            idx += dir;
+            if (idx >= tints.length - 1) dir = -1;
+            if (idx <= 0) {
+              clearInterval(iv);
+              animating = false;
+              meta.setAttribute("content", "#99c5f4");
+            }
+          }, stepMs);
+        };
       }
     }
     await initAuth();
@@ -52,12 +57,21 @@
     await initSync();
   });
 
-  // Bridge reactive sync/auth state to body data attributes for status bar animation
+  // Trigger status bar cycle on sync or sign-in
+  let _prevSyncing = false;
   $effect(() => {
-    document.body.dataset.syncing = String(syncState.syncing);
+    if (syncState.syncing && !_prevSyncing) {
+      (window as any).__runStatusBarCycle?.();
+    }
+    _prevSyncing = syncState.syncing;
   });
+  let _prevAuth = false;
   $effect(() => {
-    document.body.dataset.signingIn = String(authState.loading);
+    const signedIn = authState.isAuthenticated;
+    if (signedIn && !_prevAuth) {
+      (window as any).__runStatusBarCycle?.();
+    }
+    _prevAuth = signedIn;
   });
 </script>
 
