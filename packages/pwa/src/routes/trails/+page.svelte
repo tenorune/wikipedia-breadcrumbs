@@ -16,7 +16,7 @@
   });
 </script>
 
-<h1>{#each titleLetters as letter, i}<span style="color: {letterColors[i]}">{letter}</span>{/each}</h1>
+<h1 aria-label="Trails"><span aria-hidden="true">{#each titleLetters as letter, i}<span style="color: {letterColors[i]}">{letter}</span>{/each}</span></h1>
 <TrailList />
 
 <style>

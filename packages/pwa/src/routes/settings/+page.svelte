@@ -161,7 +161,7 @@
 </script>
 
 <div class:ready>
-<h1>{#each settingsLetters as letter, i}<span style="color: {settingsColors[i]}">{letter}</span>{/each}</h1>
+<h1 aria-label="Settings"><span aria-hidden="true">{#each settingsLetters as letter, i}<span style="color: {settingsColors[i]}">{letter}</span>{/each}</span></h1>
 
 <div class="settings-card">
   <div class="field">

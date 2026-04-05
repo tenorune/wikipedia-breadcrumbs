@@ -305,7 +305,7 @@
               onclick={() => { editingName = true; nameValue = trail?.name ?? ""; }}
               title="Click to edit name"
             >
-              {#each trailNameLetters as letter, i}<span style="color: {trailNameColors[i] ?? '#000000'}">{letter}</span>{/each}
+<span aria-hidden="true">{#each trailNameLetters as letter, i}<span style="color: {trailNameColors[i] ?? '#000000'}">{letter}</span>{/each}</span><span class="sr-only">{trailDisplayName}</span>
             </button>
           </h1>
           <div class="detail-menu-wrap">
@@ -655,4 +655,5 @@
   .focused-child { margin-left: 16px; border-left: 2px solid #0066cc; padding-left: 12px; cursor: pointer; }
   .focused-child:hover { background: #fafafa; border-radius: 0 10px 10px 0; }
   .no-children { color: #999; font-size: 13px; margin: 4px 0 0 16px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 </style>
