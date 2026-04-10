@@ -6,13 +6,34 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 let supabaseClient: SupabaseClient | null = null;
+let clientInitialized = false;
 
 export function getSupabaseClient(): SupabaseClient {
   if (!supabaseClient) {
     supabaseClient = createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY, chromeStorageAdapter);
+    clientInitialized = false;
   }
   return supabaseClient;
 }
+
+/**
+ * Ensure the Supabase client has recovered its session from chrome.storage.local
+ * and refreshed the access token if needed. Must be called before getSession()
+ * after a service worker restart, since the async storage adapter means
+ * initialization is not instant.
+ */
+async function ensureSessionRecovered(): Promise<void> {
+  if (clientInitialized) return;
+  const supabase = getSupabaseClient();
+  // getSession() waits for internal _initialize() which reads from storage
+  // and refreshes expired tokens automatically
+  await supabase.auth.getSession();
+  // Start the auto-refresh timer (lost on SW restart)
+  await supabase.auth.startAutoRefresh();
+  clientInitialized = true;
+}
+
+export { ensureSessionRecovered };
 
 export async function signInWithGoogle(idToken: string, nonce: string) {
   const supabase = getSupabaseClient();
@@ -56,6 +77,7 @@ export async function signOut() {
 }
 
 export async function getAuthStatus() {
+  await ensureSessionRecovered();
   const supabase = getSupabaseClient();
   const { data } = await supabase.auth.getSession();
   const user = data.session?.user ?? null;

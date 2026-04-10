@@ -2,7 +2,7 @@ import {
   SyncEngine, SupabaseBackend, SyncStatus,
 } from "@wikipedia-breadcrumbs/shared";
 import type { SyncReport, SyncStateStore } from "@wikipedia-breadcrumbs/shared";
-import { getSupabaseClient } from "./auth-layer.js";
+import { getSupabaseClient, ensureSessionRecovered } from "./auth-layer.js";
 import { db, setSyncUserId } from "./data-layer.js";
 
 let engine: SyncEngine | null = null;
@@ -18,6 +18,7 @@ const stateStore: SyncStateStore = {
 async function ensureInitialized(): Promise<boolean> {
   if (engine) return true;
 
+  await ensureSessionRecovered();
   const supabase = getSupabaseClient();
   const { data: sessionData } = await supabase.auth.getSession();
   if (sessionData?.session?.user) {
@@ -50,7 +51,7 @@ export async function enableSync() {
   if (!ok) return { success: false as const, error: "Failed to initialize sync" };
   engine!.syncNow().then((report) => {
     lastReport = report;
-    chrome.runtime.sendMessage({ type: "syncComplete", completedAt: report.completedAt });
+    chrome.storage.local.set({ lastSyncTime: report.completedAt });
   }).catch((err) => console.error("[breadcrumbs] enableSync sync error:", err));
   return { success: true as const, data: { started: true } };
 }
@@ -67,7 +68,7 @@ export async function syncNow() {
   }
   engine!.syncNow().then((report) => {
     lastReport = report;
-    chrome.runtime.sendMessage({ type: "syncComplete", completedAt: report.completedAt });
+    chrome.storage.local.set({ lastSyncTime: report.completedAt });
   }).catch((err) => console.error("[breadcrumbs] Sync error:", err));
   return { success: true as const, data: { started: true } };
 }
@@ -86,7 +87,7 @@ export async function reinitSync() {
   if (!ok) return { success: false as const, error: "Failed to reinitialize sync" };
   engine!.syncNow().then((report) => {
     lastReport = report;
-    chrome.runtime.sendMessage({ type: "syncComplete", completedAt: report.completedAt });
+    chrome.storage.local.set({ lastSyncTime: report.completedAt });
   });
   return { success: true as const };
 }

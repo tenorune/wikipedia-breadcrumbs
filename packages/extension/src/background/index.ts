@@ -383,12 +383,6 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
       sendResponse({ ok: true });
       break;
     }
-    case "syncComplete": {
-      // Sync layer notifies us when async sync finishes — store the time
-      await chrome.storage.local.set({ lastSyncTime: (message as any).completedAt });
-      sendResponse({ ok: true });
-      break;
-    }
     case "syncNow": {
       const result = await sync.syncNow();
       sendResponse(result);
