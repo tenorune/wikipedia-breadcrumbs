@@ -41,6 +41,7 @@ export async function initAuth(): Promise<void> {
     replaceState(window.location.pathname, {});
     _initialized = true;
     _loading = false;
+    _setupVisibilityRefresh();
     return;
   }
 
@@ -51,6 +52,18 @@ export async function initAuth(): Promise<void> {
   }
   _initialized = true;
   _loading = false;
+  _setupVisibilityRefresh();
+}
+
+/** Re-validate session when standalone PWA resumes from background. */
+function _setupVisibilityRefresh(): void {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      supabase.auth.startAutoRefresh();
+    } else {
+      supabase.auth.stopAutoRefresh();
+    }
+  });
 }
 
 export async function signInWithGoogle(): Promise<{ error?: string }> {
