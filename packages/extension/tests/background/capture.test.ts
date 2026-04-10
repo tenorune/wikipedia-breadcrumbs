@@ -3,13 +3,16 @@ import { resetChromeMock, chromeMock } from "../chrome-mock.js";
 import { TrailManager } from "../../src/background/trail-manager.js";
 import { handleNavigation, type NavigationDetails } from "../../src/background/capture.js";
 
-vi.mock("../../src/background/offscreen.js", () => ({
-  sendToOffscreen: vi.fn(async (msg: any) => {
-    if (msg.type === "addTrail") return { success: true, data: msg.trail };
-    if (msg.type === "addVisit") return { success: true, data: msg.visit };
-    if (msg.type === "getActiveTrailForTab") return { success: true, data: null };
-    return { success: true, data: null };
-  }),
+vi.mock("../../src/background/data-layer.js", () => ({
+  addTrail: vi.fn(async (trail: any) => trail),
+  addVisit: vi.fn(async (visit: any) => visit),
+  getActiveTrailForTab: vi.fn(async () => null),
+  getActiveTrailByUrl: vi.fn(async () => null),
+  finalizeTrail: vi.fn(async () => undefined),
+  findVisitByUrl: vi.fn(async () => null),
+  updateTrail: vi.fn(async () => undefined),
+  updateVisit: vi.fn(async () => undefined),
+  softDeleteVisit: vi.fn(async () => undefined),
 }));
 
 function nav(overrides: Partial<NavigationDetails> = {}): NavigationDetails {
@@ -20,6 +23,7 @@ function nav(overrides: Partial<NavigationDetails> = {}): NavigationDetails {
     windowId: 1,
     transitionType: "link",
     transitionQualifiers: [],
+    clickedLinkText: null,
     ...overrides,
   };
 }
@@ -33,23 +37,23 @@ describe("handleNavigation", () => {
   });
 
   it("creates new trail and visit for first navigation", async () => {
-    const { sendToOffscreen } = await import("../../src/background/offscreen.js");
+    const dataLayer = await import("../../src/background/data-layer.js");
     await handleNavigation(nav(), trailManager, "device-1", 30);
-    expect(sendToOffscreen).toHaveBeenCalledWith(expect.objectContaining({ type: "addTrail" }));
-    expect(sendToOffscreen).toHaveBeenCalledWith(expect.objectContaining({ type: "addVisit" }));
+    expect(dataLayer.addTrail).toHaveBeenCalled();
+    expect(dataLayer.addVisit).toHaveBeenCalled();
     expect(trailManager.getActive(1)).toBeDefined();
   });
 
   it("skips non-Wikipedia URLs", async () => {
-    const { sendToOffscreen } = await import("../../src/background/offscreen.js");
+    const dataLayer = await import("../../src/background/data-layer.js");
     await handleNavigation(nav({ url: "https://google.com" }), trailManager, "device-1", 30);
-    expect(sendToOffscreen).not.toHaveBeenCalled();
+    expect(dataLayer.addTrail).not.toHaveBeenCalled();
   });
 
   it("skips sub-frames", async () => {
-    const { sendToOffscreen } = await import("../../src/background/offscreen.js");
+    const dataLayer = await import("../../src/background/data-layer.js");
     await handleNavigation(nav({ frameId: 1 }), trailManager, "device-1", 30);
-    expect(sendToOffscreen).not.toHaveBeenCalled();
+    expect(dataLayer.addTrail).not.toHaveBeenCalled();
   });
 
   it("appends visit to existing trail in same tab", async () => {
@@ -63,41 +67,41 @@ describe("handleNavigation", () => {
   });
 
   it("sets sourceType to Link for link transitions", async () => {
-    const { sendToOffscreen } = await import("../../src/background/offscreen.js");
+    const dataLayer = await import("../../src/background/data-layer.js");
     await handleNavigation(nav({ transitionType: "link" }), trailManager, "device-1", 30);
-    const visitCall = (sendToOffscreen as any).mock.calls.find(
-      (c: any) => c[0].type === "addVisit"
+    const visitCall = (dataLayer.addVisit as any).mock.calls.find(
+      (c: any) => c[0].sourceType === "link"
     );
-    expect(visitCall[0].visit.sourceType).toBe("link");
+    expect(visitCall).toBeDefined();
   });
 
   it("sets sourceType to External for typed transitions", async () => {
-    const { sendToOffscreen } = await import("../../src/background/offscreen.js");
+    const dataLayer = await import("../../src/background/data-layer.js");
     await handleNavigation(nav({ transitionType: "typed" }), trailManager, "device-1", 30);
-    const visitCall = (sendToOffscreen as any).mock.calls.find(
-      (c: any) => c[0].type === "addVisit"
+    const visitCall = (dataLayer.addVisit as any).mock.calls.find(
+      (c: any) => c[0].sourceType === "external"
     );
-    expect(visitCall[0].visit.sourceType).toBe("external");
+    expect(visitCall).toBeDefined();
   });
 
   it("sets sourceType to Search for generated transitions", async () => {
-    const { sendToOffscreen } = await import("../../src/background/offscreen.js");
+    const dataLayer = await import("../../src/background/data-layer.js");
     await handleNavigation(nav({ transitionType: "generated" }), trailManager, "device-1", 30);
-    const visitCall = (sendToOffscreen as any).mock.calls.find(
-      (c: any) => c[0].type === "addVisit"
+    const visitCall = (dataLayer.addVisit as any).mock.calls.find(
+      (c: any) => c[0].sourceType === "search"
     );
-    expect(visitCall[0].visit.sourceType).toBe("search");
+    expect(visitCall).toBeDefined();
   });
 
   it("sets sourceDetail for address bar navigation", async () => {
-    const { sendToOffscreen } = await import("../../src/background/offscreen.js");
+    const dataLayer = await import("../../src/background/data-layer.js");
     await handleNavigation(
       nav({ transitionType: "typed", transitionQualifiers: ["from_address_bar"] }),
       trailManager, "device-1", 30
     );
-    const visitCall = (sendToOffscreen as any).mock.calls.find(
-      (c: any) => c[0].type === "addVisit"
+    const visitCall = (dataLayer.addVisit as any).mock.calls.find(
+      (c: any) => c[0].sourceDetail === "address bar"
     );
-    expect(visitCall[0].visit.sourceDetail).toBe("address bar");
+    expect(visitCall).toBeDefined();
   });
 });
