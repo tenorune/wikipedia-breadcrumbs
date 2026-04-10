@@ -25,10 +25,7 @@ export function getSupabaseClient(): SupabaseClient {
 async function ensureSessionRecovered(): Promise<void> {
   if (clientInitialized) return;
   const supabase = getSupabaseClient();
-  // getSession() waits for internal _initialize() which reads from storage
-  // and refreshes expired tokens automatically
   await supabase.auth.getSession();
-  // Start the auto-refresh timer (lost on SW restart)
   await supabase.auth.startAutoRefresh();
   clientInitialized = true;
 }
