@@ -4,7 +4,9 @@ import { getDeviceId } from "../shared/device-id.js";
 import { TrailManager } from "./trail-manager.js";
 import { handleNavigation } from "./capture.js";
 import { parseTabIdFromAlarm, clearIdleAlarm } from "./alarm-manager.js";
-import { sendToOffscreen } from "./offscreen.js";
+import * as data from "./data-layer.js";
+import * as auth from "./auth-layer.js";
+import * as sync from "./sync-layer.js";
 import type { BackgroundMessage } from "../shared/messaging.js";
 
 const SYNC_ALARM = "sync-interval";
@@ -36,10 +38,8 @@ chrome.alarms.create("reconcile-trails", { delayInMinutes: 0.1, periodInMinutes:
 // tab ID. Unmatched trails get finalized.
 async function reconcileActiveTrails() {
   try {
-    const result = await sendToOffscreen({ type: "getActiveTrails" });
-    console.log("[breadcrumbs] reconcile: getActiveTrails result:", result.success, result.success ? (result.data as any[])?.length : result.error);
-    if (!result.success || !result.data) return;
-    const activeTrails = result.data as any[];
+    const activeTrails = await data.getActiveTrails();
+    console.log("[breadcrumbs] reconcile: getActiveTrails count:", activeTrails.length);
     if (activeTrails.length === 0) return;
 
     // Build a map of open Wikipedia tabs: URL -> tab
@@ -53,9 +53,7 @@ async function reconcileActiveTrails() {
     }
 
     for (const trail of activeTrails) {
-      const visitsResult = await sendToOffscreen({ type: "getVisitsByTrailId", trailId: trail.id });
-      if (!visitsResult.success) continue;
-      const visits = visitsResult.data as any[];
+      const visits = await data.getVisitsByTrailId(trail.id);
       const lastVisit = visits[visits.length - 1];
       console.log("[breadcrumbs] reconcile: trail", trail.id.slice(0, 8), "lastVisit url:", lastVisit?.url?.slice(0, 80), "articleId:", lastVisit?.articleId);
       if (!lastVisit) {
@@ -111,7 +109,7 @@ async function reconcileActiveTrails() {
         const age = now - new Date(trail.updatedAt).getTime();
         if (age > staleThresholdMs) {
           console.log("[breadcrumbs] reconcile: finalizing stale trail", trail.id.slice(0, 8), `(${Math.round(age / 60000)}min old)`);
-          await sendToOffscreen({ type: "finalizeTrail", trailId: trail.id });
+          await data.finalizeTrail(trail.id);
         }
       }
     }
@@ -133,10 +131,10 @@ chrome.storage.onChanged.addListener((changes) => {
     settings.syncEnabled = changes.syncEnabled.newValue;
     if (changes.syncEnabled.newValue) {
       chrome.alarms.create(SYNC_ALARM, { periodInMinutes: 5 });
-      sendToOffscreen({ type: "enableSync" });
+      sync.enableSync();
     } else {
       chrome.alarms.clear(SYNC_ALARM);
-      sendToOffscreen({ type: "disableSync" });
+      sync.disableSync();
     }
   }
 });
@@ -166,7 +164,7 @@ chrome.webNavigation.onCommitted.addListener(async (details) => {
 chrome.tabs.onRemoved.addListener(async (tabId) => {
   const entry = trailManager.getActive(tabId);
   if (entry) {
-    await sendToOffscreen({ type: "finalizeTrail", trailId: entry.trailId });
+    await data.finalizeTrail(entry.trailId);
     trailManager.removeTab(tabId);
     await clearIdleAlarm(tabId);
   }
@@ -175,7 +173,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 chrome.tabs.onReplaced.addListener(async (_addedTabId, removedTabId) => {
   const entry = trailManager.getActive(removedTabId);
   if (entry) {
-    await sendToOffscreen({ type: "finalizeTrail", trailId: entry.trailId });
+    await data.finalizeTrail(entry.trailId);
     trailManager.removeTab(removedTabId);
     await clearIdleAlarm(removedTabId);
   }
@@ -186,7 +184,7 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
   for (const tabId of tabIds) {
     const entry = trailManager.getActive(tabId);
     if (entry) {
-      await sendToOffscreen({ type: "finalizeTrail", trailId: entry.trailId });
+      await data.finalizeTrail(entry.trailId);
       trailManager.removeTab(tabId);
       await clearIdleAlarm(tabId);
     }
@@ -199,14 +197,14 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     return;
   }
   if (alarm.name === SYNC_ALARM) {
-    await sendToOffscreen({ type: "syncNow" });
+    await sync.syncNow();
     return;
   }
   const tabId = parseTabIdFromAlarm(alarm.name);
   if (tabId !== null) {
     const entry = trailManager.getActive(tabId);
     if (entry) {
-      await sendToOffscreen({ type: "finalizeTrail", trailId: entry.trailId });
+      await data.finalizeTrail(entry.trailId);
     }
     trailManager.removeTab(tabId);
     await clearIdleAlarm(tabId);
@@ -214,7 +212,6 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 });
 
 chrome.runtime.onMessage.addListener((message: any, _sender, sendResponse) => {
-  if (message.target === "offscreen") return false;
   // Content script sends clicked link text immediately on click
   if (message.type === "linkClicked" && _sender.tab?.id) {
     lastClickedLinkText.set(_sender.tab.id, message.text);
@@ -232,22 +229,22 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
       // If no in-memory entry, try DB recovery
       if (!entry) {
         // Try by tabId first
-        let recovered = await sendToOffscreen({ type: "getActiveTrailForTab", tabId: message.tabId });
+        let recovered = await data.getActiveTrailForTab(message.tabId);
         // Fall back to URL match (browser/SW restart)
-        if ((!recovered.success || !recovered.data)) {
+        if (!recovered) {
           try {
             const tab = await chrome.tabs.get(message.tabId);
             if (tab.url) {
               const { parseWikipediaUrl } = await import("@wikipedia-breadcrumbs/shared");
               const parsed = parseWikipediaUrl(tab.url);
               if (parsed) {
-                recovered = await sendToOffscreen({ type: "getActiveTrailByUrl", url: parsed.cleanUrl });
+                recovered = await data.getActiveTrailByUrl(parsed.cleanUrl);
               }
             }
           } catch {}
         }
-        if (recovered.success && recovered.data) {
-          const { trail, lastVisit, visitCount } = recovered.data as any;
+        if (recovered) {
+          const { trail, lastVisit, visitCount } = recovered;
           let winId = 0;
           try { winId = (await chrome.tabs.get(message.tabId)).windowId; } catch {}
           entry = {
@@ -260,9 +257,9 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
       }
 
       if (entry) {
-        const result = await sendToOffscreen({ type: "getVisitsByTrailId", trailId: entry.trailId });
-        const trailResult = await sendToOffscreen({ type: "getTrailById", trailId: entry.trailId });
-        sendResponse({ trail: trailResult.success ? trailResult.data : null, visits: result.success ? result.data : [] });
+        const visits = await data.getVisitsByTrailId(entry.trailId);
+        const trail = await data.getTrailById(entry.trailId);
+        sendResponse({ trail: trail ?? null, visits });
       } else {
         sendResponse({ trail: null, visits: [] });
       }
@@ -272,7 +269,7 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
       // End any existing trail on this tab
       const existing = trailManager.getActive(message.tabId);
       if (existing) {
-        await sendToOffscreen({ type: "finalizeTrail", trailId: existing.trailId });
+        await data.finalizeTrail(existing.trailId);
         trailManager.removeTab(message.tabId);
       }
       // Create a new trail immediately from the tab's current page
@@ -283,14 +280,14 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
           const parsed = parseWikipediaUrl(tab.url);
           if (parsed) {
             const trail = createTrail({ startReason: StartReason.Manual, deviceId });
-            await sendToOffscreen({ type: "addTrail", trail });
+            await data.addTrail(trail);
             const visit = createVisit({
               trailId: trail.id, url: parsed.cleanUrl, title: parsed.title, position: 1,
               sourceType: SourceType.Manual, language: parsed.language,
               articleId: parsed.cleanUrl.split("/wiki/")[1] ?? parsed.title,
               tabId: message.tabId,
             });
-            await sendToOffscreen({ type: "addVisit", visit });
+            await data.addVisit(visit);
             trailManager.setActive(message.tabId, {
               trailId: trail.id, tabId: message.tabId,
               windowId: tab.windowId ?? 0,
@@ -304,26 +301,22 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
       break;
     }
     case "endTrail": {
-      await sendToOffscreen({ type: "finalizeTrail", trailId: message.trailId });
+      await data.finalizeTrail(message.trailId);
       trailManager.removeByTrailId(message.trailId);
       sendResponse({ ok: true });
       break;
     }
     case "renameTrail": {
-      await sendToOffscreen({ type: "updateTrail", trailId: message.trailId, changes: { name: message.name } });
+      await data.updateTrail(message.trailId, { name: message.name });
       sendResponse({ ok: true });
       break;
     }
     case "resumeTrailInNewTab": {
       // Reactivate a finalized trail: set up trail manager FIRST, then create tab.
       // This prevents the race where onCommitted fires before the trail is registered.
-      await sendToOffscreen({
-        type: "updateTrail",
-        trailId: message.trailId,
-        changes: { status: "active" as any, endedAt: null as any },
-      });
-      const visitsResult = await sendToOffscreen({ type: "getVisitsByTrailId", trailId: message.trailId });
-      const visitCount = visitsResult.success ? (visitsResult.data as any[]).length : 0;
+      await data.updateTrail(message.trailId, { status: "active" as any, endedAt: null as any });
+      const visits = await data.getVisitsByTrailId(message.trailId);
+      const visitCount = visits.length;
 
       // Create the tab
       const newTab = await chrome.tabs.create({ url: message.url });
@@ -362,13 +355,9 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
         }
       } else {
         // Not in memory — treat as resume
-        await sendToOffscreen({
-          type: "updateTrail",
-          trailId: message.trailId,
-          changes: { status: "active" as any, endedAt: null as any },
-        });
-        const visitsResult = await sendToOffscreen({ type: "getVisitsByTrailId", trailId: message.trailId });
-        const visitCount = visitsResult.success ? (visitsResult.data as any[]).length : 0;
+        await data.updateTrail(message.trailId, { status: "active" as any, endedAt: null as any });
+        const visits = await data.getVisitsByTrailId(message.trailId);
+        const visitCount = visits.length;
         const newTab = await chrome.tabs.create({ url: message.url });
         if (newTab.id != null) {
           trailManager.setActive(newTab.id, {
@@ -395,16 +384,28 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
       break;
     }
     case "syncComplete": {
-      // Offscreen notifies us when async sync finishes — store the time
+      // Sync layer notifies us when async sync finishes — store the time
       await chrome.storage.local.set({ lastSyncTime: (message as any).completedAt });
       sendResponse({ ok: true });
       break;
     }
-    case "syncNow":
-    case "enableSync":
-    case "getSyncStatus":
+    case "syncNow": {
+      const result = await sync.syncNow();
+      sendResponse(result);
+      break;
+    }
+    case "enableSync": {
+      const result = await sync.enableSync();
+      sendResponse(result);
+      break;
+    }
+    case "getSyncStatus": {
+      const result = await sync.getSyncStatus();
+      sendResponse(result);
+      break;
+    }
     case "disableSync": {
-      const result = await sendToOffscreen(message as any);
+      const result = await sync.disableSync();
       sendResponse(result);
       break;
     }
@@ -448,12 +449,7 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
         }
 
         if (accessToken && refreshToken) {
-          const result = await sendToOffscreen({
-            type: "signInWithWikimedia",
-            redirectUrl: "",
-            accessToken,
-            refreshToken,
-          } as any);
+          const result = await auth.signInWithWikimedia(accessToken, refreshToken);
           sendResponse(result);
         } else {
           // Check for error in callback
@@ -465,13 +461,33 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
       }
       break;
     }
-    case "signInWithGoogle":
-    case "signInWithEmail":
-    case "signUpWithEmail":
-    case "signOut":
-    case "getAuthStatus":
+    case "signInWithGoogle": {
+      const result = await auth.signInWithGoogle(message.idToken, message.nonce);
+      sendResponse(result);
+      break;
+    }
+    case "signInWithEmail": {
+      const result = await auth.signInWithEmail(message.email, message.password);
+      sendResponse(result);
+      break;
+    }
+    case "signUpWithEmail": {
+      const result = await auth.signUpWithEmail(message.email, message.password);
+      sendResponse(result);
+      break;
+    }
+    case "signOut": {
+      const result = await auth.signOut();
+      sendResponse(result);
+      break;
+    }
+    case "getAuthStatus": {
+      const result = await auth.getAuthStatus();
+      sendResponse(result);
+      break;
+    }
     case "reinitSync": {
-      const result = await sendToOffscreen(message as any);
+      const result = await sync.reinitSync();
       sendResponse(result);
       break;
     }
