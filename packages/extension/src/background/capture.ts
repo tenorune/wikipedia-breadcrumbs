@@ -9,12 +9,14 @@ export interface NavigationDetails {
   url: string;
   frameId: number;
   windowId: number;
-  transitionType: string;
-  transitionQualifiers: string[];
+  transitionType?: string;       // undefined in Safari
+  transitionQualifiers?: string[]; // undefined in Safari
   clickedLinkText: string | null;
 }
 
-function inferSourceType(transitionType: string, transitionQualifiers: string[]): SourceType {
+function inferSourceType(transitionType?: string, transitionQualifiers?: string[]): SourceType {
+  // Safari does not provide transitionType — default to Link
+  if (!transitionType) return SourceType.Link;
   // Chrome transition types: https://developer.chrome.com/docs/extensions/reference/api/webNavigation#type-TransitionType
   switch (transitionType) {
     case "link":
@@ -34,18 +36,20 @@ function inferSourceType(transitionType: string, transitionQualifiers: string[])
   }
 }
 
-function inferSourceDetail(transitionType: string, transitionQualifiers: string[]): string | null {
-  if (transitionQualifiers.includes("from_address_bar")) return "address bar";
+function inferSourceDetail(transitionType?: string, transitionQualifiers?: string[]): string | null {
+  if (!transitionType) return null; // Safari — no transition data
+  if (transitionQualifiers?.includes("from_address_bar")) return "address bar";
   if (transitionType === "typed") return "typed URL";
   if (transitionType === "auto_bookmark") return "bookmark";
   if (transitionType === "generated") return "omnibox suggestion";
   return null;
 }
 
-function isExternalTransition(transitionType: string, transitionQualifiers: string[]): boolean {
+function isExternalTransition(transitionType?: string, transitionQualifiers?: string[]): boolean {
+  if (!transitionType) return false; // Safari — assume not external
   return transitionType === "typed"
     || transitionType === "auto_bookmark"
-    || transitionQualifiers.includes("from_address_bar");
+    || (transitionQualifiers?.includes("from_address_bar") ?? false);
 }
 
 export async function handleNavigation(

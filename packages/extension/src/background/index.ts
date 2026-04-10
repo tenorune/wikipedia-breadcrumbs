@@ -179,17 +179,20 @@ chrome.tabs.onReplaced.addListener(async (_addedTabId, removedTabId) => {
   }
 });
 
-chrome.windows.onRemoved.addListener(async (windowId) => {
-  const tabIds = trailManager.getTabsForWindow(windowId);
-  for (const tabId of tabIds) {
-    const entry = trailManager.getActive(tabId);
-    if (entry) {
-      await data.finalizeTrail(entry.trailId);
-      trailManager.removeTab(tabId);
-      await clearIdleAlarm(tabId);
+// chrome.windows is unavailable on iOS Safari
+if (typeof chrome.windows !== "undefined") {
+  chrome.windows.onRemoved.addListener(async (windowId) => {
+    const tabIds = trailManager.getTabsForWindow(windowId);
+    for (const tabId of tabIds) {
+      const entry = trailManager.getActive(tabId);
+      if (entry) {
+        await data.finalizeTrail(entry.trailId);
+        trailManager.removeTab(tabId);
+        await clearIdleAlarm(tabId);
+      }
     }
-  }
-});
+  });
+}
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === "reconcile-trails") {
@@ -339,7 +342,9 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
       if (entry) {
         try {
           await chrome.tabs.update(entry.tabId, { active: true, url: message.url });
-          await chrome.windows.update(entry.windowId, { focused: true });
+          if (typeof chrome.windows !== "undefined") {
+            await chrome.windows.update(entry.windowId, { focused: true });
+          }
         } catch {
           // Tab gone — open new tab and reassociate
           const newTab = await chrome.tabs.create({ url: message.url });

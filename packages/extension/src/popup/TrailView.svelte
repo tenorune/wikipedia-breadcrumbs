@@ -165,9 +165,9 @@
   }
 
   const trailName = $derived(
-    trail?.name ?? (visits.length > 0
+    trail?.name ?? (visits.length > 1
       ? `${visits[0].title} → ${visits[visits.length - 1].title}`
-      : "New trail")
+      : visits.length === 1 ? visits[0].title : "New trail")
   );
 
   async function openTrailDetail() {
@@ -177,7 +177,9 @@
     const targetUrl = `${historyUrl}?trail=${trail.id}`;
     if (tabs.length > 0 && tabs[0].id != null) {
       chrome.tabs.update(tabs[0].id, { active: true, url: targetUrl });
-      chrome.windows.update(tabs[0].windowId!, { focused: true });
+      if (typeof chrome.windows !== "undefined") {
+        chrome.windows.update(tabs[0].windowId!, { focused: true });
+      }
     } else {
       chrome.tabs.create({ url: targetUrl });
     }
