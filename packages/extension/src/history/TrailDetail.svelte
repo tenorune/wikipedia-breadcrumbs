@@ -447,7 +447,7 @@
 
 <style>
   .trail-detail { }
-  .back { background: none; border: none; color: #0066cc; cursor: pointer; padding: 0; margin-bottom: 16px; }
+  .back { background: none; border: none; color: #0066cc; cursor: pointer; padding: 0; margin-bottom: 16px; font-size: 14px; }
   .header-box {
     display: flex; gap: 10px; padding: 12px; border: 1px solid #eee; border-radius: 6px;
     margin-bottom: 12px; align-items: start; position: relative;

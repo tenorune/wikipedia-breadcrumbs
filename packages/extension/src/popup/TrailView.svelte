@@ -258,6 +258,7 @@
   .stat-label { font-size: 10px; color: #666; }
 
   .trail-view { padding: 12px; display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+  .header input { font-size: 16px; font-weight: 700; border: 1px solid #ccc; border-radius: 4px; padding: 2px 4px; width: 100%; box-sizing: border-box; outline: none; }
   .header h2 { margin: 0 0 4px; font-size: 16px; cursor: pointer; }
   .header h2:hover { color: #0066cc; }
   .meta { font-size: 12px; color: #666; }
