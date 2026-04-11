@@ -50,6 +50,7 @@ xcrun safari-web-extension-converter "$DIST_DIR/" \
   --app-name "$APP_NAME" \
   --bundle-identifier "$BUNDLE_ID" \
   --swift \
+  --copy-resources \
   --force \
   --no-open \
   --no-prompt

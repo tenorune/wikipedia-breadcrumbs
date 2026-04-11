@@ -1,6 +1,13 @@
 import { LinkTracker } from "./link-tracker.js";
 import type { ContentMessage } from "../shared/messaging.js";
 
+// Detect OAuth callback: auth flow redirects to Special:BlankPage with tokens in hash
+if (window.location.hash.includes("access_token")) {
+  chrome.runtime.sendMessage({ type: "authCallback", url: window.location.href });
+  // Don't initialize the rest of the content script on auth callback pages
+  throw new Error("breadcrumbs:auth-callback");
+}
+
 const tracker = new LinkTracker();
 tracker.setReferrer(document.referrer);
 
