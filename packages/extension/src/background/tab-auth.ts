@@ -30,14 +30,28 @@ export function launchTabAuthFlow(authUrl: string, targetUrlPrefix: string): Pro
       chrome.tabs.onRemoved.removeListener(onRemoved);
     }
 
+    function found(url: string) {
+      cleanup();
+      chrome.tabs.remove(tabId!).catch(() => {});
+      resolve(url);
+    }
+
+    async function checkTabUrl(id: number) {
+      try {
+        const tab = await chrome.tabs.get(id);
+        if (tab.url?.startsWith(targetUrlPrefix)) {
+          found(tab.url);
+        }
+      } catch { /* tab may be gone */ }
+    }
+
     function onUpdated(updatedTabId: number, changeInfo: chrome.tabs.TabChangeInfo) {
-      if (updatedTabId !== tabId || !changeInfo.url) return;
-      if (changeInfo.url.startsWith(targetUrlPrefix)) {
-        const url = changeInfo.url;
-        cleanup();
-        // Close the tab (don't await — we have the URL)
-        chrome.tabs.remove(updatedTabId).catch(() => {});
-        resolve(url);
+      if (updatedTabId !== tabId) return;
+      // Chrome provides changeInfo.url; Safari may not — fall back to polling tab URL
+      if (changeInfo.url?.startsWith(targetUrlPrefix)) {
+        found(changeInfo.url);
+      } else if (changeInfo.status === "loading" || changeInfo.status === "complete") {
+        checkTabUrl(updatedTabId);
       }
     }
 
