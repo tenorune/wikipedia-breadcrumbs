@@ -391,7 +391,7 @@
     </div>
   {:else}
     <span class="footer-links">
-      <a href="{import.meta.env.VITE_APP_URL}/privacy" target="_blank" rel="noopener">Privacy Policy</a>
+      <a href="{import.meta.env.VITE_APP_URL}/privacy" onclick={(e) => { e.preventDefault(); chrome.tabs.create({ url: `${import.meta.env.VITE_APP_URL}/privacy` }); }}>Privacy Policy</a>
       <span class="separator">|</span>
       <button class="btn-reset-subtle" onclick={() => { showResetConfirm = true; }}>Reset all data</button>
     </span>
