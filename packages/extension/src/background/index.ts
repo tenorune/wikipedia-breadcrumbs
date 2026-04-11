@@ -33,76 +33,14 @@ async function initialize() {
 // Use an alarm to delay — this survives SW termination unlike setTimeout.
 chrome.alarms.create("reconcile-trails", { delayInMinutes: 0.1, periodInMinutes: 15 }); // ~6 seconds, then every 15 min
 
-// On startup, match active trails to currently open tabs by URL.
-// Tab IDs change across browser restarts, so we match by the last visit's URL
-// against what's currently open. Matched trails get re-associated with the new
-// tab ID. Unmatched trails get finalized.
+// Finalize stale trails that are no longer associated with open tabs.
+// Content scripts re-announce active Wikipedia pages via pageVisited,
+// which recovers trail-tab associations after browser/SW restarts.
 async function reconcileActiveTrails() {
   try {
     const activeTrails = await data.getActiveTrails();
-    console.log("[breadcrumbs] reconcile: getActiveTrails count:", activeTrails.length);
     if (activeTrails.length === 0) return;
 
-    // Build a map of open Wikipedia tabs: URL -> tab
-    const tabs = await chrome.tabs.query({ url: "*://*.wikipedia.org/*" });
-    console.log("[breadcrumbs] reconcile: open Wikipedia tabs:", tabs.length, tabs.map(t => ({ id: t.id, url: t.url?.slice(0, 80) })));
-    const urlToTab = new Map<string, chrome.tabs.Tab>();
-    for (const tab of tabs) {
-      if (tab.url && tab.id != null) {
-        urlToTab.set(tab.url, tab);
-      }
-    }
-
-    for (const trail of activeTrails) {
-      const visits = await data.getVisitsByTrailId(trail.id);
-      const lastVisit = visits[visits.length - 1];
-      console.log("[breadcrumbs] reconcile: trail", trail.id.slice(0, 8), "lastVisit url:", lastVisit?.url?.slice(0, 80), "articleId:", lastVisit?.articleId);
-      if (!lastVisit) {
-        console.log("[breadcrumbs] reconcile: no visits, skipping trail", trail.id.slice(0, 8));
-        continue;
-      }
-
-      // Try to match by any visit URL in the trail, not just the last one
-      let matchTab: chrome.tabs.Tab | undefined;
-      // Check last visit first (most likely match)
-      matchTab = urlToTab.get(lastVisit.url);
-      // Then check by articleId substring in tab URLs
-      if (!matchTab) {
-        matchTab = [...urlToTab.entries()].find(([url]) => {
-          try { return new URL(url).pathname.includes(lastVisit.articleId); }
-          catch { return false; }
-        })?.[1];
-      }
-      // Then check ALL visit URLs in the trail against open tabs
-      if (!matchTab) {
-        for (const visit of visits) {
-          matchTab = urlToTab.get(visit.url);
-          if (matchTab) break;
-          matchTab = [...urlToTab.entries()].find(([url]) => {
-            try { return new URL(url).pathname.includes(visit.articleId); }
-            catch { return false; }
-          })?.[1];
-          if (matchTab) break;
-        }
-      }
-
-      console.log("[breadcrumbs] reconcile: trail", trail.id.slice(0, 8), "matched tab:", matchTab?.id ?? "NONE");
-
-      if (matchTab && matchTab.id != null) {
-        trailManager.setActive(matchTab.id, {
-          trailId: trail.id,
-          tabId: matchTab.id,
-          windowId: matchTab.windowId ?? 0,
-          lastVisitTimestamp: new Date(lastVisit.timestamp).getTime(),
-          lastVisitPosition: visits.length,
-          lastVisitUrl: lastVisit.url,
-        });
-        urlToTab.delete(matchTab.url!);
-      }
-    }
-
-    // Finalize stale unmatched trails — any active trail not in memory
-    // whose last activity is older than 2x the idle timeout is likely orphaned.
     const staleThresholdMs = settings.idleTimeoutMinutes * 60 * 1000 * 2;
     const now = Date.now();
     for (const trail of activeTrails) {
@@ -114,8 +52,6 @@ async function reconcileActiveTrails() {
         }
       }
     }
-
-    console.log("[breadcrumbs] reconcile: done. trailManager entries:", [...Array(1000).keys()].filter(i => trailManager.getActive(i)).length);
   } catch (err) {
     console.error("[breadcrumbs] reconcile failed:", err);
   }
@@ -140,27 +76,9 @@ chrome.storage.onChanged.addListener((changes) => {
   }
 });
 
-chrome.webNavigation.onCommitted.addListener(async (details) => {
-  if (!settings.captureEnabled) return;
-  let windowId = 0;
-  try { windowId = (await chrome.tabs.get(details.tabId)).windowId; } catch {}
-  // Get and clear the clicked link text for this tab (set by content script before navigation)
-  const clickedText = lastClickedLinkText.get(details.tabId) ?? null;
-  lastClickedLinkText.delete(details.tabId);
-
-  await handleNavigation(
-    {
-      tabId: details.tabId,
-      url: details.url,
-      frameId: details.frameId,
-      windowId,
-      transitionType: details.transitionType,
-      transitionQualifiers: details.transitionQualifiers,
-      clickedLinkText: clickedText,
-    },
-    trailManager, deviceId, settings.idleTimeoutMinutes
-  );
-});
+// Page visit capture is now driven by the content script (pageVisited message)
+// instead of webNavigation.onCommitted. This allows removing host_permissions
+// from the manifest, which eliminates Safari's permission prompt on non-Wikipedia sites.
 
 chrome.tabs.onRemoved.addListener(async (tabId) => {
   const entry = trailManager.getActive(tabId);
@@ -224,6 +142,25 @@ chrome.runtime.onMessage.addListener((message: any, _sender, sendResponse) => {
   // Content script sends clicked link text immediately on click
   if (message.type === "linkClicked" && _sender.tab?.id) {
     lastClickedLinkText.set(_sender.tab.id, message.text);
+    return false;
+  }
+  // Content script announces a Wikipedia page visit
+  if (message.type === "pageVisited" && _sender.tab?.id) {
+    if (!settings.captureEnabled) return false;
+    const tabId = _sender.tab.id;
+    const windowId = _sender.tab.windowId ?? 0;
+    const clickedText = lastClickedLinkText.get(tabId) ?? null;
+    lastClickedLinkText.delete(tabId);
+    handleNavigation(
+      {
+        tabId,
+        url: message.url,
+        frameId: 0,
+        windowId,
+        clickedLinkText: clickedText,
+      },
+      trailManager, deviceId, settings.idleTimeoutMinutes
+    );
     return false;
   }
   handleBackgroundMessage(message as BackgroundMessage, sendResponse);

@@ -3,8 +3,7 @@
   "name": "Wikipedia Breadcrumbs",
   "version": "0.1.0",
   "description": "Track your Wikipedia browsing trails",
-  "permissions": ["storage", "tabs", "webNavigation", "alarms", "identity"],
-  "host_permissions": ["*://*.wikipedia.org/*"],
+  "permissions": ["storage", "tabs", "alarms", "identity"],
   "background": {
     "service_worker": "src/background/index.ts",
     "type": "module"
