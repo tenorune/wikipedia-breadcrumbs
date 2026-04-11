@@ -3,7 +3,7 @@
 # Usage: ./build-safari.sh [--prod]
 #
 # Builds dist-dev by default. With --prod, builds dist-prod.
-# Generates an Xcode project at ~/Desktop/Wikipedia Breadcrumbs/
+# Reads SAFARI_XCODE_DIR, SAFARI_BUNDLE_ID, SAFARI_APP_NAME from .env.dev/.env.prod.
 
 set -e
 
@@ -22,9 +22,11 @@ get_env() { local val; val="$(grep "^$1=" "$ENV_FILE" | cut -d= -f2-)"; eval ech
 XCODE_DIR="$(get_env SAFARI_XCODE_DIR)"
 BUNDLE_ID="$(get_env SAFARI_BUNDLE_ID)"
 APP_NAME="$(get_env SAFARI_APP_NAME)"
-XCODE_DIR="${XCODE_DIR:-$HOME/Desktop/Wikipedia Breadcrumbs}"
-BUNDLE_ID="${BUNDLE_ID:-net.lightseed.breadcrumbs}"
-APP_NAME="${APP_NAME:-Wikipedia Breadcrumbs}"
+
+if [ -z "$XCODE_DIR" ] || [ -z "$BUNDLE_ID" ] || [ -z "$APP_NAME" ]; then
+  echo "Error: Missing SAFARI_XCODE_DIR, SAFARI_BUNDLE_ID, or SAFARI_APP_NAME in $ENV_FILE"
+  exit 1
+fi
 
 # Build the extension
 if [ "$1" = "--prod" ]; then
@@ -42,8 +44,9 @@ rm -rf "$XCODE_DIR"
 
 # Convert to Safari Xcode project (macOS + iOS)
 echo "Converting to Safari extension..."
+XCODE_PARENT="$(dirname "$XCODE_DIR")"
 xcrun safari-web-extension-converter "$DIST_DIR/" \
-  --project-location "$HOME/Desktop" \
+  --project-location "$XCODE_PARENT" \
   --app-name "$APP_NAME" \
   --bundle-identifier "$BUNDLE_ID" \
   --swift \
