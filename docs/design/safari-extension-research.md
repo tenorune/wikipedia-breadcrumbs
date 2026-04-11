@@ -200,9 +200,83 @@ This is a known platform issue, not something the extension can fully work aroun
 
 ### Permission model
 
-Safari uses **per-site, time-of-use permission granting**. Unlike Chrome (which grants `host_permissions` at install), Safari requires users to explicitly allow the extension on Wikipedia domains. Options per-site: "Ask", "Allow for One Day", "Always Allow".
+Safari uses **per-site, time-of-use permission granting**. Unlike Chrome (which grants `host_permissions` at install), Safari requires users to explicitly allow the extension on Wikipedia domains.
 
-The extension needs onboarding guidance: "When you first visit Wikipedia, tap the extension icon in the address bar and select 'Always Allow on Every Website' or 'Always Allow on This Website'."
+**Observed behavior (macOS Safari, unsigned extension):**
+
+- On fresh install, Wikipedia is set to **"Ask"** (not "Allow"). The user must explicitly grant access by clicking the extension icon on a Wikipedia page and selecting "Always Allow on This Website."
+- On non-Wikipedia sites, clicking the extension icon triggers a permission prompt: "The extension would like to access [site]." The prompt offers only: "Allow for One Day", "Always Allow on This Website", "Always Allow on Every Website." **There is no "Don't Allow" or "Cancel" option.** The user must grant access to the non-Wikipedia site just to see the (empty) popup — or dismiss the prompt and see nothing.
+- This makes the popup **unusable on non-Wikipedia sites** without granting unnecessary permissions. This is caused by `host_permissions` existing in the manifest, regardless of which domains are listed.
+- Removing the `tabs` permission and using `activeTab` instead did not prevent this prompt.
+
+**Impact on OAuth flow:**
+
+The current tab-based OAuth redirects to `Special:BlankPage` on Wikipedia. A content script detects the tokens and sends them to the background. However, if the user hasn't granted Wikipedia access yet (which is the default state), the content script can't inject, and the auth tab stays open on the BlankPage with tokens visible in the URL. The user must grant Wikipedia access before sign-in works.
+
+### Recommended fix: Content-script-driven capture (remove `host_permissions`)
+
+The Safari permission prompt on non-Wikipedia sites is caused by `host_permissions` in the manifest. Removing it entirely would eliminate the prompt, but requires shifting from a **background-driven** to a **content-script-driven** capture model.
+
+**Current architecture (background-driven):**
+```
+webNavigation.onCommitted (background) → parse URL → create visit → content script fills in details later
+```
+Requires `host_permissions` so `webNavigation` fires for Wikipedia pages.
+
+**Proposed architecture (content-script-driven):**
+```
+content script loads on Wikipedia page → extracts URL, title, language, redirect info → sends pageVisited to background → background creates visit
+```
+Uses only `content_scripts.matches` — no `host_permissions` needed. Safari injects content scripts based on `matches` without prompting for site-wide access.
+
+**What the content script already does:**
+- Runs on `*://*.wikipedia.org/wiki/*` pages
+- Tracks clicked link text (sends `linkClicked` to background)
+- Responds to `getPageInfo` with page title and redirect info
+
+**What it would need to do additionally:**
+- On load, send a `pageVisited` message with full page data (URL, title, language, articleId)
+- The existing click listener already provides parent-child linking data
+
+**What the background would change:**
+- Remove the `webNavigation.onCommitted` listener (and `webNavigation` permission)
+- Handle `pageVisited` messages from the content script
+- Reconciliation would use the background's own trail state instead of `chrome.tabs.query({ url: ... })`
+
+**What we'd lose:**
+- `transitionType` — already unavailable in Safari. Without it, the extension can't detect typed URLs, bookmarks, or search results, so **trails won't auto-split when a user types a new Wikipedia URL in the address bar within the same tab.** Safari users get fewer, longer trails that may contain unrelated topics. The content-script-driven approach can partially recover this: if no `linkClicked` message preceded the page load, the content script can infer it was a direct/external navigation and signal the background to start a new trail.
+- Timing — `onCommitted` fires early in navigation; content scripts fire at `document_idle` (later). Trails start slightly later but functionally identical.
+- Non-article Wikipedia pages — `content_scripts.matches` is `*://*.wikipedia.org/wiki/*` which already excludes Special pages, etc. Same effective filtering.
+
+**What we'd gain:**
+- No `host_permissions` → no Safari permission prompt on non-Wikipedia sites
+- Simpler permission model — extension only runs code on Wikipedia
+- Better alignment with Safari's expected extension behavior
+- Potentially works on Firefox too (same content script model)
+- Also addresses iOS service worker reliability (#45) — if the SW fails to wake for `webNavigation` events (known iOS bug), content-script-driven capture is more resilient since content scripts run independently
+
+**Open questions:**
+- `chrome.tabs.get(tabId).windowId` — likely still works without `host_permissions` since `windowId` isn't URL data
+- SPA-like Wikipedia navigation — some Wikipedia features use History API `pushState`, which wouldn't trigger fresh content script injection. Would need a `popstate`/`pushState` listener in the content script.
+- Cross-browser compatibility — Chrome supports both models, so the content-script approach could replace the current one for both browsers (not just Safari)
+
+**Effort:** Medium. Touches capture.ts and content script. Data flow simplifies but edge cases around Wikipedia's client-side navigation need testing.
+
+**Recommendation:** Implement as a cross-browser replacement. The Safari permission model makes `host_permissions` untenable — the popup is unusable on non-Wikipedia sites, and the OAuth flow breaks without prior Wikipedia permission. Removing `host_permissions` fixes both issues. Chrome supports the content-script model equally well, so there's no need for separate code paths.
+
+### Onboarding (with content-script-driven approach)
+
+If `host_permissions` is removed, the Safari permission model simplifies:
+- Content scripts inject on Wikipedia pages based on `content_scripts.matches` — Safari may handle this with less friction than `host_permissions`
+- The popup on non-Wikipedia sites shows the empty state without any permission prompt
+- The user still needs to allow the content script on Wikipedia pages on first visit
+
+**Recommended onboarding flow:**
+
+1. **Wrapper app** (first screen after install): "Welcome to Wikipedia Breadcrumbs" → "Enable the extension in Safari Settings" → "Visit any Wikipedia page to start tracking"
+2. **First Wikipedia visit**: Safari prompts to allow the content script. User taps "Always Allow on en.wikipedia.org"
+3. **Settings page**: If Wikipedia access isn't granted yet, show a notice above sign-in: "Visit a Wikipedia page and allow access first" instead of sign-in buttons
+4. **Sign-in**: Works automatically once Wikipedia access is granted — auth tab redirects to `Special:BlankPage`, content script captures tokens, tab closes
 
 ## Development Without an Apple Developer Account
 

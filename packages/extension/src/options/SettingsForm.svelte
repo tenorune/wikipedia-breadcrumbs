@@ -84,31 +84,41 @@
 
   const SIGN_IN_TIMEOUT = 120000; // 2 minutes
 
+  const hasIdentityApi = typeof chrome.identity !== "undefined"
+    && typeof chrome.identity?.launchWebAuthFlow === "function";
+
   async function handleGoogleSignIn() {
     authError = "";
     googleSigningIn = true;
     const timeout = setTimeout(() => { googleSigningIn = false; authError = "Sign-in timed out. Please try again."; }, SIGN_IN_TIMEOUT);
     try {
-      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string;
-      const redirectUrl = chrome.identity.getRedirectURL();
-      const rawNonce = crypto.randomUUID();
-      const encoder = new TextEncoder();
-      const hashBuffer = await crypto.subtle.digest("SHA-256", encoder.encode(rawNonce));
-      const hashedNonce = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&response_type=id_token&redirect_uri=${encodeURIComponent(redirectUrl)}&scope=openid%20email%20profile&nonce=${hashedNonce}`;
+      let response: any;
 
-      const responseUrl = await chrome.identity.launchWebAuthFlow({ url: authUrl, interactive: true });
-      const idToken = new URL(responseUrl!.replace("#", "?")).searchParams.get("id_token");
-      if (!idToken) {
-        authError = "No ID token received from Google";
-        return;
+      if (hasIdentityApi) {
+        // Chrome: dedicated auth popup via chrome.identity
+        const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string;
+        const redirectUrl = chrome.identity.getRedirectURL();
+        const rawNonce = crypto.randomUUID();
+        const encoder = new TextEncoder();
+        const hashBuffer = await crypto.subtle.digest("SHA-256", encoder.encode(rawNonce));
+        const hashedNonce = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
+        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&response_type=id_token&redirect_uri=${encodeURIComponent(redirectUrl)}&scope=openid%20email%20profile&nonce=${hashedNonce}`;
+
+        const responseUrl = await chrome.identity.launchWebAuthFlow({ url: authUrl, interactive: true });
+        const idToken = new URL(responseUrl!.replace("#", "?")).searchParams.get("id_token");
+        if (!idToken) {
+          authError = "No ID token received from Google";
+          return;
+        }
+        response = await chrome.runtime.sendMessage({ type: "signInWithGoogle", idToken, nonce: rawNonce });
+      } else {
+        // Safari: tab-based flow via Supabase OAuth
+        response = await chrome.runtime.sendMessage({ type: "signInWithGoogleViaTab" });
       }
 
-      const response = await chrome.runtime.sendMessage({ type: "signInWithGoogle", idToken, nonce: rawNonce });
       if (response?.success) {
         await loadAuthStatus();
         await chrome.runtime.sendMessage({ type: "reinitSync" });
-        // Wait for sync to complete, then refresh status
         await new Promise((r) => setTimeout(r, 3000));
         await loadSyncStatus();
       } else {

@@ -165,9 +165,9 @@
   }
 
   const trailName = $derived(
-    trail?.name ?? (visits.length > 0
+    trail?.name ?? (visits.length > 1
       ? `${visits[0].title} → ${visits[visits.length - 1].title}`
-      : "New trail")
+      : visits.length === 1 ? visits[0].title : "New trail")
   );
 
   async function openTrailDetail() {
@@ -177,7 +177,9 @@
     const targetUrl = `${historyUrl}?trail=${trail.id}`;
     if (tabs.length > 0 && tabs[0].id != null) {
       chrome.tabs.update(tabs[0].id, { active: true, url: targetUrl });
-      chrome.windows.update(tabs[0].windowId!, { focused: true });
+      if (typeof chrome.windows !== "undefined") {
+        chrome.windows.update(tabs[0].windowId!, { focused: true });
+      }
     } else {
       chrome.tabs.create({ url: targetUrl });
     }
@@ -256,6 +258,7 @@
   .stat-label { font-size: 10px; color: #666; }
 
   .trail-view { padding: 12px; display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+  .header input { font-size: 16px; font-weight: 700; border: 1px solid #ccc; border-radius: 4px; padding: 2px 4px; width: 100%; box-sizing: border-box; outline: none; }
   .header h2 { margin: 0 0 4px; font-size: 16px; cursor: pointer; }
   .header h2:hover { color: #0066cc; }
   .meta { font-size: 12px; color: #666; }

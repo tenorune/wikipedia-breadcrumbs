@@ -23,7 +23,8 @@ export type BackgroundMessage = PopupMessage | TrailMutationMessage
   | { type: "disableSync" }
   | { type: "syncComplete"; completedAt: string }
   | { type: "signInWithGoogle"; idToken: string; nonce: string }
-  | { type: "signInWithWikimedia"; redirectUrl: string }
+  | { type: "signInWithGoogleViaTab" }
+  | { type: "signInWithWikimedia" }
   | { type: "signInWithEmail"; email: string; password: string }
   | { type: "signUpWithEmail"; email: string; password: string }
   | { type: "signOut" }

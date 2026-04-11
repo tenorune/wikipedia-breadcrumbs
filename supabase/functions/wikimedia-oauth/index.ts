@@ -48,7 +48,8 @@ function getCorsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get("origin") ?? "";
   const allowed = ALLOWED_ORIGINS.includes(origin)
     || origin.endsWith(".chromiumapp.org")
-    || origin.startsWith("chrome-extension://");
+    || origin.startsWith("chrome-extension://")
+    || origin.startsWith("safari-web-extension://");
   return {
     "Access-Control-Allow-Origin": allowed ? origin : ALLOWED_ORIGINS[0],
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",

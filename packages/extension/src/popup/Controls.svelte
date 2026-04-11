@@ -18,7 +18,9 @@
     const existing = historyTabs[0] ?? optionsTabs[0];
     if (existing?.id != null) {
       chrome.tabs.update(existing.id, { active: true, url });
-      chrome.windows.update(existing.windowId!, { focused: true });
+      if (typeof chrome.windows !== "undefined") {
+        chrome.windows.update(existing.windowId!, { focused: true });
+      }
     } else {
       chrome.tabs.create({ url });
     }
