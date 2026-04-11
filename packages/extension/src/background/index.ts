@@ -7,6 +7,7 @@ import { parseTabIdFromAlarm, clearIdleAlarm } from "./alarm-manager.js";
 import * as data from "./data-layer.js";
 import * as auth from "./auth-layer.js";
 import * as sync from "./sync-layer.js";
+import { launchTabAuthFlow, hasIdentityApi } from "./tab-auth.js";
 import type { BackgroundMessage } from "../shared/messaging.js";
 
 const SYNC_ALARM = "sync-interval";
@@ -411,10 +412,15 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
     case "signInWithWikimedia": {
       try {
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-        const redirectUrl = chrome.identity.getRedirectURL();
-
-        // Get the authorization URL from the Edge Function
         const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+        const appUrl = import.meta.env.VITE_APP_URL as string;
+
+        // Chrome: redirect to chromiumapp.org (popup UX)
+        // Safari: redirect to PWA URL (tab-based, URL already in Supabase allowlist)
+        const redirectUrl = hasIdentityApi
+          ? chrome.identity.getRedirectURL()
+          : appUrl + "/settings";
+
         const authResp = await fetch(
           `${supabaseUrl}/functions/v1/wikimedia-oauth?action=authorize&redirect_to=${encodeURIComponent(redirectUrl)}`,
           { headers: { "apikey": supabaseKey, "Authorization": `Bearer ${supabaseKey}` } }
@@ -425,16 +431,23 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
           break;
         }
 
-        const responseUrl = await new Promise<string>((resolve, reject) => {
-          chrome.identity.launchWebAuthFlow(
-            { url: wikimediaAuthUrl, interactive: true },
-            (callbackUrl) => {
-              if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
-              else if (callbackUrl) resolve(callbackUrl);
-              else reject(new Error("No callback URL"));
-            }
-          );
-        });
+        let responseUrl: string;
+        if (hasIdentityApi) {
+          // Chrome: dedicated auth popup
+          responseUrl = await new Promise<string>((resolve, reject) => {
+            chrome.identity.launchWebAuthFlow(
+              { url: wikimediaAuthUrl, interactive: true },
+              (callbackUrl) => {
+                if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+                else if (callbackUrl) resolve(callbackUrl);
+                else reject(new Error("No callback URL"));
+              }
+            );
+          });
+        } else {
+          // Safari: tab-based flow, watch for redirect to PWA URL
+          responseUrl = await launchTabAuthFlow(wikimediaAuthUrl, appUrl);
+        }
 
         const cbUrl = new URL(responseUrl);
         // Check hash fragment first, then query params
@@ -451,7 +464,6 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
           const result = await auth.signInWithWikimedia(accessToken, refreshToken);
           sendResponse(result);
         } else {
-          // Check for error in callback
           const error = cbUrl.searchParams.get("wikimedia_error") ?? "No tokens in callback";
           sendResponse({ success: false, error });
         }
@@ -463,6 +475,40 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
     case "signInWithGoogle": {
       const result = await auth.signInWithGoogle(message.idToken, message.nonce);
       sendResponse(result);
+      break;
+    }
+    case "signInWithGoogleViaTab": {
+      // Safari: route Google sign-in through Supabase's OAuth endpoint
+      try {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+        const appUrl = import.meta.env.VITE_APP_URL as string;
+        const redirectTo = appUrl + "/settings";
+        const authUrl = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo)}`;
+
+        const responseUrl = await launchTabAuthFlow(authUrl, appUrl);
+
+        // Supabase redirects with tokens in the hash fragment
+        const cbUrl = new URL(responseUrl);
+        let params = new URLSearchParams(cbUrl.hash.substring(1));
+        let accessToken = params.get("access_token");
+        let refreshToken = params.get("refresh_token");
+        if (!accessToken) {
+          params = cbUrl.searchParams;
+          accessToken = params.get("access_token");
+          refreshToken = params.get("refresh_token");
+        }
+
+        if (accessToken && refreshToken) {
+          // Set the Supabase session directly with the tokens
+          const result = await auth.signInWithWikimedia(accessToken, refreshToken);
+          sendResponse(result);
+        } else {
+          const error = params.get("error_description") ?? "No tokens received from Google";
+          sendResponse({ success: false, error });
+        }
+      } catch (err: any) {
+        sendResponse({ success: false, error: err.message ?? "Google sign-in failed" });
+      }
       break;
     }
     case "signInWithEmail": {
