@@ -221,7 +221,7 @@
         const v = await visitOps.getByTrailId(t.id);
         const first = v[0]?.title ?? "";
         const last = v[v.length - 1]?.title ?? "";
-        options.push({ trail: t, label: first ? `${first} → ${last}` : "Empty trail" });
+        options.push({ trail: t, label: first ? (v.length === 1 ? first : `${first} → ${last}`) : "Empty trail" });
       }
     }
     mergeOptions = options;
@@ -287,7 +287,7 @@
           <input bind:value={nameText} onkeydown={(e) => e.key === "Enter" && saveName()} onblur={saveName} oninput={autoSaveName} autofocus aria-label="Trail name" />
         {:else}
           <h2 role="button" tabindex="0" onclick={() => { editingName = true; nameText = displayName ?? ""; }} onkeydown={(e) => { if (e.key === "Enter") { editingName = true; nameText = displayName ?? ""; } }}>
-            {displayName ?? (visits.length > 0 ? `${visits[0].title} → ${visits[visits.length - 1].title}` : "New trail")}
+            {displayName ?? (visits.length > 1 ? `${visits[0].title} → ${visits[visits.length - 1].title}` : visits.length === 1 ? visits[0].title : "New trail")}
           </h2>
         {/if}
         <div class="detail-menu-wrap">

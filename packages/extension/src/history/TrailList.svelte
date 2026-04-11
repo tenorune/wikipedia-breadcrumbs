@@ -218,7 +218,7 @@
         <p>{importConflicts.length} trail{importConflicts.length === 1 ? "" : "s"} already exist{importConflicts.length === 1 ? "s" : ""} locally.</p>
         {#each importConflicts as conflict}
           <div class="conflict-item">
-            <strong>{conflict.imported.name ?? (conflict.imported.visits.length > 0 ? `${conflict.imported.visits[0].title} → ${conflict.imported.visits[conflict.imported.visits.length - 1].title}` : "Empty trail")}</strong>
+            <strong>{conflict.imported.name ?? (conflict.imported.visits.length > 1 ? `${conflict.imported.visits[0].title} → ${conflict.imported.visits[conflict.imported.visits.length - 1].title}` : conflict.imported.visits.length === 1 ? conflict.imported.visits[0].title : "Empty trail")}</strong>
             <span>({conflict.imported.visits.length} visits)</span>
             <div class="conflict-actions">
               <label><input type="radio" bind:group={importDecisions[conflict.imported.id]} value="skip" /> Skip</label>
@@ -249,7 +249,7 @@
             {summary.trail.isStarred ? "★" : "☆"}
           </button>
           <div class="trail-info" role="button" tabindex="0" onclick={() => onSelectTrail(summary.trail)} onkeydown={(e) => e.key === "Enter" && onSelectTrail(summary.trail)}>
-            <span class="name">{summary.trail.name ?? `${summary.firstTitle} → ${summary.lastTitle}`}</span>
+            <span class="name">{summary.trail.name ?? (summary.visitCount === 1 ? summary.firstTitle : `${summary.firstTitle} → ${summary.lastTitle}`)}</span>
             <span class="meta">
               {summary.visitCount} pages &middot; {formatDate(summary.trail.startedAt)}{#if formatDate(summary.trail.startedAt) !== formatDate(summary.lastDiscoveredAt)}{" "}&mdash; {formatDate(summary.lastDiscoveredAt)}{/if}
               {#if summary.trail.status === "active"}
@@ -257,7 +257,7 @@
               {/if}
             </span>
           </div>
-          <button class="delete" onclick={() => deleteTrail(summary.trail.id, summary.trail.name ?? (summary.firstTitle ? `${summary.firstTitle} → ${summary.lastTitle}` : "this trail"))} title="Delete trail" aria-label="Delete trail">✕</button>
+          <button class="delete" onclick={() => deleteTrail(summary.trail.id, summary.trail.name ?? (summary.firstTitle ? (summary.visitCount === 1 ? summary.firstTitle : `${summary.firstTitle} → ${summary.lastTitle}`) : "this trail"))} title="Delete trail" aria-label="Delete trail">✕</button>
         </li>
       {/each}
     </ul>

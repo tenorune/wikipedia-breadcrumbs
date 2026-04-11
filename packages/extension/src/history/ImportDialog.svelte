@@ -90,7 +90,7 @@
       <p>{conflicts.length} trail{conflicts.length === 1 ? "" : "s"} already exist{conflicts.length === 1 ? "s" : ""} locally.</p>
       {#each conflicts as conflict}
         <div class="conflict-item">
-          <strong>{conflict.imported.name ?? (conflict.imported.visits.length > 0 ? `${conflict.imported.visits[0].title} → ${conflict.imported.visits[conflict.imported.visits.length - 1].title}` : "Empty trail")}</strong>
+          <strong>{conflict.imported.name ?? (conflict.imported.visits.length > 1 ? `${conflict.imported.visits[0].title} → ${conflict.imported.visits[conflict.imported.visits.length - 1].title}` : conflict.imported.visits.length === 1 ? conflict.imported.visits[0].title : "Empty trail")}</strong>
           <span>({conflict.imported.visits.length} visits)</span>
           <div class="conflict-actions">
             <label><input type="radio" bind:group={decisions[conflict.imported.id]} value="skip" /> Skip</label>
