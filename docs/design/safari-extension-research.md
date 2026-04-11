@@ -6,13 +6,13 @@ Understand what it would take to port the Chrome extension to Safari on macOS an
 
 ## Current Chrome Extension Architecture
 
-The extension uses 8 Chrome API namespaces:
+The extension uses 7 Chrome API namespaces (offscreen was removed):
 
 ```
-content script (Wikipedia pages) → background service worker → offscreen document (IndexedDB + Supabase)
+content script (Wikipedia pages) → background service worker → IndexedDB / Supabase directly
 ```
 
-The offscreen document exists because Chrome MV3 service workers lack `localStorage`, which Supabase JS needs for session persistence. All IndexedDB operations and Supabase auth/sync run in the offscreen document, with the background service worker communicating via `chrome.runtime.sendMessage`.
+The offscreen document was removed — all operations (IndexedDB, Supabase auth/sync) now run directly in the background service worker using a custom `chrome.storage.local`-based adapter for Supabase session persistence. This change applies to both Chrome and Safari.
 
 ## API Compatibility
 
@@ -32,27 +32,18 @@ The offscreen document exists because Chrome MV3 service workers lack `localStor
 | `chrome.webNavigation.onCommitted` | Event fires, but **`transitionType` and `transitionQualifiers` are not populated** | Cannot distinguish link clicks, typed URLs, back/forward, redirects. Need alternative detection. |
 | `chrome.windows` | Full support on macOS, **not supported on iOS** (no windowing concept) | Window focus/management code must be feature-gated for iOS. |
 
-### Not Supported (blockers)
+### Not Supported (resolved)
 
-| API | Replacement Strategy |
+| API | Resolution |
 |---|---|
-| `chrome.offscreen` | Remove entirely — run IndexedDB and Supabase directly in the service worker using a custom `chrome.storage.local`-based storage adapter for Supabase session persistence |
-| `chrome.identity` (`getRedirectURL`, `launchWebAuthFlow`) | Tab-based OAuth flow: open auth URL in a new tab, handle redirect via content script or extension page callback |
+| `chrome.offscreen` | **Done.** Removed — all operations run directly in the service worker with a `chrome.storage.local` adapter for Supabase session persistence. |
+| `chrome.identity` (`getRedirectURL`, `launchWebAuthFlow`) | **Done.** Tab-based OAuth fallback on Safari: redirects to `Special:BlankPage` on Wikipedia, content script detects tokens in hash and sends to background. Chrome retains popup UX. |
 
-## Blocker 1: Removing the Offscreen Document
+## Resolved: Offscreen Document Removal
 
-### Why it exists
+**Status: Done.** Merged to `dev`.
 
-The offscreen document hosts three things:
-1. **IndexedDB** (via Dexie/`BreadcrumbsDB`) — trail and visit storage
-2. **Supabase client** — auth (sign in, session management) and sync engine
-3. **`localStorage`** — Supabase's default session persistence, unavailable in service workers
-
-IndexedDB is accessible from service workers. Supabase's `fetch`-based operations don't need the DOM. The only real dependency is `localStorage` for Supabase session persistence.
-
-### Fix: Custom Supabase storage adapter
-
-Supabase JS supports a custom `auth.storage` option. Replace `localStorage` with `chrome.storage.local`:
+The offscreen document was removed. All operations run directly in the background service worker. The only dependency was `localStorage` for Supabase session persistence, solved with a custom `chrome.storage.local` adapter:
 
 ```ts
 createClient(url, key, {
@@ -88,61 +79,51 @@ Benefits:
 - Single architecture for Chrome and Safari
 - Simpler code — no `sendToOffscreen` envelope pattern
 
-### Migration scope
+### Implementation details
 
-- Delete `src/offscreen/` directory (handler.ts, auth-handler.ts, sync-handler.ts, index.ts)
-- Delete offscreen HTML document
-- Remove `"offscreen"` from manifest permissions
-- Move `BreadcrumbsDB` instantiation into background service worker
-- Move Supabase client creation into background service worker with custom storage adapter
-- Move auth handler logic into background message handler (already partially there)
-- Move sync engine into background service worker
-- Update all `sendToOffscreen()` calls to direct function calls
-- Update `createSupabaseClient` in shared package to accept a storage adapter parameter
+See `docs/superpowers/plans/2026-04-10-remove-offscreen.md` for the full migration plan. Key files: `data-layer.ts`, `auth-layer.ts`, `sync-layer.ts`, `supabase-storage.ts` (all in `src/background/`).
 
-## Blocker 2: OAuth Without `chrome.identity`
+Additional fixes discovered during implementation:
+- **Sync timestamp not updating**: `chrome.runtime.sendMessage` can't send to the sender's own context. Replaced with direct `chrome.storage.local.set`.
+- **Auth lost after SW restart**: Added `ensureSessionRecovered()` to restore session from storage and restart auto-refresh when the service worker wakes.
 
-### Current flow (Chrome)
+## Resolved: OAuth Without `chrome.identity`
 
-1. Options page calls `chrome.identity.getRedirectURL()` → `https://<extension-id>.chromiumapp.org/`
-2. Constructs OAuth URL with that redirect URI
-3. Calls `chrome.identity.launchWebAuthFlow()` → opens auth popup
-4. Chrome handles the redirect back to the extension
-5. Tokens extracted from callback URL
+**Status: Done.** Merged to `dev`.
 
-### Safari fallback: Tab-based OAuth
+### How it works
 
-1. Open a new tab to the OAuth provider's authorization URL
-2. Set the redirect URI to a Supabase Edge Function callback (already exists for Wikimedia) or an extension page
-3. After auth, the Edge Function redirects with tokens in the URL fragment
-4. An extension page (e.g., `auth-callback.html`) receives the redirect, extracts tokens, sends them to the background service worker via `chrome.runtime.sendMessage`, then closes itself
+**Chrome:** Retains `chrome.identity.launchWebAuthFlow` for the polished popup UX.
 
-The existing Wikimedia OAuth Edge Function already handles the server-side token exchange — the extension just needs a different way to receive the callback.
+**Safari:** Tab-based fallback using `launchTabAuthFlow()`:
+1. Opens a new tab to the auth URL
+2. Auth completes, Supabase redirects to `https://en.wikipedia.org/wiki/Special:BlankPage` with tokens in the hash fragment
+3. The content script (which injects on Wikipedia pages) detects `access_token` in `window.location.hash` and sends `{ type: "authCallback", url }` to the background
+4. Background extracts tokens, closes the auth tab, and focuses the originating Settings tab
 
-### Preferred approach: Feature-detect and use both
-
-Chrome's `launchWebAuthFlow` provides a more polished UX — a dedicated auth popup window that feels like a native sign-in dialog, handles the redirect internally, and closes itself. Tab-based OAuth works but briefly opens and closes a full browser tab, which is slightly less polished.
-
-**Retain the popup UX on Chrome where possible**, falling back to tab-based on Safari:
-
+Feature detection determines which path:
 ```ts
 if (chrome.identity?.launchWebAuthFlow) {
   // Chrome: dedicated auth popup window
-  url = await launchWebAuthFlow(authUrl);
 } else {
-  // Safari: open tab, wait for callback message
-  url = await launchTabAuthFlow(authUrl);
+  // Safari: tab-based flow
 }
 ```
 
-The token extraction, session setup, and everything downstream is shared. Only the delivery mechanism (~20-30 lines) is platform-specific. Low maintenance overhead for a noticeably better Chrome UX.
+**Key discovery:** Safari auto-allows `en.wikipedia.org` for content script injection (via `content_scripts.matches`) even before the user explicitly grants permission. This means the OAuth flow works on first run — no Wikipedia permission grant needed.
 
-### Google OAuth consideration
+### Google OAuth on Safari
 
-Google OAuth currently uses `chrome.identity.launchWebAuthFlow` with `response_type=id_token`. For the tab-based fallback, the redirect URI would need to be a URL Google recognizes (not a `chrome-extension://` or `safari-web-extension://` URL). Options:
-- Redirect through the Supabase Edge Function (like Wikimedia flow)
-- Redirect to the PWA URL with a path that forwards tokens back to the extension
-- Use Supabase's built-in Google OAuth provider
+Routes through Supabase's `/auth/v1/authorize?provider=google` endpoint, which handles the entire OAuth flow server-side. Redirects to `Special:BlankPage` with Supabase session tokens.
+
+### Wikimedia OAuth on Safari
+
+Uses the existing Edge Function with `redirect_to` set to `Special:BlankPage`. Edge Function CORS was updated to accept `safari-web-extension://` origins.
+
+### Requirements
+
+- `https://en.wikipedia.org/**` must be in the Supabase project's redirect URL allowlist
+- Edge Function must accept `wikipedia.org` in `isAllowedRedirect` and `safari-web-extension://` in CORS
 
 ## Partial Support: Missing `transitionType`
 
@@ -211,7 +192,11 @@ Safari uses **per-site, time-of-use permission granting**. Unlike Chrome (which 
 
 **Impact on OAuth flow:**
 
-The current tab-based OAuth redirects to `Special:BlankPage` on Wikipedia. A content script detects the tokens and sends them to the background. However, if the user hasn't granted Wikipedia access yet (which is the default state), the content script can't inject, and the auth tab stays open on the BlankPage with tokens visible in the URL. The user must grant Wikipedia access before sign-in works.
+The tab-based OAuth redirects to `Special:BlankPage` on Wikipedia. The content script detects tokens in the hash and sends them to the background. **This works on first run** because Safari auto-allows `en.wikipedia.org` for content script injection via `content_scripts.matches`, even though `host_permissions` shows as "Ask" for `wikipedia.org`. The distinction: `content_scripts.matches` grants auto-allow for specific subdomains, while `host_permissions` requires explicit user consent.
+
+**Impact on popup:**
+
+The popup is unusable on non-Wikipedia sites due to the permission prompt with no "Don't Allow" option. This is caused by `host_permissions` existing in the manifest and is the primary motivation for the content-script-driven approach below.
 
 ### Recommended fix: Content-script-driven capture (remove `host_permissions`)
 
@@ -280,33 +265,29 @@ If `host_permissions` is removed, the Safari permission model simplifies:
 
 ## Development Without an Apple Developer Account
 
-### macOS testing (fully functional, free)
+### macOS + iOS testing (free)
 
-**Option A: Temporary extension (quickest, no Xcode project)**
-1. Safari → Settings → Advanced → enable "Show features for web developers"
-2. Safari → Settings → Developer → "Add Temporary Extension..."
-3. Select the built extension folder (`packages/extension/dist-dev/`)
-4. Extension loads immediately — removed when Safari quits
+**Build script:**
+```bash
+cd packages/extension
+./build-safari.sh          # dev build
+./build-safari.sh --prod   # prod build
+```
 
-**Option B: Xcode project (persists across builds)**
-1. Install Xcode (free from App Store)
-2. Convert:
-   ```bash
-   cd packages/extension && pnpm build:dev
-   xcrun safari-web-extension-converter dist-dev/ \
-     --project-location ~/Desktop/BreadcrumbsSafari \
-     --app-name "Wikipedia Breadcrumbs" \
-     --swift --macos-only
-   ```
-3. Open Xcode project, Build & Run
-4. Safari → Settings → Developer → check "Allow unsigned extensions" (resets each Safari launch)
-5. Enable in Safari → Settings → Extensions
+Reads `SAFARI_XCODE_DIR`, `SAFARI_BUNDLE_ID`, `SAFARI_APP_NAME` from `.env.dev` / `.env.prod`. Generates an Xcode project with both macOS and iOS targets using `safari-web-extension-converter --copy-resources`.
 
-### iOS testing (Simulator only, free)
+**To test:**
+1. Open the generated Xcode project (path shown in build output)
+2. Build & Run in Xcode
+3. Safari → Settings → Developer → check "Allow unsigned extensions" (resets each Safari launch)
+4. Enable extension in Safari → Settings → Extensions
 
-- Xcode's iOS Simulator can run Safari with extensions — no Developer account needed
-- Add `--ios-only` or omit `--macos-only` when running the packager to include an iOS target
-- Physical device testing requires Apple Developer Program membership ($99/yr)
+**Clean test (reset permissions):**
+```bash
+defaults delete com.apple.Safari ExtensionPermissions 2>/dev/null
+```
+
+**iOS Simulator** works without an Apple Developer account. Physical device testing requires Apple Developer Program membership ($99/yr).
 
 ### What the $99/yr account adds
 
@@ -315,29 +296,26 @@ If `host_permissions` is removed, the Safari permission model simplifies:
 - TestFlight beta distribution
 - Code signing for distribution
 
-## Effort Estimate
+## Progress
 
-| Work Area | Effort | Notes |
+| Work Area | Status | Notes |
 |---|---|---|
-| Remove offscreen, custom Supabase storage adapter | High | Largest change — rearchitects data layer. Applies to Chrome too. |
-| Tab-based OAuth (replace `chrome.identity`) | Medium | Edge Function callback exists; need extension callback page |
-| Handle missing `transitionType` | Low-Medium | Extend existing content script click tracking |
-| Feature-gate `chrome.windows` for iOS | Low | Conditional checks, ~10 lines |
-| Xcode project + wrapper app | Low | `safari-web-extension-converter` does most of it |
-| Permission onboarding UX | Low | Instructional text/screen |
-| iOS service worker reliability testing | Medium | Real-device testing + defensive code |
-| App Store submission (when ready) | Process | Review, screenshots, metadata |
+| Remove offscreen document | **Done** | Merged to `dev`. Applies to Chrome too. |
+| Tab-based OAuth | **Done** | Content script callback on `Special:BlankPage`. Chrome retains popup UX. |
+| Handle missing `transitionType` | **Done** | Made optional, defaults to Link. |
+| Feature-gate `chrome.windows` for iOS | **Done** | All 4 call sites gated. |
+| Xcode project + build script | **Done** | `build-safari.sh` with env-based config. |
+| Dark mode (force light) | **Done** | Global CSS reset. Proper dark mode planned separately on `dev`. |
+| Content-script-driven capture | **Recommended** | Removes `host_permissions`, fixes popup prompt on non-Wikipedia sites. |
+| Permission onboarding UX (#44) | Pending | Depends on content-script-driven approach decision. |
+| Storage volatility warning (#58) | Pending | Warn iOS users about history clearing. |
+| iOS SW reliability (#45) | Pending | Defensive code + real-device testing. |
+| App Store submission | Future | Requires Apple Developer account ($99/yr). |
 
-**Overall: Medium-High.** The offscreen removal is the dominant task but has the benefit of simplifying the Chrome extension too. Most UI code (popup, options, content scripts, history page) works as-is.
+## Next Steps
 
-## Recommended Approach
-
-1. **Remove offscreen document first** — this is prerequisite for Safari and improves Chrome. Ship to Chrome Web Store to validate before starting Safari work.
-2. **Replace `chrome.identity`** — implement tab-based OAuth, test on Chrome first (it works there too).
-3. **Build Safari macOS target** — use the converter, test with unsigned extension.
-4. **Handle Safari-specific gaps** — `transitionType` workaround, permission onboarding.
-5. **Add iOS target** — feature-gate `windows` API, test in Simulator.
-6. **Real-device iOS testing** — requires Apple Developer account. Address service worker reliability.
-7. **App Store submission** — wrapper app, review, distribution.
-
-Steps 1-2 are cross-browser improvements. Steps 3-4 get Safari working on macOS. Steps 5-7 bring iOS.
+1. **Content-script-driven capture** — removes `host_permissions`, fixes Safari popup prompt on non-Wikipedia sites, improves iOS SW reliability. Cross-browser replacement.
+2. **Permission onboarding (#44)** — after content-script approach lands, the onboarding simplifies.
+3. **Storage volatility warning (#58)** — warn iOS users.
+4. **iOS SW reliability (#45)** — defensive code now, real-device testing with Apple Developer account.
+5. **App Store submission** — wrapper app, review, distribution.
