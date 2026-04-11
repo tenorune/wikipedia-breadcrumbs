@@ -4,12 +4,7 @@
   "version": "0.1.0",
   "description": "Track your Wikipedia browsing trails",
   "permissions": ["storage", "tabs", "webNavigation", "alarms", "identity"],
-  "host_permissions": [
-    "*://*.wikipedia.org/*",
-    "*://breadcrumbs-17c29.web.app/*",
-    "*://breadcrumbs-17c29--dev-fqixmewt.web.app/*",
-    "*://breadcrumbs.lightseed.net/*"
-  ],
+  "host_permissions": ["*://*.wikipedia.org/*"],
   "background": {
     "service_worker": "src/background/index.ts",
     "type": "module"
