@@ -7,7 +7,7 @@ import { parseTabIdFromAlarm, clearIdleAlarm } from "./alarm-manager.js";
 import * as data from "./data-layer.js";
 import * as auth from "./auth-layer.js";
 import * as sync from "./sync-layer.js";
-import { launchTabAuthFlow, hasIdentityApi } from "./tab-auth.js";
+import { launchTabAuthFlow, handleAuthCallback, hasIdentityApi } from "./tab-auth.js";
 import type { BackgroundMessage } from "../shared/messaging.js";
 
 const SYNC_ALARM = "sync-interval";
@@ -216,6 +216,11 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 });
 
 chrome.runtime.onMessage.addListener((message: any, _sender, sendResponse) => {
+  // Content script detected OAuth callback on Wikipedia page
+  if (message.type === "authCallback" && message.url) {
+    handleAuthCallback(message.url, _sender.tab?.id);
+    return false;
+  }
   // Content script sends clicked link text immediately on click
   if (message.type === "linkClicked" && _sender.tab?.id) {
     lastClickedLinkText.set(_sender.tab.id, message.text);
@@ -413,13 +418,12 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
       try {
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
         const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-        const appUrl = import.meta.env.VITE_APP_URL as string;
 
         // Chrome: redirect to chromiumapp.org (popup UX)
-        // Safari: redirect to PWA URL (tab-based, URL already in Supabase allowlist)
+        // Safari: redirect to Wikipedia blank page (extension has host_permissions)
         const redirectUrl = hasIdentityApi
           ? chrome.identity.getRedirectURL()
-          : appUrl + "/settings";
+          : "https://en.wikipedia.org/wiki/Special:BlankPage";
 
         const authResp = await fetch(
           `${supabaseUrl}/functions/v1/wikimedia-oauth?action=authorize&redirect_to=${encodeURIComponent(redirectUrl)}`,
@@ -445,8 +449,8 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
             );
           });
         } else {
-          // Safari: tab-based flow, watch for redirect to PWA URL
-          responseUrl = await launchTabAuthFlow(wikimediaAuthUrl, appUrl);
+          // Safari: tab-based flow, watch for redirect to Wikipedia blank page
+          responseUrl = await launchTabAuthFlow(wikimediaAuthUrl, "https://en.wikipedia.org/wiki/Special:BlankPage");
         }
 
         const cbUrl = new URL(responseUrl);
@@ -481,11 +485,10 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
       // Safari: route Google sign-in through Supabase's OAuth endpoint
       try {
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-        const appUrl = import.meta.env.VITE_APP_URL as string;
-        const redirectTo = appUrl + "/settings";
+        const redirectTo = "https://en.wikipedia.org/wiki/Special:BlankPage";
         const authUrl = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo)}`;
 
-        const responseUrl = await launchTabAuthFlow(authUrl, appUrl);
+        const responseUrl = await launchTabAuthFlow(authUrl, redirectTo);
 
         // Supabase redirects with tokens in the hash fragment
         const cbUrl = new URL(responseUrl);

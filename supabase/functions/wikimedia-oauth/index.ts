@@ -13,12 +13,13 @@ const CALLBACK_URL = `${SUPABASE_URL}/functions/v1/wikimedia-oauth`;
 // Allowed redirect origins — comma-separated list from env
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 
-// Also allow chromiumapp.org extension callbacks
+// Also allow chromiumapp.org extension callbacks and Wikipedia (Safari OAuth redirect)
 function isAllowedRedirect(url: string): boolean {
   if (!url) return false;
   try {
     const parsed = new URL(url);
     if (parsed.hostname.endsWith(".chromiumapp.org")) return true;
+    if (parsed.hostname.endsWith(".wikipedia.org")) return true;
     const origin = parsed.origin;
     return ALLOWED_ORIGINS.some((allowed) => origin === allowed || origin.startsWith(allowed.replace(/\/$/, "")));
   } catch {

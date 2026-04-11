@@ -12,9 +12,27 @@ const AUTH_TIMEOUT_MS = 120000; // 2 minutes
  * Open a tab to `authUrl` and wait for it to navigate to a URL starting
  * with `targetUrlPrefix`. Returns the full callback URL with tokens.
  */
+/**
+ * Active auth flow state. The content script on the redirect page sends
+ * an `authCallback` message with the full URL (including hash fragment).
+ * This is more reliable than chrome.tabs.get() which may not return URLs
+ * or hash fragments on Safari.
+ */
+let pendingAuthResolve: ((url: string) => void) | null = null;
+let pendingAuthTabId: number | undefined;
+
+/** Called by the background message handler when the content script sends authCallback. */
+export function handleAuthCallback(url: string, senderTabId?: number) {
+  if (pendingAuthResolve && (senderTabId === undefined || senderTabId === pendingAuthTabId)) {
+    const resolve = pendingAuthResolve;
+    pendingAuthResolve = null;
+    chrome.tabs.remove(pendingAuthTabId!).catch(() => {});
+    resolve(url);
+  }
+}
+
 export function launchTabAuthFlow(authUrl: string, targetUrlPrefix: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    let tabId: number | undefined;
     let settled = false;
 
     const timeout = setTimeout(() => {
@@ -26,37 +44,30 @@ export function launchTabAuthFlow(authUrl: string, targetUrlPrefix: string): Pro
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
+      pendingAuthResolve = null;
       chrome.tabs.onUpdated.removeListener(onUpdated);
       chrome.tabs.onRemoved.removeListener(onRemoved);
     }
 
     function found(url: string) {
       cleanup();
-      chrome.tabs.remove(tabId!).catch(() => {});
+      chrome.tabs.remove(pendingAuthTabId!).catch(() => {});
       resolve(url);
     }
 
-    async function checkTabUrl(id: number) {
-      try {
-        const tab = await chrome.tabs.get(id);
-        if (tab.url?.startsWith(targetUrlPrefix)) {
-          found(tab.url);
-        }
-      } catch { /* tab may be gone */ }
-    }
+    // Primary detection: content script sends authCallback message
+    pendingAuthResolve = found;
 
+    // Fallback detection: tab URL change (works on Chrome)
     function onUpdated(updatedTabId: number, changeInfo: chrome.tabs.TabChangeInfo) {
-      if (updatedTabId !== tabId) return;
-      // Chrome provides changeInfo.url; Safari may not — fall back to polling tab URL
+      if (updatedTabId !== pendingAuthTabId) return;
       if (changeInfo.url?.startsWith(targetUrlPrefix)) {
         found(changeInfo.url);
-      } else if (changeInfo.status === "loading" || changeInfo.status === "complete") {
-        checkTabUrl(updatedTabId);
       }
     }
 
     function onRemoved(removedTabId: number) {
-      if (removedTabId !== tabId) return;
+      if (removedTabId !== pendingAuthTabId) return;
       cleanup();
       reject(new Error("Sign-in tab was closed"));
     }
@@ -66,7 +77,7 @@ export function launchTabAuthFlow(authUrl: string, targetUrlPrefix: string): Pro
 
     chrome.tabs.create({ url: authUrl }).then((tab) => {
       if (tab.id != null) {
-        tabId = tab.id;
+        pendingAuthTabId = tab.id;
       } else {
         cleanup();
         reject(new Error("Failed to create auth tab"));
