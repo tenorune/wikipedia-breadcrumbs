@@ -10,9 +10,21 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
-XCODE_DIR="$HOME/Desktop/Wikipedia Breadcrumbs"
-BUNDLE_ID="net.lightseed.breadcrumbs"
-APP_NAME="Wikipedia Breadcrumbs"
+# Load Safari config from the appropriate env file
+if [ "$1" = "--prod" ]; then
+  ENV_FILE="$SCRIPT_DIR/.env.prod"
+else
+  ENV_FILE="$SCRIPT_DIR/.env.dev"
+fi
+
+# Read Safari-specific vars from env file (expand $HOME in values)
+get_env() { local val; val="$(grep "^$1=" "$ENV_FILE" | cut -d= -f2-)"; eval echo "$val"; }
+XCODE_DIR="$(get_env SAFARI_XCODE_DIR)"
+BUNDLE_ID="$(get_env SAFARI_BUNDLE_ID)"
+APP_NAME="$(get_env SAFARI_APP_NAME)"
+XCODE_DIR="${XCODE_DIR:-$HOME/Desktop/Wikipedia Breadcrumbs}"
+BUNDLE_ID="${BUNDLE_ID:-net.lightseed.breadcrumbs}"
+APP_NAME="${APP_NAME:-Wikipedia Breadcrumbs}"
 
 # Build the extension
 if [ "$1" = "--prod" ]; then
@@ -35,6 +47,7 @@ xcrun safari-web-extension-converter "$DIST_DIR/" \
   --app-name "$APP_NAME" \
   --bundle-identifier "$BUNDLE_ID" \
   --swift \
+  --force \
   --no-open \
   --no-prompt
 
