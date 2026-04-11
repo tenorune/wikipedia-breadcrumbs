@@ -235,7 +235,7 @@ Uses only `content_scripts.matches` — no `host_permissions` needed. Safari inj
 - Reconciliation would use the background's own trail state instead of `chrome.tabs.query({ url: ... })`
 
 **What we'd lose:**
-- `transitionType` — already unavailable in Safari; the content script can infer navigation type from click context
+- `transitionType` — already unavailable in Safari. Without it, the extension can't detect typed URLs, bookmarks, or search results, so **trails won't auto-split when a user types a new Wikipedia URL in the address bar within the same tab.** Safari users get fewer, longer trails that may contain unrelated topics. The content-script-driven approach can partially recover this: if no `linkClicked` message preceded the page load, the content script can infer it was a direct/external navigation and signal the background to start a new trail.
 - Timing — `onCommitted` fires early in navigation; content scripts fire at `document_idle` (later). Trails start slightly later but functionally identical.
 - Non-article Wikipedia pages — `content_scripts.matches` is `*://*.wikipedia.org/wiki/*` which already excludes Special pages, etc. Same effective filtering.
 
