@@ -4,7 +4,11 @@
   import { initAuth, authState } from "$lib/stores/auth.svelte";
   import { upgradeToAuthenticatedUser } from "$lib/stores/sync.svelte";
   import { initInstallStore } from "$lib/stores/install.svelte";
+  import { page } from "$app/stores";
   import { onMount } from "svelte";
+
+  let isStandalone = $state(false);
+  const hideTabBar = $derived($page.url.pathname === "/privacy" && !isStandalone);
 
   let { children } = $props();
 
@@ -12,7 +16,8 @@
     initInstallStore();
 
     // Dynamic status bar color (only when installed as PWA)
-    if (window.matchMedia("(display-mode: standalone)").matches) {
+    isStandalone = window.matchMedia("(display-mode: standalone)").matches;
+    if (isStandalone) {
       const meta = document.querySelector('meta[name="theme-color"]');
       if (meta) {
         meta.setAttribute("content", "#99c5f4");
@@ -79,7 +84,9 @@
   <main class="content">
     {@render children()}
   </main>
-  <TabBar />
+  {#if !hideTabBar}
+    <TabBar />
+  {/if}
 </div>
 
 <style>

@@ -20,6 +20,7 @@ const AUTH_TIMEOUT_MS = 120000; // 2 minutes
  */
 let pendingAuthResolve: ((url: string) => void) | null = null;
 let pendingAuthTabId: number | undefined;
+let originTabId: number | undefined;
 
 /** Called by the background message handler when the content script sends authCallback. */
 export function handleAuthCallback(url: string, senderTabId?: number) {
@@ -52,6 +53,10 @@ export function launchTabAuthFlow(authUrl: string, targetUrlPrefix: string): Pro
     function found(url: string) {
       cleanup();
       chrome.tabs.remove(pendingAuthTabId!).catch(() => {});
+      // Focus the tab that initiated the auth flow
+      if (originTabId != null) {
+        chrome.tabs.update(originTabId, { active: true }).catch(() => {});
+      }
       resolve(url);
     }
 
@@ -74,6 +79,11 @@ export function launchTabAuthFlow(authUrl: string, targetUrlPrefix: string): Pro
 
     chrome.tabs.onUpdated.addListener(onUpdated);
     chrome.tabs.onRemoved.addListener(onRemoved);
+
+    // Remember the current tab so we can focus it after auth completes
+    chrome.tabs.query({ active: true, currentWindow: true }).then(([active]) => {
+      originTabId = active?.id;
+    }).catch(() => {});
 
     chrome.tabs.create({ url: authUrl }).then((tab) => {
       if (tab.id != null) {
