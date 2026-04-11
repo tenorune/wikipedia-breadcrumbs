@@ -202,7 +202,58 @@ This is a known platform issue, not something the extension can fully work aroun
 
 Safari uses **per-site, time-of-use permission granting**. Unlike Chrome (which grants `host_permissions` at install), Safari requires users to explicitly allow the extension on Wikipedia domains. Options per-site: "Ask", "Allow for One Day", "Always Allow".
 
-The extension needs onboarding guidance: "When you first visit Wikipedia, tap the extension icon in the address bar and select 'Always Allow on Every Website' or 'Always Allow on This Website'."
+On fresh install, Safari sets "wikipedia.org: Allow" and "Other Websites: Ask" automatically (based on `host_permissions`). However, clicking the extension icon on a non-Wikipedia site still triggers a permission prompt ("Would like to access...") even with "Other Websites" set to "Ask" or "Deny". Removing the `tabs` permission and using `activeTab` instead did not prevent this prompt — it is triggered by `host_permissions` existing in the manifest. Users can click "Don't Allow" and the popup shows the empty state gracefully.
+
+### Potential fix: Content-script-driven capture (remove `host_permissions`)
+
+The Safari permission prompt on non-Wikipedia sites is caused by `host_permissions` in the manifest. Removing it entirely would eliminate the prompt, but requires shifting from a **background-driven** to a **content-script-driven** capture model.
+
+**Current architecture (background-driven):**
+```
+webNavigation.onCommitted (background) → parse URL → create visit → content script fills in details later
+```
+Requires `host_permissions` so `webNavigation` fires for Wikipedia pages.
+
+**Proposed architecture (content-script-driven):**
+```
+content script loads on Wikipedia page → extracts URL, title, language, redirect info → sends pageVisited to background → background creates visit
+```
+Uses only `content_scripts.matches` — no `host_permissions` needed. Safari injects content scripts based on `matches` without prompting for site-wide access.
+
+**What the content script already does:**
+- Runs on `*://*.wikipedia.org/wiki/*` pages
+- Tracks clicked link text (sends `linkClicked` to background)
+- Responds to `getPageInfo` with page title and redirect info
+
+**What it would need to do additionally:**
+- On load, send a `pageVisited` message with full page data (URL, title, language, articleId)
+- The existing click listener already provides parent-child linking data
+
+**What the background would change:**
+- Remove the `webNavigation.onCommitted` listener (and `webNavigation` permission)
+- Handle `pageVisited` messages from the content script
+- Reconciliation would use the background's own trail state instead of `chrome.tabs.query({ url: ... })`
+
+**What we'd lose:**
+- `transitionType` — already unavailable in Safari; the content script can infer navigation type from click context
+- Timing — `onCommitted` fires early in navigation; content scripts fire at `document_idle` (later). Trails start slightly later but functionally identical.
+- Non-article Wikipedia pages — `content_scripts.matches` is `*://*.wikipedia.org/wiki/*` which already excludes Special pages, etc. Same effective filtering.
+
+**What we'd gain:**
+- No `host_permissions` → no Safari permission prompt on non-Wikipedia sites
+- Simpler permission model — extension only runs code on Wikipedia
+- Better alignment with Safari's expected extension behavior
+- Potentially works on Firefox too (same content script model)
+- Also addresses iOS service worker reliability (#45) — if the SW fails to wake for `webNavigation` events (known iOS bug), content-script-driven capture is more resilient since content scripts run independently
+
+**Open questions:**
+- `chrome.tabs.get(tabId).windowId` — likely still works without `host_permissions` since `windowId` isn't URL data
+- SPA-like Wikipedia navigation — some Wikipedia features use History API `pushState`, which wouldn't trigger fresh content script injection. Would need a `popstate`/`pushState` listener in the content script.
+- Cross-browser compatibility — Chrome supports both models, so the content-script approach could replace the current one for both browsers (not just Safari)
+
+**Effort:** Medium. Touches capture.ts and content script. Data flow simplifies but edge cases around Wikipedia's client-side navigation need testing.
+
+**Decision pending:** Whether to implement this as a Safari-only alternative or as a cross-browser replacement for the current `webNavigation` approach.
 
 ## Development Without an Apple Developer Account
 
