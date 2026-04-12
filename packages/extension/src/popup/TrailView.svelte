@@ -173,12 +173,14 @@
   async function openTrailDetail() {
     if (!trail) return;
     const historyUrl = chrome.runtime.getURL("src/history/index.html");
-    const tabs = await chrome.tabs.query({ url: historyUrl + "*" });
     const targetUrl = `${historyUrl}?trail=${trail.id}`;
-    if (tabs.length > 0 && tabs[0].id != null) {
-      chrome.tabs.update(tabs[0].id, { active: true, url: targetUrl });
+    const allTabs = await chrome.tabs.query({});
+    const extOrigin = chrome.runtime.getURL("");
+    const existing = allTabs.find((t) => t.url?.startsWith(extOrigin));
+    if (existing?.id != null) {
+      chrome.tabs.update(existing.id, { active: true, url: targetUrl });
       if (typeof chrome.windows !== "undefined") {
-        chrome.windows.update(tabs[0].windowId!, { focused: true });
+        chrome.windows.update(existing.windowId!, { focused: true });
       }
     } else {
       chrome.tabs.create({ url: targetUrl });

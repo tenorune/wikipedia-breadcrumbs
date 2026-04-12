@@ -10,12 +10,11 @@
   let { hasActiveTrail, trailId, tabId, onStartNew, onEndTrail }: Props = $props();
 
   async function openExtensionPage(url: string) {
-    const historyUrl = chrome.runtime.getURL("src/history/index.html");
-    const optionsUrl = chrome.runtime.getURL("src/options/index.html");
-    // Find any existing extension tab (history or options)
-    const historyTabs = await chrome.tabs.query({ url: historyUrl + "*" });
-    const optionsTabs = await chrome.tabs.query({ url: optionsUrl + "*" });
-    const existing = historyTabs[0] ?? optionsTabs[0];
+    // Find any existing extension tab — query all tabs since URL-filtered
+    // queries require the tabs permission which we've removed
+    const allTabs = await chrome.tabs.query({});
+    const extOrigin = chrome.runtime.getURL("");
+    const existing = allTabs.find((t) => t.url?.startsWith(extOrigin));
     if (existing?.id != null) {
       chrome.tabs.update(existing.id, { active: true, url });
       if (typeof chrome.windows !== "undefined") {
