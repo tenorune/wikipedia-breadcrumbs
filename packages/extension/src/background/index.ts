@@ -146,20 +146,28 @@ chrome.runtime.onMessage.addListener((message: any, _sender, sendResponse) => {
   // Popup requests to open an extension page (reuses existing tab)
   if (message.type === "openExtensionPage" && message.url) {
     (async () => {
-      // Check if we have a tracked extension tab that still exists
-      if (extensionTabId != null) {
+      // Try URL query first (works on Safari without tabs permission)
+      const extOrigin = chrome.runtime.getURL("");
+      const found = await chrome.tabs.query({ url: extOrigin + "*" }).catch(() => [] as chrome.tabs.Tab[]);
+      let existingTab = found[0];
+
+      // Fall back to tracked tab ID (works on Chrome without tabs permission)
+      if (!existingTab && extensionTabId != null) {
         try {
-          await chrome.tabs.get(extensionTabId);
-          await chrome.tabs.update(extensionTabId, { active: true, url: message.url });
-          if (typeof chrome.windows !== "undefined") {
-            const tab = await chrome.tabs.get(extensionTabId);
-            chrome.windows.update(tab.windowId, { focused: true });
-          }
-          return;
+          existingTab = await chrome.tabs.get(extensionTabId);
         } catch { extensionTabId = undefined; }
       }
-      const tab = await chrome.tabs.create({ url: message.url });
-      extensionTabId = tab.id;
+
+      if (existingTab?.id != null) {
+        extensionTabId = existingTab.id;
+        await chrome.tabs.update(existingTab.id, { active: true, url: message.url });
+        if (typeof chrome.windows !== "undefined") {
+          chrome.windows.update(existingTab.windowId, { focused: true });
+        }
+      } else {
+        const tab = await chrome.tabs.create({ url: message.url });
+        extensionTabId = tab.id;
+      }
     })();
     return false;
   }
@@ -235,9 +243,9 @@ async function handleBackgroundMessage(message: BackgroundMessage, sendResponse:
       if (entry) {
         const visits = await data.getVisitsByTrailId(entry.trailId);
         const trail = await data.getTrailById(entry.trailId);
-        sendResponse({ trail: trail ?? null, visits });
+        sendResponse({ trail: trail ?? null, visits, currentUrl: entry.lastVisitUrl });
       } else {
-        sendResponse({ trail: null, visits: [] });
+        sendResponse({ trail: null, visits: [], currentUrl: "" });
       }
       break;
     }

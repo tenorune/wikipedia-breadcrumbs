@@ -14,10 +14,10 @@
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id) { loading = false; return; }
       tabId = tab.id;
-      currentUrl = tab.url ?? "";
       const response = await chrome.runtime.sendMessage({ type: "getCurrentTrail", tabId: tab.id });
       trail = response.trail;
       visits = response.visits ?? [];
+      currentUrl = response.currentUrl ?? tab.url ?? "";
     } catch {
       // Safari may deny tab access on non-permitted sites — show empty state
     }
