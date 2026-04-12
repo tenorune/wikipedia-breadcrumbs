@@ -396,6 +396,11 @@
       <button class="btn-reset-subtle" onclick={() => { showResetConfirm = true; }}>Reset all data</button>
     </span>
   {/if}
+  {#if import.meta.env.MODE !== "production"}
+    <div class="build-info">
+      {import.meta.env.MODE} · {import.meta.env.VITE_SUPABASE_URL?.split("//")[1]?.split(".")[0] ?? ""} · safari branch
+    </div>
+  {/if}
 </div>
 
 {#if showSignOutDialog}
@@ -526,6 +531,7 @@
   .footer-links a { color: #999; text-decoration: none; font-family: inherit; font-size: 12px; }
   .footer-links a:hover { text-decoration: underline; }
   .separator { color: #ccc; }
+  .build-info { font-size: 10px; color: #bbb; margin-top: 8px; }
   .reset-warning { font-size: 13px; color: #cc3300; margin-bottom: 12px; }
   .reset-actions { display: flex; gap: 8px; justify-content: center; }
   .btn-reset {

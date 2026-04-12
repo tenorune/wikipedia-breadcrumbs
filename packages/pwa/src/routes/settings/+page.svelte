@@ -285,6 +285,9 @@
 
 <div class="footer-links">
   <a href="/privacy">Privacy Policy</a>
+  {#if typeof window !== "undefined" && !window.location.hostname.endsWith("lightseed.net")}
+    <span class="build-info">{window.location.hostname}</span>
+  {/if}
 </div>
 
 {#if showSignOutDialog}
@@ -400,4 +403,5 @@
   }
   .footer-links a { color: #888; text-decoration: none; }
   .footer-links a:hover { text-decoration: underline; }
+  .build-info { display: block; font-size: 10px; color: #bbb; margin-top: 4px; }
 </style>
