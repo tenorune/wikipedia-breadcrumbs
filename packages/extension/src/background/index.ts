@@ -17,6 +17,8 @@ const trailManager = new TrailManager();
 const lastClickedLinkText = new Map<number, string>();
 // Debounce pageVisited to prevent duplicate captures (tab:url → expiry)
 const recentPageVisits = new Set<string>();
+// Track the extension page tab ID so the popup can reuse it
+let extensionTabId: number | undefined;
 let deviceId = "";
 let settings: ExtensionSettings = { idleTimeoutMinutes: 30, captureEnabled: true, syncEnabled: false };
 
@@ -139,6 +141,26 @@ chrome.runtime.onMessage.addListener((message: any, _sender, sendResponse) => {
   // Content script detected OAuth callback on Wikipedia page
   if (message.type === "authCallback" && message.url) {
     handleAuthCallback(message.url, _sender.tab?.id);
+    return false;
+  }
+  // Popup requests to open an extension page (reuses existing tab)
+  if (message.type === "openExtensionPage" && message.url) {
+    (async () => {
+      // Check if we have a tracked extension tab that still exists
+      if (extensionTabId != null) {
+        try {
+          await chrome.tabs.get(extensionTabId);
+          await chrome.tabs.update(extensionTabId, { active: true, url: message.url });
+          if (typeof chrome.windows !== "undefined") {
+            const tab = await chrome.tabs.get(extensionTabId);
+            chrome.windows.update(tab.windowId, { focused: true });
+          }
+          return;
+        } catch { extensionTabId = undefined; }
+      }
+      const tab = await chrome.tabs.create({ url: message.url });
+      extensionTabId = tab.id;
+    })();
     return false;
   }
   // Content script sends clicked link text immediately on click

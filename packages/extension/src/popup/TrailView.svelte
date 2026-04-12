@@ -170,21 +170,10 @@
       : visits.length === 1 ? visits[0].title : "New trail")
   );
 
-  async function openTrailDetail() {
+  function openTrailDetail() {
     if (!trail) return;
     const historyUrl = chrome.runtime.getURL("src/history/index.html");
-    const targetUrl = `${historyUrl}?trail=${trail.id}`;
-    const allTabs = await chrome.tabs.query({});
-    const extOrigin = chrome.runtime.getURL("");
-    const existing = allTabs.find((t) => t.url?.startsWith(extOrigin));
-    if (existing?.id != null) {
-      chrome.tabs.update(existing.id, { active: true, url: targetUrl });
-      if (typeof chrome.windows !== "undefined") {
-        chrome.windows.update(existing.windowId!, { focused: true });
-      }
-    } else {
-      chrome.tabs.create({ url: targetUrl });
-    }
+    chrome.runtime.sendMessage({ type: "openExtensionPage", url: `${historyUrl}?trail=${trail.id}` });
   }
 </script>
 

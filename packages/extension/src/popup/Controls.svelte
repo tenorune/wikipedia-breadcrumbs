@@ -9,20 +9,8 @@
 
   let { hasActiveTrail, trailId, tabId, onStartNew, onEndTrail }: Props = $props();
 
-  async function openExtensionPage(url: string) {
-    // Find any existing extension tab — query all tabs since URL-filtered
-    // queries require the tabs permission which we've removed
-    const allTabs = await chrome.tabs.query({});
-    const extOrigin = chrome.runtime.getURL("");
-    const existing = allTabs.find((t) => t.url?.startsWith(extOrigin));
-    if (existing?.id != null) {
-      chrome.tabs.update(existing.id, { active: true, url });
-      if (typeof chrome.windows !== "undefined") {
-        chrome.windows.update(existing.windowId!, { focused: true });
-      }
-    } else {
-      chrome.tabs.create({ url });
-    }
+  function openExtensionPage(url: string) {
+    chrome.runtime.sendMessage({ type: "openExtensionPage", url });
   }
 
   function openHistory() {
