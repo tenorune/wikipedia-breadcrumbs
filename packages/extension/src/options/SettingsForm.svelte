@@ -396,9 +396,9 @@
       <button class="btn-reset-subtle" onclick={() => { showResetConfirm = true; }}>Reset all data</button>
     </span>
   {/if}
-  {#if import.meta.env.MODE !== "production"}
+  {#if chrome?.runtime?.getManifest?.()?.name?.includes("Dev")}
     <div class="build-info">
-      {import.meta.env.MODE} · {import.meta.env.VITE_SUPABASE_URL?.split("//")[1]?.split(".")[0] ?? ""} · safari branch
+      {chrome.runtime.getManifest().name} · {import.meta.env.VITE_SUPABASE_URL?.split("//")[1]?.split(".")[0] ?? ""}
     </div>
   {/if}
 </div>
