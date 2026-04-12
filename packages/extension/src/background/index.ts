@@ -15,6 +15,8 @@ const SYNC_ALARM = "sync-interval";
 const trailManager = new TrailManager();
 // Store the last clicked link text per tab (sent by content script on click)
 const lastClickedLinkText = new Map<number, string>();
+// Debounce pageVisited to prevent duplicate captures (tab:url → expiry)
+const recentPageVisits = new Set<string>();
 let deviceId = "";
 let settings: ExtensionSettings = { idleTimeoutMinutes: 30, captureEnabled: true, syncEnabled: false };
 
@@ -144,10 +146,16 @@ chrome.runtime.onMessage.addListener((message: any, _sender, sendResponse) => {
     lastClickedLinkText.set(_sender.tab.id, message.text);
     return false;
   }
-  // Content script announces a Wikipedia page visit
+  // Content script announces a Wikipedia page visit — debounce per tab
+  // to prevent duplicates (Safari may fire content scripts in multiple frames)
   if (message.type === "pageVisited" && _sender.tab?.id) {
     if (!settings.captureEnabled) return false;
+    if (_sender.frameId !== 0) return false; // only top frame
     const tabId = _sender.tab.id;
+    const key = `${tabId}:${message.url}`;
+    if (recentPageVisits.has(key)) return false;
+    recentPageVisits.add(key);
+    setTimeout(() => recentPageVisits.delete(key), 1000);
     const windowId = _sender.tab.windowId ?? 0;
     const clickedText = lastClickedLinkText.get(tabId) ?? null;
     lastClickedLinkText.delete(tabId);
