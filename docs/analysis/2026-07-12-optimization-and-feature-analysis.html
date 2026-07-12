@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wikipedia Breadcrumbs — Codebase Analysis (2026-07-12)</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #666;
+    --accent: #2a5db0;
+    --rule: #e2e2e2;
+    --bg-code: #f5f5f4;
+    --high: #b3261e;
+    --med: #9a6700;
+    --low: #4a6741;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    line-height: 1.55;
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 5rem;
+  }
+  header { border-bottom: 3px solid var(--ink); padding-bottom: 1rem; margin-bottom: 2rem; }
+  header h1 { margin: 0 0 .25rem; font-size: 1.9rem; }
+  header .meta { color: var(--muted); font-size: .95rem; }
+  h2 { font-size: 1.45rem; margin-top: 3rem; border-bottom: 2px solid var(--rule); padding-bottom: .3rem; }
+  h3 { font-size: 1.15rem; margin-top: 2rem; }
+  h4 { font-size: 1rem; margin-top: 1.5rem; }
+  code, pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .875em;
+  }
+  code { background: var(--bg-code); padding: .1em .35em; border-radius: 4px; }
+  pre {
+    background: var(--bg-code);
+    padding: .85rem 1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    border: 1px solid var(--rule);
+  }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .92rem; }
+  th, td { border: 1px solid var(--rule); padding: .45rem .6rem; text-align: left; vertical-align: top; }
+  th { background: #fafaf9; }
+  .badge {
+    display: inline-block; font-size: .72rem; font-weight: 700; letter-spacing: .03em;
+    padding: .1em .5em; border-radius: 999px; color: #fff; vertical-align: middle;
+  }
+  .badge.high { background: var(--high); }
+  .badge.med  { background: var(--med); }
+  .badge.low  { background: var(--low); }
+  .toc { background: #fafaf9; border: 1px solid var(--rule); border-radius: 8px; padding: 1rem 1.5rem; }
+  .toc ul { margin: .3rem 0; padding-left: 1.2rem; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .finding { margin: 1.4rem 0; padding-left: 1rem; border-left: 3px solid var(--rule); }
+  .finding h4 { margin: 0 0 .4rem; }
+  .fileref { color: var(--muted); font-size: .88rem; }
+  .appendix-note {
+    background: #fffbeb; border: 1px solid #f0e0a0; border-radius: 6px;
+    padding: .75rem 1rem; font-size: .92rem; margin: 1rem 0 2rem;
+  }
+  details { margin: 1rem 0; }
+  summary { cursor: pointer; font-weight: 600; padding: .4rem 0; }
+  footer { margin-top: 4rem; padding-top: 1rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: .85rem; }
+  @media print {
+    details { display: block; }
+    details > *:not(summary) { display: block !important; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Wikipedia Breadcrumbs — Codebase Analysis</h1>
+  <div class="meta">
+    Repository: <code>wikipedia-breadcrumbs</code> (monorepo: <code>packages/shared</code>, <code>packages/extension</code>, <code>packages/pwa</code>, <code>supabase/functions</code>) · ~11,000 lines of TypeScript/Svelte 5<br>
+    Date: 2026-07-12 · Method: four parallel analysis agents (shared library, Chrome extension, PWA, product/UX survey), top findings independently verified against source. Line numbers reflect the state of <code>main</code> at commit <code>5eb2c64</code>.
+  </div>
+</header>
+
+<nav class="toc">
+  <strong>Contents</strong>
+  <ul>
+    <li><a href="#d1">Deliverable 1 — Optimization &amp; Refactoring</a></li>
+    <li><a href="#d2">Deliverable 2 — Features &amp; UX</a></li>
+    <li><a href="#sequencing">Suggested sequencing</a></li>
+    <li><a href="#appendix">Appendix — Complete subagent findings</a>
+      <ul>
+        <li><a href="#appendix-a">A. Shared library (<code>packages/shared</code>)</a></li>
+        <li><a href="#appendix-b">B. Chrome extension (<code>packages/extension</code>)</a></li>
+        <li><a href="#appendix-c">C. PWA (<code>packages/pwa</code>)</a></li>
+        <li><a href="#appendix-d">D. Product / UX survey</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+
+<h2 id="d1">Deliverable 1 — Optimization &amp; Refactoring</h2>
+
+<h3>Top priority</h3>
+
+<div class="finding">
+  <h4>1. Sync path does per-record network round-trips <span class="badge high">HIGH</span> <em>(verified)</em></h4>
+  <p class="fileref">packages/shared/src/sync/supabase-backend.ts:35–46 · packages/shared/src/sync/engine.ts:67–95 · packages/pwa/src/lib/stores/sync.svelte.ts:45–52, 82–92</p>
+  <p><code>SupabaseBackend.upsertAll()</code> upserts one record at a time in a loop. Supabase accepts an array, so a sync of 100 trails + 500 visits makes ~600 HTTP requests where ~2–3 would do. The same N+1 pattern repeats locally: the sync engine marks each record <code>Synced</code> with an individual <code>update()</code> call (use Dexie <code>bulkUpdate</code>/<code>bulkPut</code>), and the PWA sync store re-stamps every trail/visit in a per-row loop (use <code>Collection.modify()</code>).</p>
+  <p><strong>Caveat when batching:</strong> the current code tracks per-record success, and a batched upsert returns one error for the whole batch — chunk the array (e.g., 500 rows) and fall back to per-record only on chunk failure. This is the single biggest performance win in the codebase.</p>
+</div>
+
+<div class="finding">
+  <h4>2. PWA reloads everything after every mutation <span class="badge high">HIGH</span></h4>
+  <p class="fileref">packages/pwa/src/lib/components/TrailList.svelte:38–72, 104–198 · TrailDetail.svelte:204–262 · routes/+page.svelte:105</p>
+  <p><code>TrailList</code> fetches all trails, then fetches visits per trail (N+1), and this full <code>loadTrails()</code>/<code>loadData()</code> reload re-runs after every star toggle, note edit, delete, and merge. Dexie ships <code>liveQuery()</code> for exactly this — reactive subscriptions would eliminate both the N+1 and the manual-reload pattern in one refactor, and would also remove the three duplicate <code>visibilitychange</code> reload listeners spread across <code>+page.svelte</code>, <code>TrailDetail.svelte</code>, and <code>TrailList.svelte</code>.</p>
+</div>
+
+<div class="finding">
+  <h4>3. ~60–70% component duplication between extension and PWA <span class="badge high">HIGH</span></h4>
+  <p class="fileref">packages/extension/src/history/{TrailDetail,TrailList,VisitCard,ImportDialog}.svelte vs packages/pwa/src/lib/components/ equivalents</p>
+  <p><code>TrailDetail</code> (533 vs 659 lines), <code>TrailList</code> (336 vs 447), <code>VisitCard</code> (276 vs 345), and <code>ImportDialog</code> (essentially 100% identical) exist in both packages — roughly 650+ lines of duplicated logic, so every bug fix must be applied twice. Both packages already build Svelte 5: extract a shared UI package (or <code>packages/shared/src/ui/</code>) and inject the two things that actually differ — navigation strategy (message-to-background vs <code>goto</code>/<code>target="_blank"</code>) and DB mutation strategy — as callback props. Start with <code>ImportDialog</code> (trivial), then <code>VisitCard</code>, then the two big ones. This also unblocks decomposing the 659-line PWA <code>TrailDetail</code> into <code>TrailHeader</code> / <code>NoteEditor</code> / <code>MergeDialog</code> / <code>VisitList</code>.</p>
+</div>
+
+<div class="finding">
+  <h4>4. Service worker has no update flow, and the offline fallback looks broken <span class="badge high">HIGH</span> <em>(verified)</em></h4>
+  <p class="fileref">packages/pwa/src/service-worker.ts:9, 43</p>
+  <p>The precache list is <code>[...build, ...files]</code> — it does <strong>not</strong> include <code>prerendered</code>, yet the offline navigation fallback does <code>caches.match("/index.html")</code>, which will likely return <code>undefined</code> (the <code>as Promise&lt;Response&gt;</code> cast hides this from the compiler). So the advertised “full offline support” plausibly fails on a cold navigation. Separately, there is no <code>skipWaiting</code>/update-prompt flow, so users keep running the old bundle until every tab is closed.</p>
+  <p><strong>Fixes:</strong> add <code>prerendered</code> to <code>ASSETS</code>, remove the unsafe cast, and add a “new version available — reload” toast driven by the waiting worker.</p>
+</div>
+
+<div class="finding">
+  <h4>5. Concurrency and error-swallowing in the PWA sync/auth stores <span class="badge high">HIGH</span> <em>(verified)</em></h4>
+  <p class="fileref">packages/pwa/src/lib/stores/sync.svelte.ts:66–78 · auth.svelte.ts:16–56</p>
+  <p><code>syncNow()</code> has no in-flight guard — the 5-minute interval and a manual sync can run <code>engine.syncNow()</code> concurrently (<code>if (_syncing) return;</code> is a one-line fix). On failure it only <code>console.error</code>s; <code>_lastReport</code> is never updated, so the UI cannot show that sync failed (pairs with UX quick win #1). The auth store has a related init race: <code>onAuthStateChange</code> is registered before OAuth-redirect processing completes, which can flip <code>_loading</code> early and double-register the visibility-refresh handler.</p>
+</div>
+
+<div class="finding">
+  <h4>6. Extension capture flow is chatty and fragile across service-worker restarts <span class="badge med">MEDIUM</span></h4>
+  <p class="fileref">packages/extension/src/background/capture.ts:68–190, 213–308 · background/index.ts:196–213</p>
+  <p>Each Wikipedia navigation triggers 5–17 sequential <code>sendToOffscreen()</code> round-trips — batch these into one composite “recordNavigation” message. Two MV3 lifecycle issues: (a) idle alarms persist across service-worker termination but the in-memory <code>trailManager</code> doesn’t, so when the alarm fires after a restart the trail is silently never finalized — query the offscreen DB instead of memory on alarm fire; (b) the 1.5-second title/redirect <code>setTimeout</code> has no per-tab cancellation, so rapid navigation lets a stale response overwrite a newer visit.</p>
+</div>
+
+<h3>Medium priority</h3>
+<ul>
+  <li><strong>Type safety in the sync path</strong> — multiple <code>as any</code> casts in <code>engine.ts</code> (lines 69, 83, 126, 138–139) and untyped <code>Record&lt;string, unknown&gt;</code> field mapping in <code>field-mapper.ts</code>, where a field accidentally listed in <code>LOCAL_ONLY_FIELDS</code> silently vanishes from sync. Worth tightening given this code guards data integrity.</li>
+  <li><strong>Full-table scans</strong> — <code>language-badges/index.ts:28–42</code> loads all visits into memory to extract distinct languages; export (<code>export-json.ts</code>, <code>export-csv.ts</code>) fetches trails and visits one-by-one instead of <code>bulkGet</code> + one indexed visits query; <code>hasPendingChanges()</code> in the PWA sync store uses <code>.filter()</code> (scan) rather than an indexed <code>where("syncStatus")</code>.</li>
+  <li><strong>Duplicated store logic in shared</strong> — <code>visitStore</code> and <code>trailStore</code> have near-identical <code>update()</code> sync-status logic and identical <code>softDelete()</code> — extract shared helpers.</li>
+  <li><strong>Duplicated <code>displayName</code> derivation</strong> — three PWA components compute it with slightly different fallbacks (“Empty trail” vs “…”) — extract <code>getTrailDisplayName(trail, visits)</code> into shared.</li>
+  <li><strong>Reconciliation is O(n·m)</strong> — <code>reconcileActiveTrails()</code> (<code>background/index.ts:37–123</code>) fetches all visits per active trail every 15 minutes just to read the last one — add a <code>getLastVisit(trailId)</code> query.</li>
+</ul>
+
+<h3>Low priority</h3>
+<ul>
+  <li><code>JSON.parse(JSON.stringify(...))</code> cloning in <code>import-json.ts:175–194</code>.</li>
+  <li>Menu-close <code>$effect</code> listeners registered via <code>setTimeout</code> in <code>TrailDetail.svelte:66–86</code> (leak-prone).</li>
+  <li><code>export * from</code> in <code>shared/src/index.ts</code> exposing internals like <code>toSnakeCase</code> as public API.</li>
+  <li>No pagination/virtualization on the trail list (only matters at 500+ trails).</li>
+  <li>Each extension history component instantiating its own <code>BreadcrumbsDB</code>.</li>
+</ul>
+
+<h2 id="d2">Deliverable 2 — Features &amp; UX</h2>
+
+<h3>Quick wins (small effort, high value)</h3>
+<ol>
+  <li><strong>Surface sync errors.</strong> Directly enabled by fixing code finding #5 — today a failed sync is indistinguishable from a successful one. Add an error state to <code>SyncStatus.svelte</code> and the settings page.</li>
+  <li><strong>Accessibility pass.</strong> Only ~20 ARIA attributes across the whole PWA; the “⋮” icon menus in TrailList/VisitCard/TrailDetail have no labels, and dialogs don’t restore focus on close. The README advertises WCAG AA — this closes the gap cheaply.</li>
+  <li><strong>Search within a trail.</strong> Global search exists but a 50-page trail has no way to jump to a page. The search logic already exists in <code>TrailList</code> — reuse it in <code>TrailDetail</code>.</li>
+  <li><strong>Undo toast for deletes.</strong> Deletes are already soft (<code>deletedAt</code>), so a 10-second “Undo” toast is mostly UI work — the data model already supports it.</li>
+  <li><strong>PWA update notification</strong> — falls out of service-worker fix #4 above.</li>
+  <li><strong>Loading skeletons + empty-trail call-to-action</strong> in trail detail (currently content pops in and empty trails dead-end at “No visits in this trail.”).</li>
+</ol>
+
+<h3>Medium bets</h3>
+<ol start="7">
+  <li><strong>Manual capture (<code>/add</code> route) in the PWA.</strong> Already in the project backlog (<code>docs/superpowers/specs/2026-03-31-pwa-auth-design.md</code>). Highest-leverage feature on the list because it attacks the core platform gap: the PWA can’t capture visits at all — paste one or more Wikipedia URLs, pick/create a trail. The URL parser already lives in shared.</li>
+  <li><strong>Mobile share target.</strong> Add <code>share_target</code> to <code>manifest.webmanifest</code> feeding the <code>/add</code> route — on Android, “Share → Breadcrumbs” from any browser becomes the mobile capture story. Small once #7 exists.</li>
+  <li><strong>Stats dashboard.</strong> The home page shows three counts; the data (timestamps, positions, <code>parentVisitId</code> link graph, languages) supports trails-per-week, longest chains, most-revisited pages. Motivates sustained use.</li>
+  <li><strong>Discovery-tree view.</strong> <code>parentVisitId</code> already records which page led to which; the extension popup shows relation markers but the PWA renders a flat list. Even simple indentation would show the research narrative — the full graph visualization can come later.</li>
+  <li><strong>Keyboard shortcuts</strong> — <code>chrome.commands</code> for start/end trail in the extension; list navigation in the PWA. Explicitly deferred to “Phase 1.5” in the design docs.</li>
+  <li><strong>Extension install upsell from the PWA</strong> — the empty state says “install the extension” with no link to the Web Store.</li>
+</ol>
+
+<h3>Strategic (large effort)</h3>
+<ol start="13">
+  <li><strong>Public trail sharing (<code>/shared/[id]</code>).</strong> The <code>visibility: "public"</code> enum already exists in the model and the design docs defer this. It’s the feature that makes trails a shareable artifact (“here’s my research path”) rather than a private log — and the natural growth loop for the product.</li>
+  <li><strong>Overlay/sidebar on Wikipedia itself.</strong> The design doc flags this as blocked on mockups. Seeing and annotating the trail without leaving the page is the biggest possible UX jump for the extension.</li>
+  <li><strong>Sync conflict resolution UI.</strong> Conflicts are logged to <code>conflictLogs</code> but no UI ever shows them — multi-device users experience silent last-write-wins. A minimal viewer (what was overwritten, restore option) covers most of the value.</li>
+  <li><strong>Article metadata enrichment</strong> — thumbnails/summaries via the Wikipedia API would make trail review far more scannable, and enables richer citations.</li>
+</ol>
+
+<h2 id="sequencing">Suggested sequencing</h2>
+<p>A practical order: batch the sync upserts + add the <code>syncNow</code> guard and error surfacing (items 1/5 + UX 1) → fix the service worker offline/update issues (4 + UX 5) → adopt <code>liveQuery</code> in the PWA (2) → extract shared UI components starting with <code>ImportDialog</code> (3) → then build <code>/add</code> + share target (UX 7/8), which changes what the PWA fundamentally is.</p>
+
+<hr>
+
+<h2 id="appendix">Appendix — Complete subagent findings</h2>
+<div class="appendix-note">
+  The four reports below are the unedited findings from the parallel analysis agents. They include some claims that were not independently verified; where a top finding <em>was</em> verified (or corrected) it is noted in the synthesized report above. In particular, Appendix C's claim that the service-worker cache serves stale assets "forever" is overstated (SvelteKit's <code>version</code> changes per build); the verified issues are the missing <code>prerendered</code> assets in the precache and the absent update-prompt flow.
+</div>
+
+<h3 id="appendix-a">Appendix A — Shared library (<code>packages/shared</code>)</h3>
+<details open>
+<summary>Full agent report — 15 findings</summary>
+
+<h4>Performance issues</h4>
+
+<p><strong>1. Sync Engine — N+1 database updates <span class="badge high">HIGH</span></strong><br>
+<span class="fileref">packages/shared/src/sync/engine.ts:67–74</span><br>
+In the <code>push()</code> method, trail records are updated individually in a loop instead of batch updating. Same for visits (lines 80–88) and conflict logs (lines 91–95).</p>
+<pre><code>for (const result of results) {
+  if (result.success) {
+    await trails.update(result.id, { syncStatus: SyncStatus.Synced } as any);
+  }
+}</code></pre>
+<p>This creates multiple database round-trips proportional to record count. <em>Fix:</em> implement a batch update method in stores or use Dexie's <code>bulkUpdate()</code> API. <em>Impact:</em> on a sync with 100 trails + 500 visits, this is 600+ individual update operations instead of 2–3 batch operations.</p>
+
+<p><strong>2. Supabase Backend — individual upserts <span class="badge high">HIGH</span></strong><br>
+<span class="fileref">packages/shared/src/sync/supabase-backend.ts:35–46</span><br>
+<code>upsertAll()</code> performs individual upsert calls in a loop instead of batch upserting.</p>
+<pre><code>for (const record of records) {
+  const { error } = await this.client.from(table).upsert(record);
+}</code></pre>
+<p>Supabase supports batch upsert (array of records), so this is a missed optimization. <em>Fix:</em> change to <code>await this.client.from(table).upsert(records)</code> (pass entire array). <em>Impact:</em> reduces N network round-trips to 1, major performance win on larger syncs.</p>
+
+<p><strong>3. Export functions — full-table scans with N+1 queries <span class="badge high">HIGH</span></strong><br>
+<span class="fileref">packages/shared/src/export/export-json.ts:4–20 · export-csv.ts:23–39</span><br>
+When exporting specific trails (with <code>trailIds</code> param):</p>
+<pre><code>if (trailIds) {
+  const all = await Promise.all(trailIds.map((id) =&gt; db.trails.get(id))); // N separate queries
+}</code></pre>
+<p>Then for each trail, fetches visits separately:</p>
+<pre><code>for (const trail of trails) {
+  const visits = await db.visits.where("trailId").equals(trail.id)...toArray(); // N separate queries
+}</code></pre>
+<p>This is O(n+m) where n=trails, m=visits. <em>Fix:</em> use the existing compound index on <code>[trailId+position]</code>, batch-fetch trails with <code>db.trails.bulkGet()</code>, and fetch all relevant visits in one query grouped by trailId. <em>Impact:</em> reduces database query count from O(n+m) to O(2) for typical export operations.</p>
+
+<p><strong>4. Language badges — full-table scan without index <span class="badge med">MEDIUM</span></strong><br>
+<span class="fileref">packages/shared/src/language-badges/index.ts:28–42</span><br>
+<code>getDistinctLanguages()</code> loads ALL visits to memory, filters, and sorts:</p>
+<pre><code>const visits = await db.visits.filter((v) =&gt; v.deletedAt === null).toArray(); // Full table scan
+visits.sort((a, b) =&gt; a.timestamp.localeCompare(b.timestamp)); // In-memory sort</code></pre>
+<p>This loads potentially thousands of records just to extract distinct languages. <em>Fix:</em> use <code>sortBy("timestamp")</code> in the query chain, then iterate once to collect distinct languages. <em>Impact:</em> eliminates unnecessary memory allocation and in-memory sorting; reduces latency on large datasets.</p>
+
+<p><strong>5. Language badge settings — repeated full-table scan <span class="badge med">MEDIUM</span></strong><br>
+<span class="fileref">packages/shared/src/language-badges/index.ts:9–21</span><br>
+<code>getLanguageBadgeSettings()</code> always loads the first visit even when settings are cached:</p>
+<pre><code>const settings = await db.languageSettings.get("default");
+if (settings?.configured) return settings;
+// But still always fetches first visit even if settings exist
+const firstVisit = await db.visits.filter(...).sortBy("timestamp").then((visits) =&gt; visits[0] ?? null);</code></pre>
+<p>This full-table scan happens on every call if settings aren't marked as configured. <em>Fix:</em> cache the result or skip the full-table scan if <code>settings?.configured</code> is already true. <em>Impact:</em> reduces unnecessary full-table scans to a one-time initialization.</p>
+
+<p><strong>6. Trail operations — inefficient merge sorting <span class="badge med">MEDIUM</span></strong><br>
+<span class="fileref">packages/shared/src/trail/operations.ts:26–45</span><br>
+In <code>mergeTrails()</code>, fetches visits from two trails, concatenates, and re-sorts by timestamp in JS:</p>
+<pre><code>const allVisits = [...primaryVisits, ...secondaryVisits].sort((a, b) =&gt; a.timestamp.localeCompare(b.timestamp));</code></pre>
+<p>Then updates each visit's position in a loop (lines 38–40). This is O(n log n) sort + O(n) updates. <em>Fix:</em> use database sorting directly and rely on the position parameter to maintain order. <em>Impact:</em> eliminates unnecessary in-memory sort and reduces code complexity.</p>
+
+<p><strong>7. Import JSON — repeated string validation overhead <span class="badge low">LOW–MEDIUM</span></strong><br>
+<span class="fileref">packages/shared/src/export/import-json.ts:44–67</span><br>
+Validation has repeated <code>.length</code> checks and type checks for each field across nested loops. Sets like <code>VALID_STATUS</code>, <code>VALID_VISIBILITY</code> are created at module load, but could be optimized with a schema library. <em>Fix:</em> consider using a schema validation library (Zod, io-ts) to reduce boilerplate and improve maintainability. <em>Impact:</em> modest — improves code clarity and reduces bug surface, not necessarily runtime speed.</p>
+
+<h4>Refactoring issues</h4>
+
+<p><strong>8. Type safety — unsafe <code>any</code> casts <span class="badge med">MEDIUM</span></strong><br>
+<span class="fileref">packages/shared/src/sync/engine.ts:69, 83, 126, 138–139</span><br>
+Multiple uses of <code>as any</code> to suppress type errors:</p>
+<pre><code>await trails.update(result.id, { syncStatus: SyncStatus.Synced } as any);
+const { id, ...changes } = remote as any;
+await this.db.table(recordType === "trail" ? "trails" : "visits").add(remote);
+losingSnapshot: { ...local } as any,</code></pre>
+<p><em>Fix:</em> create proper generic types for the merge record function, or use strict typing for synced records. <em>Impact:</em> reduces risk of silent bugs in sync logic; improves maintainability.</p>
+
+<p><strong>9. Duplicate error handling logic in stores <span class="badge low">LOW</span></strong><br>
+<span class="fileref">packages/shared/src/db/visits.ts:20–29 · db/trails.ts:24–35</span><br>
+Both <code>visitStore()</code> and <code>trailStore()</code> have nearly identical <code>update()</code> methods. Both check if the record is <code>Synced</code> and mark as <code>PendingSync</code>; both fetch the current record to get syncStatus.</p>
+<pre><code>let syncStatus = (changes as any).syncStatus;
+if (syncStatus === undefined) {
+  const current = await db.visits.get(id);
+  syncStatus = current?.syncStatus === SyncStatus.Synced ? SyncStatus.PendingSync : current?.syncStatus;
+}</code></pre>
+<p><em>Fix:</em> extract into a shared utility function <code>autoMarkSyncStatus(current, changes)</code>. <em>Impact:</em> reduces code duplication, easier to maintain sync logic.</p>
+
+<p><strong>10. Missing abstraction — similar deletion logic <span class="badge low">LOW</span></strong><br>
+<span class="fileref">packages/shared/src/db/visits.ts:31–33 · db/trails.ts:42–44</span><br>
+Both <code>softDelete()</code> implementations are identical:</p>
+<pre><code>const now = new Date().toISOString();
+await db.visits.update(id, { deletedAt: now, updatedAt: now, syncStatus: SyncStatus.PendingSync });</code></pre>
+<p><em>Fix:</em> create a generic <code>softDelete(db, tableName, id)</code> utility. <em>Impact:</em> reduces duplication; one place to update deletion logic.</p>
+
+<p><strong>11. Unsafe recursive object manipulation in import <span class="badge low">LOW</span></strong><br>
+<span class="fileref">packages/shared/src/export/import-json.ts:175–194</span><br>
+Uses <code>JSON.parse(JSON.stringify(...))</code> to deep-clone and ensure clean objects. This is inefficient and fragile (loses functions, undefined values, circular refs). Object destructuring would be clearer. <em>Fix:</em> use explicit object construction with destructuring or a proper clone utility. <em>Impact:</em> improves performance slightly and reduces fragility.</p>
+
+<p><strong>12. CSV escape function — redundant logic <span class="badge low">LOW</span></strong><br>
+<span class="fileref">packages/shared/src/export/export-csv.ts:11–21</span><br>
+The <code>csvEscape()</code> function checks for formula injection (<code>/^[=+\-@]/</code>) but also checks for quotes and newlines:</p>
+<pre><code>if (/^[=+\-@]/.test(str)) {
+  str = "'" + str;
+}
+if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("'")) {
+  return `"${str.replace(/"/g, '""')}"`;
+}</code></pre>
+<p>After prepending <code>'</code>, the second check will always quote, making the first check redundant for CSV safety. <em>Fix:</em> combine checks or clarify intent. If formula injection is a concern, handle it in the second pass. <em>Impact:</em> minor code clarity improvement.</p>
+
+<p><strong>13. Wikipedia URL parser — multiple regex evaluations <span class="badge low">LOW</span></strong><br>
+<span class="fileref">packages/shared/src/wikipedia/url-parser.ts:53–59</span><br>
+<code>isArticlePage()</code> checks multiple prefix arrays sequentially. For every URL, it evaluates two <code>Array.some()</code> loops and a regex test. <em>Fix:</em> combine prefix checks into a single regex or use a trie (overkill for this size, but good practice). <em>Impact:</em> negligible for typical usage; good for high-volume URL parsing.</p>
+
+<p><strong>14. Type safety gap in sync field mapper <span class="badge med">MEDIUM</span></strong><br>
+<span class="fileref">packages/shared/src/sync/field-mapper.ts</span><br>
+The field mapper functions are untyped and accept/return <code>Record&lt;string, unknown&gt;</code>. They don't validate that required fields are present after mapping.</p>
+<pre><code>export function mapToRemote(obj: Record&lt;string, unknown&gt;): Record&lt;string, unknown&gt; {
+  const result: Record&lt;string, unknown&gt; = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (LOCAL_ONLY_FIELDS.has(key)) continue;
+    result[toSnakeCase(key)] = value;
+  }
+  return result;
+}</code></pre>
+<p>If a required field is accidentally in <code>LOCAL_ONLY_FIELDS</code>, it silently disappears. <em>Fix:</em> add type-safe mapping with explicit field lists or use TypeScript branded types. <em>Impact:</em> prevents silent data loss bugs in sync.</p>
+
+<p><strong>15. API surface — over-export of internal utilities <span class="badge low">LOW</span></strong><br>
+<span class="fileref">packages/shared/src/index.ts</span><br>
+The public API exports all internal utilities (<code>export * from "./sync/index.js"</code>, etc.), including internal functions like <code>mapToRemote</code>, <code>mapToLocal</code>, <code>toSnakeCase</code>, <code>toCamelCase</code> that are implementation details. If these are part of the public API, they constrain refactoring. <em>Fix:</em> re-export only intended public APIs; consider an <code>_internal/</code> namespace. <em>Impact:</em> better API stability and flexibility for internal refactoring.</p>
+
+<h4>Summary table (ordered by impact)</h4>
+<table>
+  <tr><th>#</th><th>File</th><th>Issue</th><th>Severity</th><th>Category</th></tr>
+  <tr><td>1</td><td>sync/supabase-backend.ts:35–46</td><td>Individual upserts instead of batch</td><td>HIGH</td><td>Performance</td></tr>
+  <tr><td>2</td><td>sync/engine.ts:67–88</td><td>N+1 individual updates in loop</td><td>HIGH</td><td>Performance</td></tr>
+  <tr><td>3</td><td>export/export-json.ts, export-csv.ts</td><td>N+1 query pattern for trails+visits</td><td>HIGH</td><td>Performance</td></tr>
+  <tr><td>4</td><td>language-badges/index.ts:28–42</td><td>Full-table scan for distinct languages</td><td>MEDIUM</td><td>Performance</td></tr>
+  <tr><td>5</td><td>language-badges/index.ts:9–21</td><td>Repeated full-table scan on settings check</td><td>MEDIUM</td><td>Performance</td></tr>
+  <tr><td>6</td><td>trail/operations.ts:26–45</td><td>Unnecessary in-memory sort in mergeTrails</td><td>MEDIUM</td><td>Performance</td></tr>
+  <tr><td>7</td><td>sync/engine.ts, db/visits.ts, db/trails.ts</td><td>Multiple <code>as any</code> casts</td><td>MEDIUM</td><td>Type safety</td></tr>
+  <tr><td>8</td><td>sync/field-mapper.ts</td><td>Untyped field mapping, risk of silent data loss</td><td>MEDIUM</td><td>Type safety</td></tr>
+  <tr><td>9</td><td>db/visits.ts, db/trails.ts</td><td>Duplicate <code>update()</code> sync-status logic</td><td>LOW</td><td>Refactoring</td></tr>
+  <tr><td>10</td><td>db/visits.ts, db/trails.ts</td><td>Duplicate <code>softDelete()</code> logic</td><td>LOW</td><td>Refactoring</td></tr>
+  <tr><td>11</td><td>export/import-json.ts:175–194</td><td><code>JSON.parse(JSON.stringify)</code> cloning</td><td>LOW</td><td>Refactoring</td></tr>
+  <tr><td>12</td><td>export/export-csv.ts:11–21</td><td>Redundant CSV escape logic</td><td>LOW</td><td>Refactoring</td></tr>
+  <tr><td>13</td><td>wikipedia/url-parser.ts:53–59</td><td>Multiple sequential regex/array checks</td><td>LOW</td><td>Performance</td></tr>
+  <tr><td>14</td><td>index.ts</td><td>Over-export of internal utilities</td><td>LOW</td><td>API design</td></tr>
+  <tr><td>15</td><td>export/import-json.ts:44–67</td><td>Validation boilerplate (consider Zod)</td><td>LOW–MEDIUM</td><td>Refactoring</td></tr>
+</table>
+</details>
+
+<h3 id="appendix-b">Appendix B — Chrome extension (<code>packages/extension</code>)</h3>
+<details open>
+<summary>Full agent report — 16 findings</summary>
+
+<h4>Performance issues</h4>
+
+<p><strong>1. Redundant database reads in offscreen handler <span class="badge med">MEDIUM</span></strong><br>
+<span class="fileref">packages/extension/src/offscreen/handler.ts:34, 45, 56</span><br>
+<code>getActiveTrailForTab</code>, <code>getActiveTrailByUrl</code>, and <code>getActiveTrails</code> all call <code>trails.getActive()</code>, which fetches all active trails from IndexedDB. Three separate handler cases (lines 33–57) repeat this pattern, scanning all active trails repeatedly even when only one result is needed. Lines 34–41 loop through all trails to find one by tabId; lines 45–53 loop through all to find by URL; line 56 returns all without filtering. <em>Fix:</em> create a helper <code>getActiveTrailQuick(predicate)</code> to exit early on first match; for <code>getActiveTrails</code>, cache results in-memory during the offscreen session or batch the queries. <em>Severity note:</em> only called on navigation/recovery, not per-page, but adds latency to trail detection.</p>
+
+<p><strong>2. Excessive offscreen messaging overhead in capture flow <span class="badge med">MEDIUM</span></strong><br>
+<span class="fileref">packages/extension/src/background/capture.ts:68–190</span><br>
+Each Wikipedia navigation triggers 5–17 sequential <code>sendToOffscreen()</code> calls (add trail, add visit, find visit by URL, update trail, update visit, etc.). Each call requires an IPC round-trip + retry logic; lines 68–87 alone make 2–3 calls with retry delays (500ms × attempt). Lines 146–151 (findVisitByUrl), 156–160 (updateVisit), and 194–198 (updateTrail) make sequential calls that could batch. <em>Fix:</em> batch operations into single composite messages like <code>{ type: "recordNavigation", trail, visit, parentVisitId, existingVisit? }</code> to collapse 5+ calls into 1–2. <em>Impact:</em> degrades UX on slow devices; repeated navigations compound latency.</p>
+
+<p><strong>3. Redundant visit recovery on every navigation <span class="badge med">MEDIUM</span></strong><br>
+<span class="fileref">packages/extension/src/background/capture.ts:64–87</span><br>
+If a trail is not in <code>trailManager</code> memory, the code attempts 2–3 DB lookups (getActiveTrailForTab, getActiveTrailByUrl, then URL-parsing recovery). The service worker can wake multiple times per session, but after the first recovery the trail should be in memory; repeated recoveries waste DB reads (lines 64–87 recover even if just recovered 100ms ago). <em>Fix:</em> skip recovery if the trail was recovered within the last ~10 seconds (add a timestamp to ActiveTrailEntry); for SW restart, reconcile on startup only once.</p>
+
+<p><strong>4. setTimeout-based title/redirect polling in capture <span class="badge low">LOW</span></strong><br>
+<span class="fileref">packages/extension/src/background/capture.ts:213–308</span><br>
+After each navigation, a <code>setTimeout(1500ms)</code> fires to fetch page title and redirect info from the content script. If the user rapidly navigates (e.g., 3 links in 2 seconds), multiple 1.5s timers overlap, and late responses from older navigations can corrupt newer visits. No deduplication by tabId; <code>capturedTrailId</code> and <code>capturedUrl</code> are captured but never validated against the current page. <em>Fix:</em> store active pending timers per tabId and cancel on new navigation; validate the response matches current tab state before updating. Primarily affects redirect detection.</p>
+
+<p><strong>5. Unoptimized trail reconciliation on startup <span class="badge low">LOW</span></strong><br>
+<span class="fileref">packages/extension/src/background/index.ts:37–123</span><br>
+<code>reconcileActiveTrails()</code> runs every 15 minutes (lines 31, 196–199). For each active trail it fetches ALL visits (line 56: <code>getVisitsByTrailId</code>) just to get the last one and check URL matches. With 100 trails × 50 visits each this is O(n·m) DB reads; lines 55–87 also loop through all visits again to find matches by URL (nested loop, O(n²) worst case). <em>Fix:</em> create a <code>getTrailLastVisit(trailId)</code> method; batch trail updates.</p>
+
+<h4>Refactoring opportunities</h4>
+
+<p><strong>6. Component duplication: VisitCard across extension and PWA <span class="badge med">MEDIUM</span></strong><br>
+<span class="fileref">extension/src/history/VisitCard.svelte (276 lines) · pwa/src/lib/components/VisitCard.svelte (200+ lines)</span><br>
+Nearly identical component logic (formatTime, note editing, citation copying, card menu) with minor differences: extension navigates via a <code>navigateActiveTrail</code> message to background; PWA opens <code>target="_blank"</code>. Timestamp formats differ slightly. Both share identical note autoresize, citation format list, and menu-closing logic. Estimated duplication: ~70% of code (~150 LOC). <em>Fix:</em> extract to a shared UI package; leave only the navigation strategy different via a callback prop.</p>
+
+<p><strong>7. Component duplication: TrailList across extension and PWA <span class="badge med">MEDIUM</span></strong><br>
+<span class="fileref">extension/src/history/TrailList.svelte (336 lines) · pwa/src/lib/components/TrailList.svelte (200+ lines)</span><br>
+~65% overlap in structure: both have search input, sort dropdown, data menu (export/import), and trail list rendering; both have identical import/export logic, conflict dialog, and formatDate. Differences: extension initializes <code>db</code> locally, PWA gets it from a store; extension uses an <code>onSelectTrail</code> callback, PWA uses <code>goto()</code>. Estimated duplication ~200 LOC. <em>Fix:</em> extract to shared package; inject navigation strategy via callback or context.</p>
+
+<p><strong>8. Component duplication: TrailDetail across extension and PWA <span class="badge med">MEDIUM</span></strong><br>
+<span class="fileref">extension/src/history/TrailDetail.svelte (533 lines) · pwa/src/lib/components/TrailDetail.svelte (400+ lines)</span><br>
+~60% overlap: both implement edit name/note, star toggle, focused visit view, sort (discovery/visited), merge UI, split/export; identical VisitCard integration, language badge logic, and timestamp formatting. Differences: extension sends messages to background, PWA directly mutates DB; extension uses an <code>onMutated</code> callback. Estimated duplication ~250 LOC. <em>Fix:</em> extract shared container/presenter logic; inject the DB mutation strategy. Largest component; most complex state management.</p>
+
+<p><strong>9. ImportDialog nearly identical across packages <span class="badge low">LOW</span></strong><br>
+<span class="fileref">extension/src/history/ImportDialog.svelte · pwa/src/lib/components/ImportDialog.svelte</span><br>
+100% duplicate logic (parseImportJson, detectConflicts, executeImport); the only difference is <code>const db</code> initialization (local vs store). <em>Fix:</em> merge into one component in the shared package, inject <code>db</code> via prop/context. Trivial to extract.</p>
+
+<p><strong>10. Repeated getDeviceId() initialization <span class="badge low">LOW</span></strong><br>
+<span class="fileref">extension/src/background/index.ts:19 · history/ImportDialog.svelte:63 and others</span><br>
+Each component re-instantiates <code>BreadcrumbsDB()</code> and calls <code>getDeviceId()</code> independently; Svelte components create 8+ DB instances across the history page. <em>Fix:</em> create a global store or singleton in an extension shared module for device ID and DB instance. Minor — IndexedDB access is cached, but unnecessary re-opens.</p>
+
+<h4>MV3 anti-patterns &amp; correctness issues</h4>
+
+<p><strong>11. Reconciliation alarm periodicity may fail under service-worker suspension <span class="badge med">MEDIUM</span></strong><br>
+<span class="fileref">packages/extension/src/background/index.ts:31</span><br>
+A reconciliation alarm is created with <code>periodInMinutes: 15</code>. Chrome MV3 does not guarantee the alarm fires exactly; if the SW is terminated before the alarm triggers, it fires on next SW wake-up but could miss the scheduled time, with no recovery mechanism if skipped. <em>Fix:</em> on each <code>onStartup</code> (and periodically, e.g., on message from popup), check whether the last reconciliation was &gt;15 min ago and run if needed. Stale trails may persist longer than intended.</p>
+
+<p><strong>12. Idle trail finalization dependent on transient state <span class="badge med">MEDIUM</span></strong><br>
+<span class="fileref">packages/extension/src/background/index.ts:14, 196–213</span><br>
+Idle alarms are created per-tab, but if the service worker is terminated before the alarm fires, the alarm persists in Chrome's alarm store while the in-memory <code>trailManager</code> entry is lost. On next wake-up the alarm fires but <code>trailManager.getActive(tabId)</code> returns undefined (lines 207–211 silently skip), so the trail is never finalized. <em>Fix:</em> on alarm fire, query the offscreen DB for the active trail by tab ID before finalizing, or persist idle-alarm metadata to <code>chrome.storage</code>. Trails can remain "active" indefinitely if the SW restarts before idle timeout.</p>
+
+<p><strong>13. Message listener return value inconsistency <span class="badge low">LOW</span></strong><br>
+<span class="fileref">packages/extension/src/background/index.ts:216–225</span><br>
+Line 224 returns <code>true</code> to indicate an async response, but line 221 returns <code>false</code> for the linkClicked message. If the linkClicked callback were async, returning false could cause a race where navigation fires before linkClicked is processed. In practice link click is processed synchronously before webNavigation fires, but MV3 best practice requires explicit async handling. <em>Fix:</em> return <code>true</code> and handle linkClicked asynchronously, or ensure ordering with a queue.</p>
+
+<p><strong>14. Tab ID tracking lost on browser restart <span class="badge low">LOW</span></strong><br>
+<span class="fileref">packages/extension/src/background/index.ts:93–123</span><br>
+<code>reconcileActiveTrails()</code> re-associates trails with tabs after browser restart (tab IDs change). If a trail's last-visit URL was on a tab closed before restart, it matches no open tab; the trail is then considered "stale" if older than 2× idle timeout (lines 107–117) — a heuristic that could finalize active trails incorrectly. <em>Fix:</em> mark trails "stale but resumable" instead of finalizing; restore only on explicit user action. Edge case, but can create data-loss perception.</p>
+
+<h4>Type-safety gaps</h4>
+
+<p><strong>15. Loose typing in offscreen messages <span class="badge low">LOW</span></strong><br>
+<span class="fileref">packages/extension/src/offscreen/index.ts:16–22</span><br>
+Auth and sync handlers cast the request to <code>req as any</code>, losing type safety; a mismatch between message type and payload won't be caught at compile time. <em>Fix:</em> define separate typed functions per handler, or use discriminated unions with proper type narrowing.</p>
+
+<p><strong>16. Missing null checks in visit parent tracking <span class="badge low">LOW</span></strong><br>
+<span class="fileref">packages/extension/src/background/capture.ts:162–178</span><br>
+<code>parentVisitId</code> is derived from <code>current.lastVisitUrl</code> (line 164), but if URL parsing fails or the visit is not found, it remains <code>null</code> with no validation that the visit was actually recorded before referencing it as a parent. Handled gracefully (null is valid), but could indicate a missing visit. <em>Fix:</em> validate after lookup or set to null explicitly if not found.</p>
+
+<h4>Summary table (by impact)</h4>
+<table>
+  <tr><th>Priority</th><th>Issue</th><th>File</th><th>Type</th><th>LOC</th><th>Fix effort</th></tr>
+  <tr><td>HIGH</td><td>Redundant active-trail DB reads</td><td>handler.ts:34,45,56</td><td>Performance</td><td>~50</td><td>Low</td></tr>
+  <tr><td>MEDIUM</td><td>Excessive offscreen message batching</td><td>capture.ts:68–190</td><td>Performance</td><td>~100</td><td>Medium</td></tr>
+  <tr><td>MEDIUM</td><td>Redundant visit recovery</td><td>capture.ts:64–87</td><td>Performance</td><td>~30</td><td>Low</td></tr>
+  <tr><td>MEDIUM</td><td>VisitCard duplication</td><td>VisitCard.svelte (ext+pwa)</td><td>Refactoring</td><td>150</td><td>Medium</td></tr>
+  <tr><td>MEDIUM</td><td>TrailList duplication</td><td>TrailList.svelte (ext+pwa)</td><td>Refactoring</td><td>200</td><td>Medium</td></tr>
+  <tr><td>MEDIUM</td><td>TrailDetail duplication</td><td>TrailDetail.svelte (ext+pwa)</td><td>Refactoring</td><td>250</td><td>High</td></tr>
+  <tr><td>MEDIUM</td><td>Reconciliation alarm unreliability</td><td>index.ts:31</td><td>MV3 anti-pattern</td><td>~20</td><td>Low</td></tr>
+  <tr><td>MEDIUM</td><td>Idle finalization lost on SW restart</td><td>index.ts:14,196–213</td><td>Correctness</td><td>~30</td><td>Medium</td></tr>
+  <tr><td>LOW</td><td>Redirect polling race condition</td><td>capture.ts:213–308</td><td>Performance</td><td>~80</td><td>Medium</td></tr>
+  <tr><td>LOW</td><td>Reconciliation O(n²)</td><td>index.ts:37–123</td><td>Performance</td><td>~50</td><td>Low</td></tr>
+  <tr><td>LOW</td><td>ImportDialog duplication</td><td>ImportDialog.svelte (ext+pwa)</td><td>Refactoring</td><td>60</td><td>Low</td></tr>
+  <tr><td>LOW</td><td>Message listener async inconsistency</td><td>index.ts:216–225</td><td>Correctness</td><td>~5</td><td>Low</td></tr>
+  <tr><td>LOW</td><td>Tab ID tracking on restart</td><td>index.ts:93–123</td><td>Correctness</td><td>~30</td><td>Low</td></tr>
+  <tr><td>LOW</td><td>Loose typing in offscreen handlers</td><td>offscreen/index.ts:16–22</td><td>Type safety</td><td>~10</td><td>Low</td></tr>
+  <tr><td>LOW</td><td>Visit parent validation</td><td>capture.ts:162–178</td><td>Type safety</td><td>~15</td><td>Low</td></tr>
+  <tr><td>LOW</td><td>Repeated getDeviceId init</td><td>multiple</td><td>Performance</td><td>~20</td><td>Low</td></tr>
+</table>
+</details>
+
+<h3 id="appendix-c">Appendix C — PWA (<code>packages/pwa</code>)</h3>
+<details open>
+<summary>Full agent report — 15 findings</summary>
+
+<h4>High severity</h4>
+
+<p><strong>1. High re-render cost from N+1 DB queries in TrailList &amp; TrailDetail <span class="badge high">HIGH</span></strong><br>
+<span class="fileref">packages/pwa/src/lib/components/TrailList.svelte:38–72</span><br>
+In <code>loadTrails()</code>, fetches all trails with <code>ts.getAll()</code> then iterates over each trail to fetch visits: <code>await Promise.all(all.map(async (t) =&gt; { const visits = await vs.getByTrailId(t.id); ...}))</code> — classic N+1. With 100 trails this runs 1 + 100 DB queries; each re-render after star/delete triggers a full reload. <em>Fix:</em> create a bulk <code>getVisitsByTrailIds()</code> in the shared lib or batch queries in a single pass, or use Dexie's <code>liveQuery()</code> to observe changes reactively instead of manual reloads.</p>
+
+<p><strong>2. Repeated full data reloads after every mutation <span class="badge high">HIGH</span></strong><br>
+<span class="fileref">TrailDetail.svelte:204, 218, 229, 234, 243, 252, 262 · TrailList.svelte:104, 113, 198</span><br>
+After each update (toggle star, delete visit, update note, merge trails), full <code>loadData()/loadTrails()</code> is called, re-fetching all trails and visits. Severe performance cliff on devices with many trails; blocks UI during expensive re-renders. <em>Fix:</em> use Dexie <code>liveQuery()</code> for reactive subscriptions or implement optimistic updates + minimal invalidation (a star toggle only needs to update local UI + one DB record).</p>
+
+<p><strong>3. TrailDetail component is 659 lines — oversized &amp; unmaintainable <span class="badge high">HIGH</span></strong><br>
+<span class="fileref">packages/pwa/src/lib/components/TrailDetail.svelte:1–659</span><br>
+Handles trail name editing, note editing, merge UI, sort state, focused view, export, all visit-list rendering, and deletion. Multiple concerns mixed: editing state (editingName, editingNote, nameValue, noteValue), merge state (showMerge, mergeTargetId, mergeTargetLabel), menu states (detailMenuOpen, mergeDropdownOpen). Hard to reason about reactivity, difficult to test. <em>Fix:</em> extract <code>&lt;TrailHeader&gt;</code> (name, star, meta), <code>&lt;TrailNoteEditor&gt;</code>, <code>&lt;MergeDialog&gt;</code>, and <code>&lt;VisitList&gt;</code> (with its own sort logic), reducing the main component to ~150 lines with independently testable pieces.</p>
+
+<p><strong>4. Service worker cache strategy has no expiration or versioning <span class="badge high">HIGH</span></strong><br>
+<span class="fileref">packages/pwa/src/service-worker.ts:25–48</span><br>
+Uses cache-first (<code>caches.match()</code> then fetch). Cached files are never expired or revalidated; CACHE_NAME uses <code>version</code> from build, but if the version doesn't change, stale assets serve forever. No stale-while-revalidate or max-age; assets cached at install never update. Users can get stuck on old app versions after deploys. <em>Fix:</em> stale-while-revalidate for mutable resources; strong versioning; background invalidation of old caches; serve <code>index.html</code> with no-cache headers. <em>[Synthesizer's note: partially corrected — SvelteKit's <code>version</code> changes per build by default; the verified issues are the missing <code>prerendered</code> assets in the precache (offline fallback returns undefined) and the absent update-prompt flow.]</em></p>
+
+<p><strong>5. Race condition in auth state during OAuth redirect <span class="badge high">HIGH</span></strong><br>
+<span class="fileref">packages/pwa/src/lib/stores/auth.svelte.ts:16–56</span><br>
+After OAuth redirect (lines 24–45), the store sets up an <code>onAuthStateChange</code> listener (line 18), then manually processes the token from the URL hash (lines 24–38), then calls <code>replaceState</code> and sets <code>_initialized=true</code> (lines 40–42). But the listener is registered at module load, so it may fire before <code>_initialized=true</code>, causing <code>_loading</code> to be set false prematurely (line 20: <code>if (_initialized) _loading = false;</code>). Also, <code>_setupVisibilityRefresh()</code> (lines 44, 55) can be called twice if the listener fires. <em>Fix:</em> register the listener only after the <code>_initialized</code> check, or use a one-time bootstrap listener plus a separate persistent listener.</p>
+
+<p><strong>6. Sync engine not protected from concurrent syncNow() calls <span class="badge high">HIGH</span></strong><br>
+<span class="fileref">packages/pwa/src/lib/stores/sync.svelte.ts:66–78</span><br>
+<code>syncNow()</code> checks <code>if (!engine) return;</code> and sets <code>_syncing = true</code>, but doesn't check whether a sync is already in progress. If called twice rapidly (manual sync + 5-min interval in the same window), both enter <code>engine.syncNow()</code> concurrently, risking data races; the sync report can be corrupted by the second call overwriting the first. <em>Fix:</em> add <code>if (_syncing) return;</code> before <code>_syncing = true</code>.</p>
+
+<h4>Medium severity</h4>
+
+<p><strong>7. sortedVisits recalculates on every state change <span class="badge med">MEDIUM</span></strong><br>
+<span class="fileref">TrailDetail.svelte:140–148</span><br>
+<code>const sortedVisits = $derived.by()</code> sorts the entire visits array on relevant changes with no memoization; sorting 1000+ visits repeatedly is wasteful and causes lag on large trails. <em>Fix:</em> strict dependencies so it recomputes only when <code>visits</code>, <code>sortField</code>, <code>sortDir</code> change; consider <code>toSorted()</code> or a derived cache key.</p>
+
+<p><strong>8. Sync store silently drops errors without surfacing <span class="badge med">MEDIUM</span></strong><br>
+<span class="fileref">sync.svelte.ts:70–77</span><br>
+<code>syncNow()</code> catches errors and logs to console, but <code>_lastReport</code> is never updated on error — the UI shows no indication that sync failed. No retry logic. <em>Fix:</em> update <code>_lastReport</code> with error state; expose <code>syncError</code> in <code>syncState</code>; add exponential backoff retry; log to error tracking.</p>
+
+<p><strong>9. Memory leak: menu event listeners not reliably cleaned up <span class="badge med">MEDIUM</span></strong><br>
+<span class="fileref">TrailDetail.svelte:66–86</span><br>
+Merge dropdown and detail menu each have an <code>$effect()</code> that registers a click listener via <code>setTimeout()</code> before adding it. Rapid toggling can accumulate listeners; cleanup timing is fragile. <em>Fix:</em> remove the <code>setTimeout()</code> and attach listeners immediately in the effect, or use a centralized menu manager ensuring only one open menu.</p>
+
+<p><strong>10. TypeScript type-safety gap in component props <span class="badge med">MEDIUM</span></strong><br>
+<span class="fileref">VisitCard.svelte:5–13, 157</span><br>
+Props include optional <code>onSplit?: (position: number) =&gt; void</code> but the component calls <code>onSplit!(visit.position)</code> after a truthiness check; <code>showLanguageBadge?: boolean</code> defaults implicitly. <em>Fix:</em> stricter prop types and explicit defaults in <code>$props</code> destructuring.</p>
+
+<p><strong>11. Duplicated trail display-name calculation <span class="badge med">MEDIUM</span></strong><br>
+<span class="fileref">TrailDetail.svelte:170–176 · TrailList.svelte:50–57 · routes/+page.svelte:67–78</span><br>
+Three components independently compute <code>displayName</code> from <code>trail.name</code> or first/last visit title, with slight variations ("Empty trail" vs "…"). <em>Fix:</em> extract <code>getTrailDisplayName(trail: Trail, visits: Visit[]): string</code> to a shared utility.</p>
+
+<h4>Low severity</h4>
+
+<p><strong>12. Multiple similar visibility listeners <span class="badge low">LOW</span></strong><br>
+<span class="fileref">routes/+page.svelte:105 · TrailDetail.svelte:121 · TrailList.svelte:76</span><br>
+Each component independently registers a <code>visibilitychange</code> listener and calls <code>loadData()</code> on visible; with 3+ components visible, 3 full reloads on tab focus. <em>Fix:</em> a global visibility store or layout-level broadcast that components subscribe to.</p>
+
+<p><strong>13. Auth token refresh not bound to service-worker context <span class="badge low">LOW</span></strong><br>
+<span class="fileref">auth.svelte.ts:58–66</span><br>
+<code>_setupVisibilityRefresh()</code> starts/stops <code>supabase.auth.autoRefresh()</code> based on visibility, browser-only. Offline PWA may hold expired tokens; ensure the cache layer passes auth calls through to network.</p>
+
+<p><strong>14. Svelte 5 runes partially adopted — inconsistent state patterns <span class="badge low">LOW</span></strong><br>
+<span class="fileref">all store files and components</span><br>
+Stores use <code>$state</code> (good) but manually manage listener cleanup in effects; some stores use closures for private state (<code>let engine = null</code>), which works but isn't idiomatic Svelte 5. <em>Fix:</em> consider class-based store pattern or more idiomatic <code>$effect()</code>/<code>untrack()</code> usage.</p>
+
+<p><strong>15. No pagination or virtualization for large trail lists <span class="badge low">LOW</span></strong><br>
+<span class="fileref">TrailList.svelte:274–307</span><br>
+Renders all filtered trails in a single <code>#each</code>; with 500+ trails the DOM holds 500+ items even if only 5 are visible. <em>Fix:</em> virtual scrolling or pagination in 50-item chunks.</p>
+
+<h4>Summary table</h4>
+<table>
+  <tr><th>Issue</th><th>File(s)</th><th>Severity</th><th>Category</th></tr>
+  <tr><td>N+1 queries on trails list</td><td>TrailList.svelte</td><td>HIGH</td><td>Performance</td></tr>
+  <tr><td>Full reload after every mutation</td><td>TrailDetail, TrailList, +page</td><td>HIGH</td><td>Performance</td></tr>
+  <tr><td>TrailDetail oversized (659 lines)</td><td>TrailDetail.svelte</td><td>HIGH</td><td>Refactoring</td></tr>
+  <tr><td>Service worker stale cache</td><td>service-worker.ts</td><td>HIGH</td><td>Correctness</td></tr>
+  <tr><td>Auth race condition on OAuth</td><td>auth.svelte.ts</td><td>HIGH</td><td>Correctness</td></tr>
+  <tr><td>Concurrent sync calls race</td><td>sync.svelte.ts</td><td>HIGH</td><td>Correctness</td></tr>
+  <tr><td>sortedVisits inefficient recalculation</td><td>TrailDetail.svelte</td><td>MEDIUM</td><td>Performance</td></tr>
+  <tr><td>Sync errors silently dropped</td><td>sync.svelte.ts</td><td>MEDIUM</td><td>Correctness</td></tr>
+  <tr><td>Menu listener memory leak</td><td>TrailDetail.svelte</td><td>MEDIUM</td><td>Performance</td></tr>
+  <tr><td>Type-safety gaps in VisitCard props</td><td>VisitCard.svelte</td><td>MEDIUM</td><td>Refactoring</td></tr>
+  <tr><td>Duplicated displayName logic</td><td>multiple</td><td>MEDIUM</td><td>Refactoring</td></tr>
+  <tr><td>Multiple visibility listeners</td><td>multiple</td><td>LOW</td><td>Performance</td></tr>
+  <tr><td>Auth refresh not in SW context</td><td>auth.svelte.ts</td><td>LOW</td><td>Correctness</td></tr>
+  <tr><td>Svelte 5 patterns inconsistent</td><td>all</td><td>LOW</td><td>Refactoring</td></tr>
+  <tr><td>No pagination/virtualization</td><td>TrailList.svelte</td><td>LOW</td><td>Performance</td></tr>
+</table>
+</details>
+
+<h3 id="appendix-d">Appendix D — Product / UX survey</h3>
+<details open>
+<summary>Full agent report — 29 opportunities</summary>
+
+<h4>UX gaps — missing states &amp; error handling</h4>
+
+<p><strong>(1) No sync error visibility in PWA.</strong> <span class="fileref">pwa/src/routes/settings/+page.svelte</span> only shows <code>authError</code> for sign-in; sync errors from the engine are logged but never surfaced. The design doc <code>docs/design/ui-ux-guidelines.md</code> states the "app tells the truth" about status, but sync failures are invisible. Users can't distinguish "syncing," "offline," "sync failed with retry pending," or "sync succeeded" — creating uncertainty about data safety. <em>Effort: small</em> (error banner in SyncStatus component).</p>
+
+<p><strong>(2) No loading/skeleton states for trail detail pages.</strong> <span class="fileref">TrailDetail.svelte:88–93 · routes/trails/[id]/+page.svelte</span> — loads trail data but renders immediately with no loading state. On slow devices or large trails, content shifts/jumps as data loads, violating the design principle "interface is stable" (ui-ux-guidelines.md). <em>Effort: small</em> (add a <code>loaded</code> state, render skeleton).</p>
+
+<p><strong>(3) Empty trail state in trail detail.</strong> <span class="fileref">TrailDetail.svelte:323</span> shows "No visits in this trail." with no button to add visits or guidance. Empty trails can exist after split operations or manual creation; the user has no next action. <em>Effort: small.</em></p>
+
+<p><strong>(4) No undo for destructive actions.</strong> Delete trail (TrailList.svelte) and delete visit (VisitCard.svelte) both trigger soft-delete directly. The design doc says "destructive actions are deliberate" with confirmation, but there's no undo window. Even a 10-second "Undo" toast would prevent frustration; the soft-delete model already supports it. <em>Effort: medium.</em></p>
+
+<p><strong>(5) No sync conflict resolution UI.</strong> Sync conflicts are logged to the <code>conflictLogs</code> table per the design spec, but neither the PWA settings page nor the extension has any conflict viewer or resolution flow. Multi-device users editing the same trail see silent last-write-wins data loss. Needs side-by-side comparison and restore. <em>Effort: large.</em></p>
+
+<h4>UX gaps — mobile / cross-platform</h4>
+
+<p><strong>(6) iOS PWA storage sync warning incomplete.</strong> <span class="fileref">routes/+page.svelte:49–51</span> detects iOS unshared storage and shows a prompt, but the flow to migrate data or explain isolation is unclear. Users install as an app expecting the same data as the browser — iOS isolates the storage, orphaning data. <em>Effort: medium</em> (educational onboarding + sync-before-install check).</p>
+
+<p><strong>(7) No keyboard shortcuts on either platform.</strong> Design spec <code>2026-03-30-chrome-extension-phase1-design.md</code> line 382 lists "Keyboard shortcuts | Phase 1.5" as deferred; no keyboard nav in the PWA either. Power users can't quickly start/end trails, navigate, or trigger sync. <em>Effort: medium</em> (extension: <code>chrome.commands</code>; PWA: keyboard handlers).</p>
+
+<p><strong>(8) No touch-friendly confirmation dialogs on mobile.</strong> ConfirmDialog buttons are small (see VisitCard.svelte); no touch-device detection to enlarge targets. Tap accuracy is poor under 500px width — easy accidental confirms/cancels. <em>Effort: small.</em></p>
+
+<h4>UX gaps — accessibility</h4>
+
+<p><strong>(9) Limited ARIA labels in components.</strong> Grep shows only ~20 ARIA attributes across PWA Svelte files. Many icon buttons lack descriptions (the "⋮" menu buttons in TrailList, VisitCard, TrailDetail). Screen-reader users can't discover or understand menus, sort controls, or split/merge actions. <em>Effort: small.</em></p>
+
+<p><strong>(10) No focus management on modal close.</strong> ConfirmDialog, merge pickers, and cite popovers close without returning focus to the trigger button. Per ui-ux-guidelines.md, "dismissing overlay should not trigger action on element beneath" — keyboard navigation breaks after closing dialogs. <em>Effort: small</em> (trap focus in dialogs, restore on close).</p>
+
+<h4>Feature opportunities — routes &amp; capture</h4>
+
+<p><strong>(11) Missing <code>/add</code> route in PWA (manual capture).</strong> Design spec <code>2026-03-31-pwa-auth-design.md</code> line 367 lists "/add" in the backlog: "Manual capture — paste a Wikipedia URL or multiple URLs to add visits." PWA-only users can't create trails at all; manual URL entry enables desktop PWA use and bypasses browser capture restrictions. <em>Effort: medium</em> (URL parser, visit creator, trail picker, batch handling).</p>
+
+<p><strong>(12) Missing <code>/shared/[id]</code> route (public trail viewer).</strong> Design spec lines 212–213 mention SSR for shared trails; line 330 lists the <code>visibility: "public"</code> enum. No shared route exists (deferred per line 367). Users can't share research trails without manually copy-pasting each link. <em>Effort: large</em> (viewer, sharing UI, SSR setup, OG tags).</p>
+
+<p><strong>(13) No share-target handler for mobile.</strong> Design spec line 220 lists "Share Target"; the PWA manifest has no <code>share_target</code> (deferred per line 368). Mobile browsers can't capture Wikipedia — users can't share a page from another app into a trail. Major gap for mobile-first users. <em>Effort: medium</em> (manifest <code>share_target</code> + <code>/add</code> endpoint to receive payloads).</p>
+
+<h4>Feature opportunities — visualizations &amp; analytics</h4>
+
+<p><strong>(14) No trail timeline/map visualization.</strong> The data model includes <code>timestamp</code>, <code>position</code>, <code>parentVisitId</code> (link graph) but only flat lists are rendered. Visualizing navigation flow answers "how many digressions before returning?", "what's the longest linear path?", "which pages are most revisited?" <em>Effort: large</em> (D3 or similar, flow-graph layout).</p>
+
+<p><strong>(15) No statistics dashboard.</strong> The home page shows basic totals (trails, pages, notes) but no trends, comparisons, or breakdowns (trails per day, pages per trail, most-revisited pages). Motivates sustained use and goal-setting. <em>Effort: medium</em> (aggregate queries, chart component, date filtering).</p>
+
+<p><strong>(16) No search within trail (only global).</strong> TrailList has search but it's global; TrailDetail has none. Large trails (50+ pages) become hard to navigate. <em>Effort: small</em> (reuse TrailList search logic in TrailDetail).</p>
+
+<h4>Feature opportunities — visibility &amp; metadata</h4>
+
+<p><strong>(17) No trail activity timeline.</strong> Trails have <code>updatedAt</code>/<code>createdAt</code> but no activity log of when visits were added, notes changed, or trails split. Useful for edit history and replaying research chronologically. <em>Effort: large</em> (audit log table).</p>
+
+<p><strong>(18) No language-aware sorting or filtering.</strong> Language badges use <code>visit.language</code>, and settings have language exclusions, but trails can't be filtered by language ("English-only research", per-language stats). Valuable for researchers comparing language editions. <em>Effort: medium.</em></p>
+
+<p><strong>(19) Missing breadcrumb hierarchy visual.</strong> <code>parentVisitId</code> enables tracking which pages were discovered from which; the extension's TrailView.svelte (lines 110–122) shows relation markers, but the PWA doesn't use it well and there's no visual breadcrumb chain. Essential for understanding the research narrative. <em>Effort: medium</em> (indentation/nesting in the visit timeline).</p>
+
+<h4>Feature opportunities — sync &amp; multi-device</h4>
+
+<p><strong>(20) No selective sync.</strong> The sync engine is all-or-nothing; no way to exclude old trails or pause sync for a specific trail. Enables "local research only" vs "shared research" and helps bandwidth-limited users. <em>Effort: medium</em> (per-trail sync flag).</p>
+
+<p><strong>(21) No sync scheduling.</strong> The PWA does a fixed 5-minute periodic sync with no user control (no night-only or WiFi-only sync). Battery/data savings on mobile. <em>Effort: medium.</em></p>
+
+<h4>Feature opportunities — data quality</h4>
+
+<p><strong>(22) No redirect detection / article metadata in PWA.</strong> The extension has redirect detection; Wikipedia API fetching is deferred to Phase 1.5 (spec line 381). The PWA has no access to redirects, summaries, or thumbnails — thumbnail + summary would make trail review faster and more visual. <em>Effort: large.</em></p>
+
+<p><strong>(23) No citation metadata caching.</strong> Citations are generated on-the-fly from Visit fields with no capture of author/publisher/infobox data. Richer citations for academic use; automatic attribution for shared trails. <em>Effort: medium.</em></p>
+
+<h4>Feature opportunities — extension-specific</h4>
+
+<p><strong>(24) No overlay/sidebar mode on Wikipedia pages.</strong> The design doc says "overlay mode is a blocker for content script UI work and must be resolved via mockups" (<code>2026-03-30-wikipedia-breadcrumbs-design.md</code> line 192). Seeing trail state and taking notes inline without opening the popup would be a massive UX win. <em>Effort: large.</em></p>
+
+<p><strong>(25) No multi-tab trail support.</strong> Trail-to-tab mapping is 1:1; opening the same trail in two tabs starts a new trail. Side-by-side article comparison and natural research forking need N:1 support. <em>Effort: medium.</em></p>
+
+<p><strong>(26) No quick trail preview on Wikipedia links.</strong> No content-script feature to show "which trail does this page belong to?" on hover/right-click. <em>Effort: medium.</em></p>
+
+<h4>Feature opportunities — PWA-specific</h4>
+
+<p><strong>(27) No offline indicator for stale data.</strong> The app detects offline but only disables the sync button; it doesn't indicate which data is cached/stale. <em>Effort: small</em> (offline-mode banner).</p>
+
+<p><strong>(28) No extension install upsell from the PWA.</strong> The PWA home says "Install the extension to start browsing!" with no direct Web Store link or installation flow. <em>Effort: medium</em> (deep link, install verification).</p>
+
+<p><strong>(29) No PWA update notification.</strong> The service worker caches with no update prompt; users can run stale code for weeks. <em>Effort: small.</em></p>
+
+<h4>Priority ranking (value-to-effort)</h4>
+<p><strong>Quick wins:</strong> (9) ARIA labels · (10) focus management · (2) loading skeletons · (7) keyboard shortcuts · (16) search within trail · (1) sync error visibility · (27) offline indicator.</p>
+<p><strong>Medium impact:</strong> (21) sync scheduling · (13) share target · (4) undo for deletes · (6) iOS storage flow · (15) stats dashboard · (22) metadata enrichment · (25) multi-tab trails.</p>
+<p><strong>Strategic:</strong> (11) <code>/add</code> manual capture · (24) overlay/sidebar · (12) public trail viewer · (14) trail visualization · (5) conflict resolution UI · (20) selective sync.</p>
+<p><strong>Deferred/other:</strong> (3) empty-trail UX · (8) touch-friendly confirmations · (17) activity timeline · (18) language filtering · (19) breadcrumb hierarchy visual · (23) citation metadata · (26) link previews · (28) extension upsell · (29) PWA update notification.</p>
+</details>
+
+<footer>
+  Generated 2026-07-12 by Claude Code · four parallel analysis agents + manual verification of top findings · line numbers as of commit <code>5eb2c64</code> on <code>main</code>.
+</footer>
+
+</body>
+</html>
