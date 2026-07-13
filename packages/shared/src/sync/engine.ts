@@ -43,7 +43,7 @@ export class SyncEngine {
       await this.pull(report);
       await this.cleanupOldDeleted();
       // Only update lastSyncTime if the sync had no errors and we're online
-      const isOnline = typeof navigator !== "undefined" ? navigator.onLine : true;
+      const isOnline = typeof navigator === "undefined" || navigator.onLine !== false;
       if (report.errors.length === 0 && isOnline) {
         await this.stateStore.setLastSyncTime(new Date().toISOString());
       }
