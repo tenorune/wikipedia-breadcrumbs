@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import type { Trail, Visit, LanguageBadgeSettings } from "@wikipedia-breadcrumbs/shared";
   import { BreadcrumbsDB, visitStore, trailStore, splitTrail, mergeTrails, exportTrailsJson, exportTrailsCsv, downloadFile, exportFilename, getLanguageBadgeSettings, shouldShowLanguageBadge } from "@wikipedia-breadcrumbs/shared";
-  import VisitCard from "./VisitCard.svelte";
+  import { VisitCard } from "@wikipedia-breadcrumbs/ui";
   import ConfirmDialog from "./ConfirmDialog.svelte";
 
   interface Props {
@@ -254,9 +254,29 @@
     downloadFile(content, exportFilename(trail.name, format), format === "json" ? "application/json" : "text/csv");
   }
 
-  async function handleUpdateNote(visitId: string, note: string) {
+  async function handleUpdateNote(visitId: string, note: string | null) {
     await visitOps.update(visitId, { note });
     await loadVisits();
+  }
+
+  async function handleNavigate(visit: Visit, e: MouseEvent) {
+    e.preventDefault();
+    if (trail.status === "active") {
+      // Let the background handle navigation — it knows the real tab ID
+      await chrome.runtime.sendMessage({
+        type: "navigateActiveTrail",
+        trailId: trail.id,
+        url: visit.url,
+      });
+    } else {
+      // Finalized trail — background creates tab and resumes trail atomically
+      await chrome.runtime.sendMessage({
+        type: "resumeTrailInNewTab",
+        trailId: trail.id,
+        url: visit.url,
+      });
+      onMutated?.();
+    }
   }
 
   async function handleDeleteVisit(visitId: string) {
@@ -364,11 +384,9 @@
           <!-- <div class="grandparent-label">Discovered from</div> -->
           <VisitCard
             visit={focusedView.parent}
-            trailId={trail.id}
-            trailStatus={trail.status}
             onUpdateNote={handleUpdateNote}
             onDelete={handleDeleteVisit}
-            onResumed={onMutated}
+            onNavigate={handleNavigate}
             showLanguageBadge={langSettings ? shouldShowLanguageBadge(focusedView.parent.language, langSettings) : false}
           />
         </div>
@@ -379,11 +397,9 @@
       }}>
         <VisitCard
           visit={focusedView.focused}
-          trailId={trail.id}
-          trailStatus={trail.status}
           onUpdateNote={handleUpdateNote}
           onDelete={handleDeleteVisit}
-          onResumed={onMutated}
+          onNavigate={handleNavigate}
           showLanguageBadge={langSettings ? shouldShowLanguageBadge(focusedView.focused.language, langSettings) : false}
         />
       </div>
@@ -396,11 +412,9 @@
           }}>
             <VisitCard
               visit={child}
-              trailId={trail.id}
-              trailStatus={trail.status}
               onUpdateNote={handleUpdateNote}
               onDelete={handleDeleteVisit}
-              onResumed={onMutated}
+              onNavigate={handleNavigate}
               showLanguageBadge={langSettings ? shouldShowLanguageBadge(child.language, langSettings) : false}
             />
           </div>
@@ -420,12 +434,10 @@
         }}>
           <VisitCard
             {visit}
-            trailId={trail.id}
-            trailStatus={trail.status}
             onUpdateNote={handleUpdateNote}
             onDelete={handleDeleteVisit}
             onSplit={sortField === "discovery" && sortAsc && i < sortedVisits.length - 1 ? handleSplit : undefined}
-            onResumed={onMutated}
+            onNavigate={handleNavigate}
             showLanguageBadge={langSettings ? shouldShowLanguageBadge(visit.language, langSettings) : false}
           />
         </div>
