@@ -8,5 +8,8 @@ export default {
       assets: "build",
       fallback: "index.html",
     }),
+    serviceWorker: {
+      register: false,
+    },
   },
 };

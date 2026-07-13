@@ -5,10 +5,13 @@
   import { upgradeToAuthenticatedUser } from "$lib/stores/sync.svelte";
   import { initInstallStore } from "$lib/stores/install.svelte";
   import { onMount } from "svelte";
+  import { dev } from "$app/environment";
+  import { initServiceWorker } from "$lib/sw-registration";
 
   let { children } = $props();
 
   onMount(async () => {
+    if (!dev) initServiceWorker();
     initInstallStore();
 
     // Dynamic status bar color (only when installed as PWA)
