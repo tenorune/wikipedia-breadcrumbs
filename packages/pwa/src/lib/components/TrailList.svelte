@@ -1,25 +1,18 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import { goto } from "$app/navigation";
-  import { trailStore, visitStore } from "@wikipedia-breadcrumbs/shared";
-  import type { Trail } from "@wikipedia-breadcrumbs/shared";
+  import { trailStore } from "@wikipedia-breadcrumbs/shared";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import { db } from "$lib/stores/db";
   import { exportTrailsJson, exportTrailsCsv, downloadFile, exportFilename, parseImportJson, detectConflicts, executeImport, pickFile } from "@wikipedia-breadcrumbs/shared";
   import type { ConflictItem, ImportPlan } from "@wikipedia-breadcrumbs/shared";
   import { getDeviceId } from "$lib/stores/device-id";
+  import { useLiveQuery } from "$lib/live-query.svelte";
+  import { queryTrailData, type TrailData, type TrailSummary } from "$lib/queries";
 
   const ts = trailStore(db);
-  const vs = visitStore(db);
 
   type SortMode = "recent" | "oldest" | "starred";
 
-  let loaded = $state(false);
-  let trails = $state<Trail[]>([]);
-  let displayNames = $state<Record<string, string>>({});
-  let visitCounts = $state<Record<string, number>>({});
-  let lastDiscovered = $state<Record<string, string>>({});
-  let searchTexts = $state<Record<string, string>>({});
   let search = $state("");
   let sortMode = $state<SortMode>("recent");
   let sortDropdownOpen = $state(false);
@@ -35,82 +28,39 @@
     return () => document.removeEventListener("click", close);
   });
 
-  async function loadTrails() {
-    const all = await ts.getAll();
-    trails = all;
-    const names: Record<string, string> = {};
-    const counts: Record<string, number> = {};
-    const discovered: Record<string, string> = {};
-    const texts: Record<string, string> = {};
-    await Promise.all(
-      all.map(async (t) => {
-        const visits = await vs.getByTrailId(t.id);
-        counts[t.id] = visits.length;
-        discovered[t.id] = visits.length > 0 ? visits[visits.length - 1].timestamp : t.startedAt;
-        if (t.name) {
-          names[t.id] = t.name;
-        } else if (visits.length === 0) {
-          names[t.id] = "Empty trail";
-        } else if (visits.length === 1) {
-          names[t.id] = visits[0].title;
-        } else {
-          names[t.id] = `${visits[0].title} → ${visits[visits.length - 1].title}`;
-        }
-        // Build searchable text from trail name, note, and all visit titles/notes
-        const parts = [t.name ?? "", t.note ?? ""];
-        for (const v of visits) {
-          parts.push(v.title, v.note ?? "");
-        }
-        texts[t.id] = parts.join(" ").toLowerCase();
-      })
-    );
-    displayNames = names;
-    visitCounts = counts;
-    lastDiscovered = discovered;
-    searchTexts = texts;
-    loaded = true;
-  }
-
-  onMount(() => {
-    loadTrails();
-    const onVisible = () => { if (document.visibilityState === "visible") loadTrails(); };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  });
+  const data = useLiveQuery(() => queryTrailData(db), null as TrailData | null);
+  const loaded = $derived(data.current !== null);
+  const summaries = $derived(data.current?.summaries ?? []);
 
   const filtered = $derived.by(() => {
     const q = search.trim().toLowerCase();
-    let list = trails.filter((t) => {
-      if (!q) return true;
-      return (searchTexts[t.id] ?? "").includes(q);
-    });
+    let list = summaries.filter((s) => !q || s.searchText.includes(q));
 
     if (sortMode === "recent") {
-      list = [...list].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      list = [...list].sort((a, b) => b.trail.updatedAt.localeCompare(a.trail.updatedAt));
     } else if (sortMode === "oldest") {
-      list = [...list].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+      list = [...list].sort((a, b) => a.trail.startedAt.localeCompare(b.trail.startedAt));
     } else if (sortMode === "starred") {
       list = [...list].sort((a, b) => {
-        if (a.isStarred === b.isStarred) return b.updatedAt.localeCompare(a.updatedAt);
-        return a.isStarred ? -1 : 1;
+        if (a.trail.isStarred === b.trail.isStarred) return b.trail.updatedAt.localeCompare(a.trail.updatedAt);
+        return a.trail.isStarred ? -1 : 1;
       });
     }
     return list;
   });
 
-  async function toggleStar(trail: Trail, e: Event) {
+  async function toggleStar(summary: TrailSummary, e: Event) {
     e.stopPropagation();
-    await ts.update(trail.id, { isStarred: !trail.isStarred });
-    await loadTrails();
+    await ts.update(summary.trail.id, { isStarred: !summary.trail.isStarred });
   }
 
   let confirmState = $state<{ message: string; action: () => void } | null>(null);
 
-  async function deleteTrail(trail: Trail, e: Event) {
+  async function deleteTrail(summary: TrailSummary, e: Event) {
     e.stopPropagation();
     confirmState = {
-      message: `Delete "${displayNames[trail.id] ?? "this trail"}"?`,
-      action: async () => { await ts.softDelete(trail.id); await loadTrails(); },
+      message: `Delete "${summary.displayName}"?`,
+      action: async () => { await ts.softDelete(summary.trail.id); },
     };
   }
 
@@ -195,7 +145,6 @@
     };
     const deviceId = getDeviceId();
     importResult = await executeImport(db, plan, { userId: null, deviceId });
-    await loadTrails();
   }
 </script>
 
@@ -275,28 +224,28 @@
   <p class="empty">{search ? "No trails match your search." : "No trails yet."}</p>
 {:else}
   <ul class="list">
-    {#each filtered as trail (trail.id)}
+    {#each filtered as summary (summary.trail.id)}
       <li class="item">
         <button
           class="star"
-          class:starred={trail.isStarred}
-          onclick={(e) => toggleStar(trail, e)}
-          title={trail.isStarred ? "Unstar" : "Star"}
-          aria-label={trail.isStarred ? "Unstar trail" : "Star trail"}
+          class:starred={summary.trail.isStarred}
+          onclick={(e) => toggleStar(summary, e)}
+          title={summary.trail.isStarred ? "Unstar" : "Star"}
+          aria-label={summary.trail.isStarred ? "Unstar trail" : "Star trail"}
         >
-          {trail.isStarred ? "★" : "☆"}
+          {summary.trail.isStarred ? "★" : "☆"}
         </button>
 
-        <button class="info" onclick={() => goto("/trails/" + trail.id)}>
-          <span class="name">{displayNames[trail.id] ?? "…"}</span>
+        <button class="info" onclick={() => goto("/trails/" + summary.trail.id)}>
+          <span class="name">{summary.displayName}</span>
           <span class="meta">
-            {visitCounts[trail.id] ?? 0} pages &middot; {formatDate(lastDiscovered[trail.id] ?? trail.startedAt)}
+            {summary.visitCount} pages &middot; {formatDate(summary.lastDiscovered)}
           </span>
         </button>
 
         <button
           class="delete"
-          onclick={(e) => deleteTrail(trail, e)}
+          onclick={(e) => deleteTrail(summary, e)}
           title="Delete trail"
           aria-label="Delete trail"
         >
