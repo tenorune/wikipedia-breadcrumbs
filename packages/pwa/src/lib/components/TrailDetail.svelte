@@ -1,12 +1,14 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { trailStore, visitStore, splitTrail, mergeTrails, TrailStatus, exportTrailsJson, exportTrailsCsv, downloadFile, exportFilename, getLanguageBadgeSettings, shouldShowLanguageBadge } from "@wikipedia-breadcrumbs/shared";
-  import type { Trail, Visit, LanguageBadgeSettings } from "@wikipedia-breadcrumbs/shared";
+  import type { LanguageBadgeSettings } from "@wikipedia-breadcrumbs/shared";
   import { db } from "$lib/stores/db";
   import { syncState } from "$lib/stores/sync.svelte";
   import { runTitleWave, makeLetterColors } from "$lib/utils/title-wave";
   import VisitCard from "./VisitCard.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
+  import { useLiveQuery } from "$lib/live-query.svelte";
+  import { queryTrailDetail, type TrailDetailData } from "$lib/queries";
 
   interface Props {
     trailId: string;
@@ -18,10 +20,17 @@
   const ts = trailStore(db);
   const vs = visitStore(db);
 
-  let trail = $state<Trail | null>(null);
-  let visits = $state<Visit[]>([]);
-  let allTrails = $state<Trail[]>([]);
-  let trailDisplayNames = $state<Record<string, string>>({});
+  const detail = useLiveQuery(
+    () => queryTrailDetail(db, trailId),
+    null as TrailDetailData | null,
+    () => trailId
+  );
+  const trail = $derived(detail.current?.trail ?? null);
+  const visits = $derived(detail.current?.visits ?? []);
+  const allTrails = $derived(detail.current?.mergeCandidates ?? []);
+  const trailDisplayNames = $derived(
+    Object.fromEntries((detail.current?.mergeCandidates ?? []).map((c) => [c.id, c.displayName]))
+  );
 
   // Editable fields
   let editingName = $state(false);
@@ -85,42 +94,11 @@
     return () => document.removeEventListener("click", close);
   });
 
-  async function loadData() {
-    const [t, v, all] = await Promise.all([
-      ts.getById(trailId),
-      vs.getByTrailId(trailId),
-      ts.getAll(),
-    ]);
-    trail = t ?? null;
-    visits = v;
-    allTrails = all.filter((x) => x.id !== trailId);
-
-    // Build display names for merge candidates
-    const names: Record<string, string> = {};
-    await Promise.all(
-      allTrails.map(async (t) => {
-        if (t.name) {
-          names[t.id] = t.name;
-        } else {
-          const tv = await vs.getByTrailId(t.id);
-          names[t.id] = tv.length === 0 ? "Empty trail"
-            : tv.length === 1 ? tv[0].title
-            : `${tv[0].title} → ${tv[tv.length - 1].title}`;
-        }
-      })
-    );
-    trailDisplayNames = names;
-  }
-
   onMount(() => {
     const prefs = loadSortPrefs();
     sortField = prefs.field;
     sortDir = prefs.dir;
-    loadData();
     getLanguageBadgeSettings(db).then((s) => { langSettings = s; });
-    const onVisible = () => { if (document.visibilityState === "visible") loadData(); };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
   });
 
   function saveSortPrefs() {
@@ -201,7 +179,6 @@
     await ts.update(trail.id, { name: v });
     editingName = false;
     (window as any).__dismissTime = Date.now();
-    await loadData();
   }
 
   async function autoSaveName() {
@@ -215,7 +192,6 @@
     await ts.update(trail.id, { note: v });
     editingNote = false;
     (window as any).__dismissTime = Date.now();
-    await loadData();
   }
 
   async function autoSaveNote() {
@@ -226,12 +202,10 @@
   async function toggleStar() {
     if (!trail) return;
     await ts.update(trail.id, { isStarred: !trail.isStarred });
-    await loadData();
   }
 
   async function handleUpdateNote(visitId: string, note: string | null) {
     await vs.update(visitId, { note });
-    await loadData();
   }
 
   let confirmState = $state<{ message: string; confirmLabel: string; action: () => void } | null>(null);
@@ -240,7 +214,7 @@
     confirmState = {
       message: "Delete this visit?",
       confirmLabel: "Delete",
-      action: async () => { await vs.softDelete(visitId); await loadData(); },
+      action: async () => { await vs.softDelete(visitId); },
     };
   }
 
@@ -249,7 +223,7 @@
     confirmState = {
       message: "Split trail here? Visits after this point will become a new trail.",
       confirmLabel: "Split",
-      action: async () => { await splitTrail(db, trail!.id, position); await loadData(); },
+      action: async () => { await splitTrail(db, trail!.id, position); },
     };
   }
 
@@ -259,7 +233,7 @@
     confirmState = {
       message: `Merge "${label}" into this trail? The other trail will be deleted.`,
       confirmLabel: "Merge",
-      action: async () => { await mergeTrails(db, trailId, mergeTargetId); showMerge = false; mergeTargetId = ""; await loadData(); },
+      action: async () => { await mergeTrails(db, trailId, mergeTargetId); showMerge = false; mergeTargetId = ""; },
     };
   }
 
