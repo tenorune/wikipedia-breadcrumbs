@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { trailStore, visitStore } from "@wikipedia-breadcrumbs/shared";
-  import type { Trail } from "@wikipedia-breadcrumbs/shared";
+  import { useLiveQuery } from "$lib/live-query.svelte";
+  import { queryTrailData, type TrailData } from "$lib/queries";
   import { db } from "$lib/stores/db";
   import { syncState, syncNow, hasPendingChanges } from "$lib/stores/sync.svelte";
   import { authState } from "$lib/stores/auth.svelte";
@@ -15,7 +15,6 @@
 
   async function handleSyncWithWave() {
     await syncNow();
-    pendingChanges = await hasPendingChanges();
   }
 
   // Trigger wave when any sync starts (manual or automatic)
@@ -27,17 +26,28 @@
     _prevSyncing = syncState.syncing;
   });
 
-  const ts = trailStore(db);
-  const vs = visitStore(db);
+  const home = useLiveQuery(() => queryTrailData(db), null as TrailData | null);
+  const pending = useLiveQuery(() => hasPendingChanges(), false);
 
-  let loaded = $state(false);
-  let totalTrails = $state(0);
-  let totalVisits = $state(0);
-  let totalNotes = $state(0);
-  let starredTrails = $state<Array<{ id: string; displayName: string; updatedAt: string }>>([]);
-  let recentTrails = $state<Array<{ id: string; displayName: string; updatedAt: string }>>([]);
+  const loaded = $derived(home.current !== null);
+  const totalTrails = $derived(home.current?.summaries.length ?? 0);
+  const totalVisits = $derived(home.current?.totalVisits ?? 0);
+  const totalNotes = $derived(home.current?.totalNotes ?? 0);
+  const pendingChanges = $derived(pending.current);
 
-  let pendingChanges = $state(false);
+  const starredTrails = $derived.by(() =>
+    (home.current?.summaries ?? [])
+      .filter((s) => s.trail.isStarred)
+      .sort((a, b) => b.trail.updatedAt.localeCompare(a.trail.updatedAt))
+      .map((s) => ({ id: s.trail.id, displayName: s.displayName, updatedAt: s.trail.updatedAt }))
+  );
+  const recentTrails = $derived.by(() =>
+    (home.current?.summaries ?? [])
+      .filter((s) => !s.trail.isStarred)
+      .sort((a, b) => b.trail.updatedAt.localeCompare(a.trail.updatedAt))
+      .slice(0, 5)
+      .map((s) => ({ id: s.trail.id, displayName: s.displayName, updatedAt: s.trail.updatedAt }))
+  );
 
   const showInstallPrompt = $derived(
     installState.eligible
@@ -50,67 +60,21 @@
     showInstallPrompt && !installState.storageShared && pendingChanges
   );
 
-  async function loadData() {
-    const [trails, allVisits] = await Promise.all([
-      ts.getAll(),
-      db.visits.filter((v) => v.deletedAt === null).toArray(),
-    ]);
-    totalTrails = trails.length;
-    totalVisits = allVisits.length;
-
-    // Count notes: trail notes + visit notes
-    const trailNoteCount = trails.filter((t) => t.note).length;
-    const visitNoteCount = allVisits.filter((v) => v.note).length;
-    totalNotes = trailNoteCount + visitNoteCount;
-
-    // Build display names for all trails
-    async function buildItem(t: Trail) {
-      let displayName = t.name;
-      if (!displayName) {
-        const visits = await vs.getByTrailId(t.id);
-        if (visits.length > 0) {
-          displayName = visits.length === 1
-            ? visits[0].title
-            : `${visits[0].title} → ${visits[visits.length - 1].title}`;
-        } else {
-          displayName = "Empty trail";
-        }
-      }
-      return { id: t.id, displayName, updatedAt: t.updatedAt };
-    }
-
-    // Starred trails
-    const starred = trails.filter((t) => t.isStarred);
-    const starredIds = new Set(starred.map((t) => t.id));
-    starredTrails = await Promise.all(starred.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map(buildItem));
-
-    // Recent trails (excluding starred)
-    const nonStarred = trails.filter((t) => !starredIds.has(t.id));
-    const sorted = nonStarred.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5);
-    recentTrails = await Promise.all(sorted.map(buildItem));
-    loaded = true;
-    pendingChanges = await hasPendingChanges();
-  }
-
   let isOnline = $state(typeof navigator !== "undefined" ? navigator.onLine : true);
 
   onMount(() => {
-    loadData();
     const isStandalone = window.matchMedia("(display-mode: standalone)").matches
       || (navigator as any).standalone === true;
     if (isStandalone && !localStorage.getItem("installedWavePlayed")) {
       localStorage.setItem("installedWavePlayed", "true");
       runTitleWave(letterColors, (c) => { letterColors = c; });
     }
-    const onVisible = () => { if (document.visibilityState === "visible") loadData(); };
     const goOnline = () => { isOnline = true; };
     const goOffline = () => { isOnline = false; };
-    document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("online", goOnline);
     window.addEventListener("offline", goOffline);
     const tickInterval = setInterval(() => { tick++; }, 60000);
     return () => {
-      document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("online", goOnline);
       window.removeEventListener("offline", goOffline);
       clearInterval(tickInterval);
