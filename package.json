@@ -2,6 +2,7 @@
   "name": "wikipedia-breadcrumbs",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@11.1.2",
   "scripts": {
     "test": "pnpm -r test",
     "build": "pnpm -r build",
