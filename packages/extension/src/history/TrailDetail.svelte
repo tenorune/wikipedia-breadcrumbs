@@ -378,7 +378,7 @@
     {#if focusedView}
       {#if focusedView.parent}
         <div class="visit-wrapper focused-grandparent" onclick={(e) => {
-          if ((e.target as HTMLElement).closest("a, button, input, textarea, .note-display, .card-menu-wrap, .cite-wrap, .note-edit")) return;
+          if ((e.target as HTMLElement).closest("a, button, input, textarea, .note, .card-menu-wrap, .cite-wrap, .note-edit")) return;
           toggleFocus(focusedView.parent!.id);
         }}>
           <!-- <div class="grandparent-label">Discovered from</div> -->
@@ -392,7 +392,7 @@
         </div>
       {/if}
       <div class="visit-wrapper focused-current" onclick={(e) => {
-        if ((e.target as HTMLElement).closest("a, button, input, textarea, .note-display, .card-menu-wrap, .cite-wrap, .note-edit")) return;
+        if ((e.target as HTMLElement).closest("a, button, input, textarea, .note, .card-menu-wrap, .cite-wrap, .note-edit")) return;
         toggleFocus(focusedView.focused.id);
       }}>
         <VisitCard
@@ -407,7 +407,7 @@
         <!-- <div class="children-label">Discovered from this page</div> -->
         {#each focusedView.children as child}
           <div class="visit-wrapper focused-child" onclick={(e) => {
-            if ((e.target as HTMLElement).closest("a, button, input, textarea, .note-display, .card-menu-wrap, .cite-wrap, .note-edit")) return;
+            if ((e.target as HTMLElement).closest("a, button, input, textarea, .note, .card-menu-wrap, .cite-wrap, .note-edit")) return;
             toggleFocus(child.id);
           }}>
             <VisitCard
@@ -429,7 +429,7 @@
         <div class="visit-wrapper" class:focusable={sortField === "discovery"} onclick={(e) => {
           // Don't trigger focus when clicking links, buttons, or inputs
           const target = e.target as HTMLElement;
-          if (target.closest("a, button, input, textarea, .note-display, .card-menu-wrap, .cite-wrap, .note-edit")) return;
+          if (target.closest("a, button, input, textarea, .note, .card-menu-wrap, .cite-wrap, .note-edit")) return;
           if (sortField === "discovery") toggleFocus(visit.id);
         }}>
           <VisitCard
