@@ -3,10 +3,13 @@
 /// <reference lib="esnext" />
 /// <reference lib="webworker" />
 
-import { build, files, version } from "$service-worker";
+import { build, files, prerendered, version } from "$service-worker";
 
 const CACHE_NAME = `cache-${version}`;
-const ASSETS = [...build, ...files];
+// prerendered is empty today (CSR-only app) but included for future-proofing.
+// "/index.html" is the adapter-static SPA fallback — it is NOT in build/files/
+// prerendered, and the navigation fallback below depends on it being cached.
+const ASSETS = [...build, ...files, ...prerendered, "/index.html"];
 
 self.addEventListener("install", (event: ExtendableEvent) => {
   event.waitUntil(
@@ -38,9 +41,10 @@ self.addEventListener("fetch", (event: FetchEvent) => {
         }
         return response;
       });
-    }).catch(() => {
+    }).catch(async () => {
       if (event.request.mode === "navigate") {
-        return caches.match("/index.html") as Promise<Response>;
+        const shell = await caches.match("/index.html");
+        if (shell) return shell;
       }
       return new Response("Offline", { status: 503 });
     })
