@@ -5,6 +5,8 @@ import type { SyncResult } from "./types.js";
 import { mapToRemote, mapToLocal } from "./field-mapper.js";
 import { SyncStatus } from "../models/enums.js";
 
+const UPSERT_CHUNK_SIZE = 500;
+
 export class SupabaseBackend implements SyncBackend {
   constructor(private client: SupabaseClient, private userId: string) {}
 
@@ -34,12 +36,13 @@ export class SupabaseBackend implements SyncBackend {
 
   private async upsertAll(table: string, records: Record<string, unknown>[]): Promise<SyncResult[]> {
     const results: SyncResult[] = [];
-    for (const record of records) {
-      const { error } = await this.client.from(table).upsert(record);
-      if (error) {
-        results.push({ id: record.id as string, success: false, error: error.message });
-      } else {
-        results.push({ id: record.id as string, success: true });
+    for (let i = 0; i < records.length; i += UPSERT_CHUNK_SIZE) {
+      const chunk = records.slice(i, i + UPSERT_CHUNK_SIZE);
+      const { error } = await this.client.from(table).upsert(chunk);
+      for (const record of chunk) {
+        results.push(error
+          ? { id: record.id as string, success: false, error: error.message }
+          : { id: record.id as string, success: true });
       }
     }
     return results;
