@@ -7,12 +7,12 @@ implementation plan under `docs/superpowers/plans/` before work starts.
 
 ## Accepted sequence
 
-| # | Item | Analysis refs | Spec | Status |
-|---|------|--------------|------|--------|
-| 1 | Sync write path: batch upserts + bulk local writes, `syncNow()` guard, surface sync errors in UI | opt #1, opt #5, UX #1 | [2026-07-13-sync-write-path-design.md](superpowers/specs/2026-07-13-sync-write-path-design.md) | Spec written |
-| 2 | Service worker: fix offline fallback + silent auto-update flow | opt #4, UX #5 | [2026-07-13-service-worker-offline-update-design.md](superpowers/specs/2026-07-13-service-worker-offline-update-design.md) | Spec written |
-| 3 | Adopt Dexie `liveQuery` in the PWA (kills N+1 loads and reload-after-mutation) | opt #2 | [2026-07-13-pwa-livequery-design.md](superpowers/specs/2026-07-13-pwa-livequery-design.md) | Spec written |
-| 4 | Extract shared UI components into `packages/ui` (ImportDialog → VisitCard → TrailList/TrailDetail) | opt #3 | [2026-07-13-shared-ui-package-design.md](superpowers/specs/2026-07-13-shared-ui-package-design.md) | Spec written |
+| # | Item | Analysis refs | Spec | Plan | Status |
+|---|------|--------------|------|------|--------|
+| 1 | Sync write path: batch upserts + bulk local writes, `syncNow()` guard, surface sync errors in UI | opt #1, opt #5, UX #1 | [spec](superpowers/specs/2026-07-13-sync-write-path-design.md) | [plan](superpowers/plans/2026-07-13-sync-write-path.md) | Planned |
+| 2 | Service worker: fix offline fallback + silent auto-update flow | opt #4, UX #5 | [spec](superpowers/specs/2026-07-13-service-worker-offline-update-design.md) | [plan](superpowers/plans/2026-07-13-service-worker-offline-update.md) | Planned |
+| 3 | Adopt Dexie `liveQuery` in the PWA (kills N+1 loads and reload-after-mutation) | opt #2 | [spec](superpowers/specs/2026-07-13-pwa-livequery-design.md) | [plan](superpowers/plans/2026-07-13-pwa-livequery.md) | Planned |
+| 4 | Extract shared UI components into `packages/ui` (ImportDialog → VisitCard → TrailList/TrailDetail) | opt #3 | [spec](superpowers/specs/2026-07-13-shared-ui-package-design.md) | [plan, phase 1](superpowers/plans/2026-07-13-shared-ui-package.md) | Planned (phase 1); TrailList/TrailDetail get a phase-2 plan after items 1-3 land |
 
 ## Sequencing rationale
 
