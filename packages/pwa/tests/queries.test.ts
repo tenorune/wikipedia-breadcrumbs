@@ -67,10 +67,11 @@ describe("queries", () => {
     const kept = createTrail({ startReason: StartReason.AutoNewTab, deviceId: "d1" });
     kept.note = "trail note";
     const deleted = createTrail({ startReason: StartReason.AutoNewTab, deviceId: "d1" });
+    deleted.note = "dead trail note";
     deleted.deletedAt = "2026-01-01T00:00:00Z";
     await db.trails.bulkAdd([kept, deleted]);
     const liveVisit = makeVisit(kept.id, 1, "Live", "visit note");
-    const deadVisit = makeVisit(kept.id, 2, "Dead");
+    const deadVisit = makeVisit(kept.id, 2, "Dead", "dead note");
     deadVisit.deletedAt = "2026-01-01T00:00:00Z";
     await db.visits.bulkAdd([liveVisit, deadVisit]);
 
@@ -78,7 +79,7 @@ describe("queries", () => {
     expect(data.summaries).toHaveLength(1);
     expect(data.summaries[0].visitCount).toBe(1);
     expect(data.totalVisits).toBe(1);
-    expect(data.totalNotes).toBe(2); // trail note + visit note
+    expect(data.totalNotes).toBe(2); // trail note + visit note (soft-deleted notes excluded)
   });
 
   it("queryTrailDetail returns position-sorted visits and merge candidates excluding self", async () => {
@@ -95,5 +96,19 @@ describe("queries", () => {
     expect(detail.trail?.id).toBe(me.id);
     expect(detail.visits.map((v) => v.title)).toEqual(["First", "Second"]);
     expect(detail.mergeCandidates).toEqual([{ id: other.id, displayName: "Elsewhere" }]);
+  });
+
+  it("queryTrailDetail excludes soft-deleted visits from detail", async () => {
+    const me = createTrail({ startReason: StartReason.AutoNewTab, deviceId: "d1" });
+    await db.trails.add(me);
+    const first = makeVisit(me.id, 1, "First");
+    const second = makeVisit(me.id, 2, "Second");
+    const deleted = makeVisit(me.id, 3, "Deleted");
+    deleted.deletedAt = "2026-01-01T00:00:00Z";
+    await db.visits.bulkAdd([first, second, deleted]);
+
+    const detail = await queryTrailDetail(db, me.id);
+    expect(detail.visits.map((v) => v.title)).toEqual(["First", "Second"]);
+    expect(detail.visits.some((v) => v.title === "Deleted")).toBe(false);
   });
 });
