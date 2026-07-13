@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@wikipedia-breadcrumbs/shared": "workspace:*",
+    "@wikipedia-breadcrumbs/ui": "workspace:*",
     "@supabase/supabase-js": "^2.110.2",
     "dexie": "^4.0.0"
   },
