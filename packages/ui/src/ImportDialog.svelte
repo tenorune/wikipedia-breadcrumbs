@@ -1,13 +1,13 @@
 <script lang="ts">
   import { parseImportJson, detectConflicts, executeImport, pickFile } from "@wikipedia-breadcrumbs/shared";
-  import type { ConflictItem, ImportPlan } from "@wikipedia-breadcrumbs/shared";
-  import { db } from "$lib/stores/db";
-  import { getDeviceId } from "$lib/stores/device-id";
+  import type { BreadcrumbsDB, ConflictItem, ImportPlan } from "@wikipedia-breadcrumbs/shared";
 
   interface Props {
-    onComplete: () => void;
+    db: BreadcrumbsDB;
+    getDeviceId: () => Promise<string>;
+    onComplete?: () => void;
   }
-  let { onComplete }: Props = $props();
+  let { db, getDeviceId, onComplete }: Props = $props();
 
   let conflicts = $state<ConflictItem[]>([]);
   let cleanTrails = $state<any[]>([]);
@@ -16,7 +16,7 @@
   let error = $state("");
   let showDialog = $state(false);
 
-  async function handleImport() {
+  export async function start(): Promise<void> {
     error = "";
     result = null;
     const content = await pickFile(".json");
@@ -59,28 +59,25 @@
         ...resolved,
       ],
     };
-    const deviceId = getDeviceId();
+    const deviceId = await getDeviceId();
     result = await executeImport(db, plan, { userId: null, deviceId });
-    onComplete();
+    onComplete?.();
   }
 </script>
 
-<div class="import-wrap">
-  <button class="import-btn" onclick={handleImport}>Import</button>
-  {#if error}
-    <div class="import-error">{error}</div>
-  {/if}
-  {#if result}
-    <div class="import-result">
-      Imported {result.trailsImported} trail{result.trailsImported === 1 ? "" : "s"}
-      ({result.visitsImported} visit{result.visitsImported === 1 ? "" : "s"}).
-      {#if result.skipped > 0}Skipped {result.skipped}.{/if}
-      {#if result.errors.length > 0}
-        <div class="import-errors">{result.errors.join("; ")}</div>
-      {/if}
-    </div>
-  {/if}
-</div>
+{#if error}
+  <div class="import-error">{error}</div>
+{/if}
+{#if result}
+  <div class="import-result">
+    Imported {result.trailsImported} trail{result.trailsImported === 1 ? "" : "s"}
+    ({result.visitsImported} visit{result.visitsImported === 1 ? "" : "s"}).
+    {#if result.skipped > 0}Skipped {result.skipped}.{/if}
+    {#if result.errors.length > 0}
+      <div class="import-errors">{result.errors.join("; ")}</div>
+    {/if}
+  </div>
+{/if}
 
 {#if showDialog}
   <div class="conflict-overlay">
@@ -107,14 +104,8 @@
 {/if}
 
 <style>
-  .import-wrap { position: relative; }
-  .import-btn {
-    font-size: 12px; padding: 4px 10px; border: 1px solid #ddd; border-radius: 6px;
-    background: #f8f8f8; cursor: pointer; color: #333;
-  }
-  .import-btn:hover { background: #eee; }
-  .import-error { position: absolute; top: calc(100% + 4px); left: 0; min-width: 250px; color: #dc3545; font-size: 12px; white-space: pre-wrap; z-index: 10; background: white; padding: 6px 10px; border-radius: 6px; border: 1px solid #f5c0b0; }
-  .import-result { position: absolute; top: calc(100% + 4px); left: 0; min-width: 250px; font-size: 12px; color: #155724; background: #d4edda; padding: 6px 10px; border-radius: 6px; z-index: 10; }
+  .import-error { color: #dc3545; font-size: 12px; margin-bottom: 10px; white-space: pre-wrap; }
+  .import-result { font-size: 12px; color: #155724; background: #d4edda; padding: 6px 10px; border-radius: 6px; margin-bottom: 10px; }
   .import-errors { color: #dc3545; margin-top: 4px; }
   .conflict-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 100; }
   .conflict-dialog { background: white; border-radius: 12px; padding: 20px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; }
