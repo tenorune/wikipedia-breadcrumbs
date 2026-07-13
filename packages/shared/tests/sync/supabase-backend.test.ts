@@ -20,16 +20,17 @@ describe("SupabaseBackend", () => {
     backend = new SupabaseBackend(mock as any, "user-123");
   });
 
-  it("pushTrails upserts trails with snake_case fields", async () => {
+  it("pushTrails upserts trails with snake_case fields in one batch", async () => {
     const trail = createTrail({ startReason: StartReason.AutoNewTab, deviceId: "d1" });
     trail.userId = "user-123";
     const results = await backend.pushTrails([trail]);
     expect(mock.from).toHaveBeenCalledWith("trails");
-    expect(mock.upsertFn).toHaveBeenCalled();
+    expect(mock.upsertFn).toHaveBeenCalledTimes(1);
     const upsertArg = mock.upsertFn.mock.calls[0][0];
-    expect(upsertArg).toHaveProperty("start_reason", "auto_new_tab");
-    expect(upsertArg).not.toHaveProperty("syncStatus");
-    expect(upsertArg).not.toHaveProperty("sync_status");
+    expect(Array.isArray(upsertArg)).toBe(true);
+    expect(upsertArg[0]).toHaveProperty("start_reason", "auto_new_tab");
+    expect(upsertArg[0]).not.toHaveProperty("syncStatus");
+    expect(upsertArg[0]).not.toHaveProperty("sync_status");
     expect(results[0].success).toBe(true);
   });
 
@@ -42,8 +43,8 @@ describe("SupabaseBackend", () => {
     const results = await backend.pushVisits([visit]);
     expect(mock.from).toHaveBeenCalledWith("visits");
     const upsertArg = mock.upsertFn.mock.calls[0][0];
-    expect(upsertArg).toHaveProperty("user_id", "user-123");
-    expect(upsertArg).toHaveProperty("trail_id", "t1");
+    expect(upsertArg[0]).toHaveProperty("user_id", "user-123");
+    expect(upsertArg[0]).toHaveProperty("trail_id", "t1");
     expect(results[0].success).toBe(true);
   });
 
@@ -74,5 +75,28 @@ describe("SupabaseBackend", () => {
     const results = await backend.pushTrails([trail]);
     expect(results[0].success).toBe(false);
     expect(results[0].error).toContain("RLS violation");
+  });
+
+  it("chunks large batches at 500 records per upsert call", async () => {
+    const trails = Array.from({ length: 1001 }, () =>
+      createTrail({ startReason: StartReason.AutoNewTab, deviceId: "d1" }));
+    const results = await backend.pushTrails(trails);
+    expect(mock.upsertFn).toHaveBeenCalledTimes(3); // 500 + 500 + 1
+    expect(mock.upsertFn.mock.calls[0][0]).toHaveLength(500);
+    expect(mock.upsertFn.mock.calls[2][0]).toHaveLength(1);
+    expect(results).toHaveLength(1001);
+    expect(results.every((r) => r.success)).toBe(true);
+  });
+
+  it("marks every record of a failed chunk as failed", async () => {
+    mock.upsertFn.mockResolvedValue({ data: null, error: { message: "RLS violation" } });
+    const trails = [
+      createTrail({ startReason: StartReason.AutoNewTab, deviceId: "d1" }),
+      createTrail({ startReason: StartReason.AutoNewTab, deviceId: "d1" }),
+    ];
+    const results = await backend.pushTrails(trails);
+    expect(results).toHaveLength(2);
+    expect(results.every((r) => !r.success && r.error === "RLS violation")).toBe(true);
+    expect(results.map((r) => r.id)).toEqual(trails.map((t) => t.id));
   });
 });

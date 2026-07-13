@@ -185,6 +185,18 @@
       <p class="help-sm">
         Last synced: {syncState.lastSyncTime ? formatDate(syncState.lastSyncTime) : "Never"}
       </p>
+      {#if syncState.syncError}
+        <details class="sync-error">
+          <summary>Last sync failed — {syncState.syncError}</summary>
+          {#if syncState.lastReport && syncState.lastReport.errors.length > 0}
+            <ul>
+              {#each syncState.lastReport.errors as error}
+                <li>{error}</li>
+              {/each}
+            </ul>
+          {/if}
+        </details>
+      {/if}
 
       <p class="help-sm">Signed in as
         {#if authState.user?.user_metadata?.provider === "wikimedia"}
@@ -374,6 +386,16 @@
     font-size: 13px; padding: 8px 0; text-align: center; width: 100%;
   }
   .error { color: #dc3545; font-size: 13px; margin-top: 8px; }
+
+  .sync-error { font-size: 13px; color: #dc3545; }
+  .sync-error summary { cursor: pointer; }
+  .sync-error ul {
+    margin: 6px 0 0;
+    padding-left: 18px;
+    font-size: 12px;
+    color: #666;
+    font-family: monospace;
+  }
   .lang-listbox { border: 1px solid #ddd; border-radius: 4px; margin-top: 4px; max-height: 130px; overflow-y: auto; }
   .lang-item { display: block; width: 100%; text-align: left; padding: 5px 10px; border: none; background: none; cursor: pointer; font-size: 13px; font-weight: normal; }
   .lang-item:hover { background: #f0f0f0; }

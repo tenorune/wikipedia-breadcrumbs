@@ -1,5 +1,5 @@
 import {
-  SyncEngine, SupabaseBackend, SyncStatus, trailStore, visitStore,
+  SyncEngine, SupabaseBackend, SyncStatus, restampForUser,
 } from "@wikipedia-breadcrumbs/shared";
 import type { SyncStateStore, SyncReport } from "@wikipedia-breadcrumbs/shared";
 import { supabase } from "$lib/supabase";
@@ -12,12 +12,14 @@ let _syncEnabled = $state(false);
 let _lastSyncTime = $state<string | null>(typeof localStorage !== 'undefined' ? localStorage.getItem("lastSyncTime") : null);
 let _syncing = $state(false);
 let _lastReport = $state<SyncReport | null>(null);
+let _syncError = $state<string | null>(null);
 
 export const syncState = {
   get syncEnabled() { return _syncEnabled; },
   get lastSyncTime() { return _lastSyncTime; },
   get syncing() { return _syncing; },
   get lastReport() { return _lastReport; },
+  get syncError() { return _syncError; },
 };
 
 const stateStore: SyncStateStore = {
@@ -41,15 +43,7 @@ export async function enableSync(): Promise<void> {
     return;
   }
 
-  // Stamp local trails with userId
-  const allTrails = await db.trails.filter((t) => t.userId !== userId).toArray();
-  for (const trail of allTrails) {
-    await db.trails.update(trail.id, { userId, syncStatus: SyncStatus.PendingSync });
-  }
-  const allVisits = await db.visits.filter((v) => v.syncStatus !== SyncStatus.Synced).toArray();
-  for (const visit of allVisits) {
-    await db.visits.update(visit.id, { syncStatus: SyncStatus.PendingSync });
-  }
+  await restampForUser(db, userId, { includeSyncedVisits: false });
 
   const backend = new SupabaseBackend(supabase, userId);
   engine = new SyncEngine(db, backend, stateStore, userId);
@@ -65,31 +59,27 @@ export function disableSync(): void {
 
 export async function syncNow(): Promise<void> {
   if (!engine) return;
+  if (_syncing) return;
   if (typeof navigator !== "undefined" && !navigator.onLine) return;
   _syncing = true;
+  _syncError = null;
   try {
     const report = await engine.syncNow();
     _lastReport = report;
+    if (report.errors.length > 0) {
+      const n = report.errors.length;
+      _syncError = `${n} record${n === 1 ? "" : "s"} failed to sync`;
+    }
   } catch (err) {
     console.error("[pwa] Sync error:", err);
+    _syncError = err instanceof Error ? err.message : String(err);
   } finally {
     _syncing = false;
   }
 }
 
 export async function upgradeToAuthenticatedUser(newUserId: string): Promise<void> {
-  // Re-stamp all trails with new userId
-  const allTrails = await db.trails.toArray();
-  for (const trail of allTrails) {
-    if (trail.userId !== newUserId) {
-      await db.trails.update(trail.id, { userId: newUserId, syncStatus: SyncStatus.PendingSync });
-    }
-  }
-  // Mark all visits for re-push
-  const allVisits = await db.visits.toArray();
-  for (const visit of allVisits) {
-    await db.visits.update(visit.id, { syncStatus: SyncStatus.PendingSync });
-  }
+  await restampForUser(db, newUserId, { includeSyncedVisits: true });
 
   // Reset lastSyncTime to force a full pull under the new account
   localStorage.removeItem("lastSyncTime");

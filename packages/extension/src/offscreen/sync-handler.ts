@@ -1,6 +1,5 @@
 import {
-  BreadcrumbsDB, SyncEngine, SupabaseBackend,
-  SyncStatus,
+  BreadcrumbsDB, SyncEngine, SupabaseBackend, restampForUser,
 } from "@wikipedia-breadcrumbs/shared";
 import type { SyncReport, SyncStateStore } from "@wikipedia-breadcrumbs/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -41,19 +40,8 @@ async function ensureInitialized(db: BreadcrumbsDB): Promise<boolean> {
     return false;
   }
 
-  // Stamp all local trails with current userId
-  // Re-stamps all trails (not just null) in case the anonymous user changed
-  const allTrails = await db.trails.toArray();
-  const trailsToStamp = allTrails.filter((t) => t.userId !== userId);
-  for (const trail of trailsToStamp) {
-    await db.trails.update(trail.id, { userId, syncStatus: SyncStatus.PendingSync });
-  }
-
-  // Ensure all unsynced visits are marked for push
-  const allVisits = await db.visits.filter((v) => v.syncStatus !== SyncStatus.Synced).toArray();
-  for (const visit of allVisits) {
-    await db.visits.update(visit.id, { syncStatus: SyncStatus.PendingSync });
-  }
+  // Stamp local records for the current user (bulk; does not touch updatedAt)
+  await restampForUser(db, userId, { includeSyncedVisits: false });
 
   const backend = new SupabaseBackend(supabase, userId);
   engine = new SyncEngine(db, backend, stateStore, userId);

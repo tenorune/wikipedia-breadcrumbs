@@ -58,6 +58,19 @@
     </span>
   </div>
 
+  {#if syncState.syncError}
+    <details class="sync-error">
+      <summary>Last sync failed — {syncState.syncError}</summary>
+      {#if syncState.lastReport && syncState.lastReport.errors.length > 0}
+        <ul>
+          {#each syncState.lastReport.errors as error}
+            <li>{error}</li>
+          {/each}
+        </ul>
+      {/if}
+    </details>
+  {/if}
+
   <div class="info-row">
     <span class="info-label">Device ID</span>
     <span class="info-value mono" title={deviceId}>{deviceIdShort}</span>
@@ -109,4 +122,14 @@
   .info-label { color: #666; }
   .info-value { color: #222; font-weight: 500; }
   .mono { font-family: monospace; font-size: 12px; }
+
+  .sync-error { font-size: 13px; color: #dc3545; }
+  .sync-error summary { cursor: pointer; }
+  .sync-error ul {
+    margin: 6px 0 0;
+    padding-left: 18px;
+    font-size: 12px;
+    color: #666;
+    font-family: monospace;
+  }
 </style>
