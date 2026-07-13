@@ -5,7 +5,7 @@
   import { db } from "$lib/stores/db";
   import { syncState } from "$lib/stores/sync.svelte";
   import { runTitleWave, makeLetterColors } from "$lib/utils/title-wave";
-  import VisitCard from "./VisitCard.svelte";
+  import { VisitCard } from "@wikipedia-breadcrumbs/ui";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import { useLiveQuery } from "$lib/live-query.svelte";
   import { queryTrailDetail, type TrailDetailData } from "$lib/queries";

@@ -7,10 +7,11 @@
     onUpdateNote: (id: string, note: string | null) => void;
     onDelete: (id: string) => void;
     onSplit?: (position: number) => void;
+    onNavigate?: (visit: Visit, e: MouseEvent) => void;
     showLanguageBadge?: boolean;
   }
 
-  let { visit, onUpdateNote, onDelete, onSplit, showLanguageBadge }: Props = $props();
+  let { visit, onUpdateNote, onDelete, onSplit, onNavigate, showLanguageBadge }: Props = $props();
 
   let editingNote = $state(false);
   let noteValue = $state("");
@@ -161,7 +162,8 @@
     {/if}
   </div>
   <div class="header">
-    <a class="title" href={visit.url} target="_blank" rel="noopener noreferrer">
+    <a class="title" href={visit.url} target="_blank" rel="noopener noreferrer"
+      onclick={onNavigate ? (e) => onNavigate(visit, e) : undefined}>
       {visit.title}
     </a>
     {#if showLanguageBadge}
