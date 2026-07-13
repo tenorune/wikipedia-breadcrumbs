@@ -54,6 +54,9 @@ importers:
       '@wikipedia-breadcrumbs/shared':
         specifier: workspace:*
         version: link:../shared
+      dexie:
+        specifier: ^4.0.0
+        version: 4.4.1
     devDependencies:
       '@sveltejs/adapter-static':
         specifier: ^3.0.0
@@ -64,6 +67,9 @@ importers:
       '@sveltejs/vite-plugin-svelte':
         specifier: ^5.0.0
         version: 5.1.1(svelte@5.55.7)(vite@6.4.3(@types/node@25.5.0)(yaml@2.8.3))
+      fake-indexeddb:
+        specifier: ^6.0.0
+        version: 6.2.5
       svelte:
         specifier: ^5.55.7
         version: 5.55.7
