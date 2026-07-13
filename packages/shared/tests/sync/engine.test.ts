@@ -137,4 +137,17 @@ describe("SyncEngine", () => {
     const [report1, report2] = await Promise.all([first, second]);
     expect(report2.errors).toContain("Sync already in progress");
   });
+
+  it("does not re-stamp updatedAt when marking records Synced after push", async () => {
+    const trail = createTrail({ startReason: StartReason.AutoNewTab, deviceId: "d1" });
+    trail.syncStatus = SyncStatus.PendingSync;
+    trail.userId = "user-123";
+    trail.updatedAt = "2026-01-01T00:00:00Z";
+    await db.trails.add(trail);
+    (backend.pushTrails as any).mockResolvedValue([{ id: trail.id, success: true }]);
+    await engine.syncNow();
+    const updated = await db.trails.get(trail.id);
+    expect(updated?.syncStatus).toBe(SyncStatus.Synced);
+    expect(updated?.updatedAt).toBe("2026-01-01T00:00:00Z");
+  });
 });

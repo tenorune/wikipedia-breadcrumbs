@@ -4,7 +4,7 @@ import { trailStore } from "../db/trails.js";
 import type { Trail, Visit, ConflictLog } from "../models/index.js";
 import { SyncStatus } from "../models/enums.js";
 import type { SyncBackend } from "./backend.js";
-import type { SyncReport, SyncStateStore } from "./types.js";
+import type { SyncReport, SyncResult, SyncStateStore } from "./types.js";
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -57,35 +57,18 @@ export class SyncEngine {
   }
 
   private async push(report: SyncReport): Promise<void> {
-    const trails = trailStore(this.db);
-    const visits = visitStore(this.db);
-
     const pendingTrails = await this.db.trails
       .where("syncStatus").anyOf([SyncStatus.PendingSync, SyncStatus.LocalOnly]).toArray();
     if (pendingTrails.length > 0) {
       const results = await this.backend.pushTrails(pendingTrails);
-      for (const result of results) {
-        if (result.success) {
-          await trails.update(result.id, { syncStatus: SyncStatus.Synced } as any);
-          report.pushed.trails++;
-        } else {
-          report.errors.push(`Trail push failed ${result.id}: ${result.error}`);
-        }
-      }
+      report.pushed.trails += await this.markSynced(this.db.trails, results, "Trail", report);
     }
 
     const pendingVisits = await this.db.visits
       .where("syncStatus").anyOf([SyncStatus.PendingSync, SyncStatus.LocalOnly]).toArray();
     if (pendingVisits.length > 0) {
       const results = await this.backend.pushVisits(pendingVisits);
-      for (const result of results) {
-        if (result.success) {
-          await visits.update(result.id, { syncStatus: SyncStatus.Synced } as any);
-          report.pushed.visits++;
-        } else {
-          report.errors.push(`Visit push failed ${result.id}: ${result.error}`);
-        }
-      }
+      report.pushed.visits += await this.markSynced(this.db.visits, results, "Visit", report);
     }
 
     const pendingConflicts = await this.db.conflictLogs.filter((c) => !c.resolvedAt).toArray();
@@ -93,6 +76,22 @@ export class SyncEngine {
       const results = await this.backend.pushConflictLogs(pendingConflicts);
       report.pushed.conflictLogs = results.filter((r) => r.success).length;
     }
+  }
+
+  private async markSynced(
+    table: { where(index: string): { anyOf(keys: string[]): { modify(changes: object): Promise<number> } } },
+    results: SyncResult[],
+    label: "Trail" | "Visit",
+    report: SyncReport
+  ): Promise<number> {
+    const okIds = results.filter((r) => r.success).map((r) => r.id);
+    if (okIds.length > 0) {
+      await table.where("id").anyOf(okIds).modify({ syncStatus: SyncStatus.Synced });
+    }
+    for (const r of results) {
+      if (!r.success) report.errors.push(`${label} push failed ${r.id}: ${r.error}`);
+    }
+    return okIds.length;
   }
 
   private async pull(report: SyncReport): Promise<void> {
