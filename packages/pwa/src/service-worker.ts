@@ -5,6 +5,8 @@
 
 import { build, files, prerendered, version } from "$service-worker";
 
+const sw = self as unknown as ServiceWorkerGlobalScope;
+
 const CACHE_NAME = `cache-${version}`;
 // prerendered is empty today (CSR-only app) but included for future-proofing.
 // "/index.html" is the adapter-static SPA fallback — it is NOT in build/files/
@@ -13,15 +15,19 @@ const ASSETS = [...build, ...files, ...prerendered, "/index.html"];
 
 self.addEventListener("install", (event: ExtendableEvent) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(ASSETS))
+      .then(() => sw.skipWaiting())
   );
 });
 
 self.addEventListener("activate", (event: ExtendableEvent) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
+    caches.keys()
+      .then((keys) =>
+        Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+      )
+      .then(() => sw.clients.claim())
   );
 });
 
