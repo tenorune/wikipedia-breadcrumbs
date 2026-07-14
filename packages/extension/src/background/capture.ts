@@ -1,6 +1,6 @@
 import { parseWikipediaUrl, createVisit, createTrail, shouldStartNewTrail, SourceType, StartReason } from "@wikipedia-breadcrumbs/shared";
 import type { TrailDetectionContext } from "@wikipedia-breadcrumbs/shared";
-import { sendToOffscreen } from "./offscreen.js";
+import * as data from "./data-layer.js";
 import { TrailManager } from "./trail-manager.js";
 import { resetIdleAlarm } from "./alarm-manager.js";
 
@@ -65,15 +65,15 @@ export async function handleNavigation(
   console.log(`[breadcrumbs] capture: in-memory entry=${!!current}${current ? ` trail=${current.trailId.slice(0, 8)}` : ""}`);
   if (!current) {
     // Try by tabId first (SW restart, same session)
-    let recovered = await sendToOffscreen({ type: "getActiveTrailForTab", tabId });
-    console.log(`[breadcrumbs] capture: tabId recovery=${recovered.success && !!recovered.data}`);
+    let recovered = await data.getActiveTrailForTab(tabId);
+    console.log(`[breadcrumbs] capture: tabId recovery=${!!recovered}`);
     // Fall back to URL match (browser restart, tab IDs changed)
-    if ((!recovered.success || !recovered.data) && parsed) {
-      recovered = await sendToOffscreen({ type: "getActiveTrailByUrl", url: parsed.cleanUrl });
-      console.log(`[breadcrumbs] capture: URL recovery=${recovered.success && !!recovered.data}`);
+    if (!recovered && parsed) {
+      recovered = await data.getActiveTrailByUrl(parsed.cleanUrl);
+      console.log(`[breadcrumbs] capture: URL recovery=${!!recovered}`);
     }
-    if (recovered.success && recovered.data) {
-      const { trail, lastVisit, visitCount } = recovered.data as any;
+    if (recovered) {
+      const { trail, lastVisit, visitCount } = recovered;
       current = {
         trailId: trail.id,
         tabId,
@@ -90,7 +90,7 @@ export async function handleNavigation(
   // article the user clicks starts a fresh trail.
   if (parsed.title === "Main Page") {
     if (current) {
-      await sendToOffscreen({ type: "finalizeTrail", trailId: current.trailId });
+      await data.finalizeTrail(current.trailId);
       trailManager.removeTab(tabId);
     }
     return;
@@ -122,7 +122,7 @@ export async function handleNavigation(
       startReason: detection.isNew ? detection.reason : StartReason.AutoNewTab,
       deviceId,
     });
-    await sendToOffscreen({ type: "addTrail", trail });
+    await data.addTrail(trail);
 
     const visit = createVisit({
       trailId: trail.id, url: parsed.cleanUrl, title: parsed.title, position: 1,
@@ -131,7 +131,7 @@ export async function handleNavigation(
       language: parsed.language,
       articleId: parsed.cleanUrl.split("/wiki/")[1] ?? parsed.title, tabId,
     });
-    await sendToOffscreen({ type: "addVisit", visit });
+    await data.addVisit(visit);
 
     trailManager.setActive(tabId, {
       trailId: trail.id, tabId, windowId: details.windowId,
@@ -143,21 +143,12 @@ export async function handleNavigation(
     // findVisitByUrl also matches by articleId, so redirects are caught
     // (e.g., /wiki/Sahabah matches a visit stored as /wiki/Sahabah even if
     // its title was updated to "Companions of the Prophet").
-    const existing = await sendToOffscreen({
-      type: "findVisitByUrl",
-      trailId: current.trailId,
-      url: parsed.cleanUrl,
-      title: parsed.title,
-    });
+    const existing = await data.findVisitByUrl(current.trailId, parsed.cleanUrl, parsed.title);
 
     const now = new Date().toISOString();
-    if (existing.success && existing.data) {
+    if (existing) {
       // Revisit — update lastVisitedAt, preserve original discovery timestamp
-      await sendToOffscreen({
-        type: "updateVisit",
-        visitId: (existing.data as any).id,
-        changes: { lastVisitedAt: now },
-      });
+      await data.updateVisit(existing.id, { lastVisitedAt: now });
     } else {
       // New page — find the parent visit (the page we navigated from)
       let parentVisitId: string | null = null;
@@ -166,15 +157,8 @@ export async function handleNavigation(
         // (needed when parent was reached via redirect, e.g. lastVisitUrl is
         // /wiki/Companions_of_the_Prophet but stored visit URL is /wiki/Sahabah)
         const parentParsed = parseWikipediaUrl(current.lastVisitUrl);
-        const parentResult = await sendToOffscreen({
-          type: "findVisitByUrl",
-          trailId: current.trailId,
-          url: current.lastVisitUrl,
-          title: parentParsed?.title,
-        });
-        if (parentResult.success && parentResult.data) {
-          parentVisitId = (parentResult.data as any).id;
-        }
+        const parentMatch = await data.findVisitByUrl(current.trailId, current.lastVisitUrl, parentParsed?.title);
+        if (parentMatch) parentVisitId = parentMatch.id;
       }
 
       const position = trailManager.incrementPosition(tabId, parsed.cleanUrl);
@@ -187,15 +171,11 @@ export async function handleNavigation(
         parentVisitId,
         tabId,
       });
-      await sendToOffscreen({ type: "addVisit", visit });
+      await data.addVisit(visit);
     }
 
     // Bump trail's updatedAt so "Most Recent" sort reflects activity
-    await sendToOffscreen({
-      type: "updateTrail",
-      trailId: current.trailId,
-      changes: { updatedAt: now } as any,
-    });
+    await data.updateTrail(current.trailId, { updatedAt: now } as any);
 
     // Update last visit URL regardless
     current.lastVisitUrl = parsed.cleanUrl;
@@ -258,47 +238,23 @@ export async function handleNavigation(
         // (happens when the same page is reached via different redirects,
         // e.g. /wiki/Sahabah and /wiki/Companions_of_Muhammad both → "Companions of the Prophet")
         if (actualTitle !== capturedTitle) {
-          const existingByTitle = await sendToOffscreen({
-            type: "findVisitByUrl",
-            trailId: capturedTrailId,
-            url: "", // won't match any URL
-            title: actualTitle,
-          });
-          if (existingByTitle.success && existingByTitle.data) {
+          const existingByTitle = await data.findVisitByUrl(capturedTrailId, "", actualTitle);
+          if (existingByTitle) {
             // This visit is a duplicate — find the one we just created and delete it
-            const duplicate = await sendToOffscreen({
-              type: "findVisitByUrl",
-              trailId: capturedTrailId,
-              url: capturedUrl,
-            });
-            if (duplicate.success && duplicate.data && (duplicate.data as any).id !== (existingByTitle.data as any).id) {
-              const now = new Date().toISOString();
-              await sendToOffscreen({
-                type: "updateVisit",
-                visitId: (existingByTitle.data as any).id,
-                changes: { lastVisitedAt: now },
-              });
-              await sendToOffscreen({
-                type: "softDeleteVisit",
-                visitId: (duplicate.data as any).id,
-              });
+            const duplicate = await data.findVisitByUrl(capturedTrailId, capturedUrl);
+            if (duplicate && duplicate.id !== existingByTitle.id) {
+              const nowTs = new Date().toISOString();
+              await data.updateVisit(existingByTitle.id, { lastVisitedAt: nowTs });
+              await data.softDeleteVisit(duplicate.id);
               return;
             }
           }
         }
 
         if (Object.keys(changes).length > 0) {
-          const result = await sendToOffscreen({
-            type: "findVisitByUrl",
-            trailId: capturedTrailId,
-            url: capturedUrl,
-          });
-          if (result.success && result.data) {
-            await sendToOffscreen({
-              type: "updateVisit",
-              visitId: (result.data as any).id,
-              changes,
-            });
+          const result = await data.findVisitByUrl(capturedTrailId, capturedUrl);
+          if (result) {
+            await data.updateVisit(result.id, changes);
           }
         }
       }
