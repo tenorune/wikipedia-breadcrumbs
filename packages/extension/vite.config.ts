@@ -9,7 +9,6 @@ export default defineConfig({
     webExtension({
       manifest: "manifest.json",
       additionalInputs: [
-        "src/offscreen/index.html",
         "src/history/index.html",
       ],
     }),
