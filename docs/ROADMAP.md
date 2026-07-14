@@ -7,14 +7,17 @@ its design specs under `docs/superpowers/specs/` and implementation plans under
 
 **Shipped and consolidated on `dev`** (see specs/plans + git): the four accepted
 optimization items — sync write path, service-worker offline + silent-update, PWA Dexie
-`liveQuery`, and shared `packages/ui` phase 1 (ImportDialog + VisitCard).
+`liveQuery`, and shared `packages/ui` phase 1 (ImportDialog + VisitCard) — plus **#39
+remove-offscreen-document** (the extension service worker now runs Dexie + Supabase
+directly via a `chrome.storage.local` session adapter; manifest dropped only the
+`offscreen` permission). #39's only remaining step is the operator manual smoke test
+(auth across SW restart, sync timestamp) with real Supabase creds.
 
 ## Next
 
 | Item | Spec / Plan | Issue | Status |
 |------|-------------|-------|--------|
-| **Shared UI phase 2** — extract `TrailList` + `TrailDetail` into `packages/ui` as presentational components (data/db/nav injected via props/callbacks; PWA styling canon) | [spec](superpowers/specs/2026-07-13-shared-ui-package-design.md) (TrailList/TrailDetail sections) | — | **Plan not yet written.** Was this session's original task; deferred while branch cleanup + offscreen planning happened. |
-| **Remove offscreen document** — run IndexedDB + Supabase directly in the extension service worker via a `chrome.storage.local` adapter (pure architecture change; Chrome-facing) | [plan](superpowers/plans/2026-07-14-remove-offscreen-document.md) | #39 | **Plan written, ready to execute** off `dev`. |
+| **Shared UI phase 2** — extract `TrailList` + `TrailDetail` into `packages/ui` as presentational components (data/db/nav injected via props/callbacks; PWA styling canon) | [plan](superpowers/plans/2026-07-14-shared-ui-phase-2.md) · [spec](superpowers/specs/2026-07-13-shared-ui-package-design.md) | — | **Plan written, ready to execute** off `dev` (subagent-driven, 8 tasks). |
 
 ## Workstream B (Safari) — parked
 
