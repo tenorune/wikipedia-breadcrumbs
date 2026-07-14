@@ -1,13 +1,7 @@
 import { describe, it, expect } from "vitest";
-import type { OffscreenRequest, OffscreenResponse, ContentMessage, ContentResponse, PopupMessage, TrailMutationMessage } from "../../src/shared/messaging.js";
+import type { ContentMessage, PopupMessage, TrailMutationMessage } from "../../src/shared/messaging.js";
 
 describe("messaging types", () => {
-  it("OffscreenRequest type covers all DB operations", () => {
-    const addVisit: OffscreenRequest = { type: "addVisit", visit: {} as any };
-    const getAll: OffscreenRequest = { type: "getTrailsAll" };
-    expect(addVisit.type).toBe("addVisit");
-    expect(getAll.type).toBe("getTrailsAll");
-  });
   it("ContentMessage types are defined", () => {
     const getClick: ContentMessage = { type: "getClickContext" };
     const ping: ContentMessage = { type: "ping" };
