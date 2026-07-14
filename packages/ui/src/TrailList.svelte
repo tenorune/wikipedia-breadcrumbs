@@ -1,15 +1,21 @@
 <script lang="ts">
-  import { goto } from "$app/navigation";
-  import { trailStore } from "@wikipedia-breadcrumbs/shared";
-  import ConfirmDialog from "./ConfirmDialog.svelte";
-  import { db } from "$lib/stores/db";
+  import type { BreadcrumbsDB } from "@wikipedia-breadcrumbs/shared";
   import { exportTrailsJson, exportTrailsCsv, downloadFile, exportFilename } from "@wikipedia-breadcrumbs/shared";
-  import { ImportDialog } from "@wikipedia-breadcrumbs/ui";
-  import { getDeviceId } from "$lib/stores/device-id";
-  import { useLiveQuery } from "$lib/live-query.svelte";
-  import { queryTrailData, type TrailData, type TrailSummary } from "$lib/queries";
+  import ImportDialog from "./ImportDialog.svelte";
+  import ConfirmDialog from "./ConfirmDialog.svelte";
+  import type { TrailSummary } from "./types.js";
 
-  const ts = trailStore(db);
+  interface Props {
+    db: BreadcrumbsDB;
+    getDeviceId: () => Promise<string>;
+    summaries: TrailSummary[];
+    onSelectTrail: (summary: TrailSummary) => void;
+    onToggleStar: (summary: TrailSummary) => void;
+    onDeleteTrail: (summary: TrailSummary) => void;
+    onImported?: () => void;
+  }
+
+  let { db, getDeviceId, summaries, onSelectTrail, onToggleStar, onDeleteTrail, onImported }: Props = $props();
 
   type SortMode = "recent" | "oldest" | "starred";
 
@@ -28,10 +34,6 @@
     return () => document.removeEventListener("click", close);
   });
 
-  const data = useLiveQuery(() => queryTrailData(db), null as TrailData | null);
-  const loaded = $derived(data.current !== null);
-  const summaries = $derived(data.current?.summaries ?? []);
-
   const filtered = $derived.by(() => {
     const q = search.trim().toLowerCase();
     let list = summaries.filter((s) => !q || s.searchText.includes(q));
@@ -49,18 +51,18 @@
     return list;
   });
 
-  async function toggleStar(summary: TrailSummary, e: Event) {
+  function toggleStar(summary: TrailSummary, e: Event) {
     e.stopPropagation();
-    await ts.update(summary.trail.id, { isStarred: !summary.trail.isStarred });
+    onToggleStar(summary);
   }
 
   let confirmState = $state<{ message: string; action: () => void } | null>(null);
 
-  async function deleteTrail(summary: TrailSummary, e: Event) {
+  function deleteTrail(summary: TrailSummary, e: Event) {
     e.stopPropagation();
     confirmState = {
       message: `Delete "${summary.displayName}"?`,
-      action: async () => { await ts.softDelete(summary.trail.id); },
+      action: () => onDeleteTrail(summary),
     };
   }
 
@@ -69,8 +71,6 @@
       year: "numeric", month: "long", day: "numeric",
     });
   }
-
-  import { TrailStatus } from "@wikipedia-breadcrumbs/shared";
 
   // Data menu (import/export)
   let dataMenuOpen = $state(false);
@@ -93,12 +93,8 @@
       : await exportTrailsCsv(db);
     downloadFile(content, exportFilename(null, format), format === "json" ? "application/json" : "text/csv");
   }
-
-
 </script>
 
-{#if loaded}
-<div class="fade-in">
 <div class="controls">
   <input
     class="search"
@@ -131,7 +127,7 @@
   </div>
 </div>
 
-<ImportDialog bind:this={importer} {db} getDeviceId={async () => getDeviceId()} />
+<ImportDialog bind:this={importer} {db} {getDeviceId} onComplete={onImported} />
 
 {#if filtered.length === 0}
   <p class="empty">{search ? "No trails match your search." : "No trails yet."}</p>
@@ -149,10 +145,13 @@
           {summary.trail.isStarred ? "★" : "☆"}
         </button>
 
-        <button class="info" onclick={() => goto("/trails/" + summary.trail.id)}>
+        <button class="info" onclick={() => onSelectTrail(summary)}>
           <span class="name">{summary.displayName}</span>
           <span class="meta">
-            {summary.visitCount} pages &middot; {formatDate(summary.lastDiscovered)}
+            {summary.visitCount} pages &middot; {formatDate(summary.trail.startedAt)}{#if formatDate(summary.trail.startedAt) !== formatDate(summary.lastDiscovered)}{" "}&mdash; {formatDate(summary.lastDiscovered)}{/if}
+            {#if summary.trail.status === "active"}
+              <span class="active-badge">Active</span>
+            {/if}
           </span>
         </button>
 
@@ -177,12 +176,8 @@
     onCancel={() => { confirmState = null; }}
   />
 {/if}
-</div>
-{/if}
 
 <style>
-  .fade-in { animation: fadeIn 0.1s ease-in; }
-  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   .controls {
     display: flex;
     gap: 8px;
@@ -260,7 +255,8 @@
     text-align: left;
   }
   .name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .meta { font-size: 11px; color: #888; display: flex; align-items: center; gap: 6px; }
+  .meta { font-size: 11px; color: #888; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .active-badge { background: #d4edda; color: #155724; padding: 1px 6px; border-radius: 3px; font-size: 11px; }
 
   .delete {
     background: none;
@@ -291,5 +287,4 @@
     border: none; background: none; cursor: pointer; font-size: 13px; color: #222;
   }
   .data-menu button:hover { background: #f5f5f5; }
-
 </style>

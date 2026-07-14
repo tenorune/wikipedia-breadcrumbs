@@ -1,35 +1,31 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { trailStore, visitStore, splitTrail, mergeTrails, TrailStatus, exportTrailsJson, exportTrailsCsv, downloadFile, exportFilename, getLanguageBadgeSettings, shouldShowLanguageBadge } from "@wikipedia-breadcrumbs/shared";
-  import type { LanguageBadgeSettings } from "@wikipedia-breadcrumbs/shared";
-  import { db } from "$lib/stores/db";
-  import { syncState } from "$lib/stores/sync.svelte";
-  import { runTitleWave, makeLetterColors } from "$lib/utils/title-wave";
-  import { VisitCard } from "@wikipedia-breadcrumbs/ui";
+  import type { Snippet } from "svelte";
+  import { trailStore, visitStore, splitTrail, mergeTrails, exportTrailsJson, exportTrailsCsv, downloadFile, exportFilename, getLanguageBadgeSettings, shouldShowLanguageBadge } from "@wikipedia-breadcrumbs/shared";
+  import type { BreadcrumbsDB, Trail, Visit, LanguageBadgeSettings } from "@wikipedia-breadcrumbs/shared";
+  import VisitCard from "./VisitCard.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
-  import { useLiveQuery } from "$lib/live-query.svelte";
-  import { queryTrailDetail, type TrailDetailData } from "$lib/queries";
+  import type { TrailChangeKind } from "./types.js";
 
   interface Props {
-    trailId: string;
-    onBack: () => void;
+    db: BreadcrumbsDB;
+    trail: Trail;
+    visits: Visit[];
+    mergeCandidates: Array<{ id: string; displayName: string }>;
+    onNavigate?: (visit: Visit, e: MouseEvent) => void;
+    onChanged?: (kind: TrailChangeKind) => void;
+    onSplitDone?: (originalId: string, newTrailId: string) => void;
+    onMergeDone?: (mergedTrailId: string) => void;
+    header?: Snippet<[string]>;
   }
 
-  let { trailId, onBack }: Props = $props();
+  let { db, trail, visits, mergeCandidates, onNavigate, onChanged, onSplitDone, onMergeDone, header }: Props = $props();
 
-  const ts = trailStore(db);
-  const vs = visitStore(db);
+  const ts = $derived(trailStore(db));
+  const vs = $derived(visitStore(db));
 
-  const detail = useLiveQuery(
-    () => queryTrailDetail(db, trailId),
-    null as TrailDetailData | null,
-    () => trailId
-  );
-  const trail = $derived(detail.current?.trail ?? null);
-  const visits = $derived(detail.current?.visits ?? []);
-  const allTrails = $derived(detail.current?.mergeCandidates ?? []);
   const trailDisplayNames = $derived(
-    Object.fromEntries((detail.current?.mergeCandidates ?? []).map((c) => [c.id, c.displayName]))
+    Object.fromEntries(mergeCandidates.map((c) => [c.id, c.displayName]))
   );
 
   // Editable fields
@@ -46,11 +42,11 @@
     return () => document.removeEventListener("mousedown", stamp, true);
   });
 
-  // Sort state (persisted to localStorage)
+  // Sort state (persisted to localStorage, per-trail key)
   type SortField = "discovery" | "visited";
   type SortDir = "asc" | "desc";
 
-  const SORT_KEY = $derived(`trailDetail_sort_${trailId}`);
+  const SORT_KEY = $derived(`trailDetail_sort_${trail.id}`);
 
   function loadSortPrefs(): { field: SortField; dir: SortDir } {
     try {
@@ -146,25 +142,10 @@
   );
 
   const trailDisplayName = $derived.by(() => {
-    if (!trail) return "";
     if (trail.name) return trail.name;
     if (visits.length === 0) return "Empty trail";
     if (visits.length === 1) return visits[0].title;
     return `${visits[0].title} → ${visits[visits.length - 1].title}`;
-  });
-
-  const trailNameLetters = $derived(trailDisplayName.split(""));
-  let trailNameColors = $state<string[]>([]);
-  $effect(() => {
-    trailNameColors = makeLetterColors(trailDisplayName);
-  });
-
-  let _prevSyncing = false;
-  $effect(() => {
-    if (syncState.syncing && !_prevSyncing && trailNameColors.length > 0) {
-      runTitleWave(trailNameColors, (c) => { trailNameColors = c; });
-    }
-    _prevSyncing = syncState.syncing;
   });
 
   function formatDate(iso: string): string {
@@ -174,38 +155,37 @@
   }
 
   async function saveName() {
-    if (!trail) return;
     const v = nameValue.trim() || null;
     await ts.update(trail.id, { name: v });
     editingName = false;
     (window as any).__dismissTime = Date.now();
+    onChanged?.("name");
   }
 
   async function autoSaveName() {
-    if (!trail) return;
     await ts.update(trail.id, { name: nameValue.trim() || null });
   }
 
   async function saveNote() {
-    if (!trail) return;
     const v = noteValue.trim() || null;
     await ts.update(trail.id, { note: v });
     editingNote = false;
     (window as any).__dismissTime = Date.now();
+    onChanged?.("note");
   }
 
   async function autoSaveNote() {
-    if (!trail) return;
     await ts.update(trail.id, { note: noteValue.trim() || null });
   }
 
   async function toggleStar() {
-    if (!trail) return;
     await ts.update(trail.id, { isStarred: !trail.isStarred });
+    onChanged?.("star");
   }
 
   async function handleUpdateNote(visitId: string, note: string | null) {
     await vs.update(visitId, { note });
+    onChanged?.("visitNote");
   }
 
   let confirmState = $state<{ message: string; confirmLabel: string; action: () => void } | null>(null);
@@ -214,16 +194,21 @@
     confirmState = {
       message: "Delete this visit?",
       confirmLabel: "Delete",
-      action: async () => { await vs.softDelete(visitId); },
+      action: async () => {
+        await vs.softDelete(visitId);
+        onChanged?.("visitDelete");
+      },
     };
   }
 
   async function handleSplit(position: number) {
-    if (!trail) return;
     confirmState = {
       message: "Split trail here? Visits after this point will become a new trail.",
       confirmLabel: "Split",
-      action: async () => { await splitTrail(db, trail!.id, position); },
+      action: async () => {
+        const [originalId, newTrailId] = await splitTrail(db, trail.id, position);
+        onSplitDone?.(originalId, newTrailId);
+      },
     };
   }
 
@@ -233,219 +218,227 @@
     confirmState = {
       message: `Merge "${label}" into this trail? The other trail will be deleted.`,
       confirmLabel: "Merge",
-      action: async () => { await mergeTrails(db, trailId, mergeTargetId); showMerge = false; mergeTargetId = ""; },
+      action: async () => {
+        const merged = mergeTargetId;
+        await mergeTrails(db, trail.id, merged);
+        showMerge = false;
+        mergeTargetId = "";
+        mergeTargetLabel = "Select a trail…";
+        onMergeDone?.(merged);
+      },
     };
   }
 
   async function handleDetailExport(format: "json" | "csv") {
     detailMenuOpen = false;
     const content = format === "json"
-      ? await exportTrailsJson(db, [trailId])
-      : await exportTrailsCsv(db, [trailId]);
-    downloadFile(content, exportFilename(trail?.name ?? null, format), format === "json" ? "application/json" : "text/csv");
+      ? await exportTrailsJson(db, [trail.id])
+      : await exportTrailsCsv(db, [trail.id]);
+    downloadFile(content, exportFilename(trail.name ?? null, format), format === "json" ? "application/json" : "text/csv");
   }
 
   // Only show split button in discovery-asc view (positional order)
   const showSplit = $derived(sortField === "discovery" && sortDir === "asc");
 </script>
 
-{#if !trail}
-  <div class="delayed-spinner"></div>
-{:else}
-  <div class="header-box">
-    <button class="star" class:starred={trail.isStarred} onclick={toggleStar}
-      title={trail.isStarred ? "Unstar" : "Star"}
-      aria-label={trail.isStarred ? "Unstar" : "Star"}
-    >
-      {trail.isStarred ? "★" : "☆"}
-    </button>
-    <div class="header-content">
-      <div class="title-row">
-        {#if editingName}
-          <!-- svelte-ignore a11y_autofocus -->
-          <input
-            class="name-input"
-            type="text"
-            bind:value={nameValue}
-            placeholder="Trail name"
-            onkeydown={(e) => { if (e.key === "Enter") saveName(); }}
-            onblur={saveName}
-            oninput={autoSaveName}
-            autofocus
-          />
-        {:else}
-          <h1 class="trail-name">
-            <button class="name-edit-trigger"
-              onclick={() => { editingName = true; nameValue = trail?.name ?? ""; }}
-              title="Click to edit name"
-            >
-<span aria-hidden="true">{#each trailNameLetters as letter, i}<span style="color: {trailNameColors[i] ?? '#000000'}">{letter}</span>{/each}</span><span class="sr-only">{trailDisplayName}</span>
-            </button>
-          </h1>
-          <div class="detail-menu-wrap">
-            <button class="detail-menu-btn" onclick={() => { detailMenuOpen = !detailMenuOpen; }} title="Actions" aria-label="Actions">⋮</button>
-            {#if detailMenuOpen}
-              <div class="detail-menu">
-                <button onclick={() => { detailMenuOpen = false; showMerge = !showMerge; }}>Merge</button>
-                <button onclick={() => handleDetailExport("json")}>Export JSON</button>
-                <button onclick={() => handleDetailExport("csv")}>Export CSV</button>
-              </div>
-            {/if}
-          </div>
-        {/if}
-      </div>
-      <div class="meta">
-        <span>{visits.length} page{visits.length === 1 ? "" : "s"}</span>
-        <span>·</span>
-        <span>Started {formatDate(trail.startedAt)}</span>
-      </div>
-      <div class="trail-note-section">
-        {#if trail.note && !editingNote}
-          <div class="trail-note" role="button" tabindex="0"
-            onclick={() => { editingNote = true; noteValue = trail?.note ?? ""; }}
-            onkeydown={(e) => e.key === "Enter" && (editingNote = true)}
-            title="Click to edit"
+<div class="header-box">
+  <button class="star" class:starred={trail.isStarred} onclick={toggleStar}
+    title={trail.isStarred ? "Unstar" : "Star"}
+    aria-label={trail.isStarred ? "Unstar" : "Star"}
+  >
+    {trail.isStarred ? "★" : "☆"}
+  </button>
+  <div class="header-content">
+    <div class="title-row">
+      {#if editingName}
+        <!-- svelte-ignore a11y_autofocus -->
+        <input
+          class="name-input"
+          type="text"
+          bind:value={nameValue}
+          placeholder="Trail name"
+          onkeydown={(e) => { if (e.key === "Enter") saveName(); }}
+          onblur={saveName}
+          oninput={autoSaveName}
+          autofocus
+        />
+      {:else}
+        <h1 class="trail-name">
+          <button class="name-edit-trigger"
+            onclick={() => { editingName = true; nameValue = trail.name ?? ""; }}
+            title="Click to edit name"
           >
-            {trail.note}
-          </div>
-        {:else if editingNote}
-          <!-- svelte-ignore a11y_autofocus -->
-          <textarea
-            class="trail-note-input"
-            rows="3"
-            bind:value={noteValue}
-            placeholder="Add a note about this trail…"
-            onblur={saveNote}
-            oninput={autoSaveNote}
-            autofocus
-          ></textarea>
-        {:else}
-          <button class="add-note" onclick={() => { editingNote = true; noteValue = ""; }}>+ Add trail note</button>
-        {/if}
-      </div>
-    </div>
-  </div>
-
-  {#if showMerge}
-    <div class="merge-picker">
-      <div class="merge-dropdown-wrap">
-        <button class="merge-dropdown-btn" onclick={() => { mergeDropdownOpen = !mergeDropdownOpen; }}>
-          <span class="merge-dropdown-label">{mergeTargetLabel}</span>
-          <span class="merge-dropdown-arrow" aria-hidden="true">▾</span>
-        </button>
-        {#if mergeDropdownOpen}
-          <div class="merge-dropdown">
-            {#each allTrails as t}
-              <button class:selected={mergeTargetId === t.id} onclick={() => {
-                mergeTargetId = t.id;
-                mergeTargetLabel = trailDisplayNames[t.id] ?? "…";
-                mergeDropdownOpen = false;
-              }}>{trailDisplayNames[t.id] ?? "…"}</button>
-            {/each}
-          </div>
-        {/if}
-      </div>
-      <button class="btn-save" onclick={handleMerge} disabled={!mergeTargetId}>Merge</button>
-      <button class="btn-cancel" onclick={() => { showMerge = false; mergeTargetId = ""; mergeTargetLabel = "Select a trail…"; }}>Cancel</button>
-    </div>
-  {/if}
-
-  <!-- Sort bar -->
-  <div class="sort-bar">
-    <div class="sort-buttons">
-      <button
-        class="sort-btn"
-        class:active={sortField === "discovery"}
-        onclick={() => {
-          if (focusedView) { focusedVisitId = null; }
-          else { setSortField("discovery"); }
-        }}
-      >
-        Discovery {focusedView ? "◎" : sortField === "discovery" ? (sortDir === "asc" ? "↑" : "↓") : ""}
-      </button>
-      <button
-        class="sort-btn"
-        class:active={sortField === "visited"}
-        onclick={() => setSortField("visited")}
-      >
-        Visited {sortField === "visited" ? (sortDir === "asc" ? "↑" : "↓") : ""}
-      </button>
-      <span class="sort-hint">{sortHint}</span>
-    </div>
-  </div>
-
-  <!-- Visit list -->
-  <div class="visits">
-    {#if sortedVisits.length === 0}
-      <p class="empty">No visits in this trail.</p>
-    {:else if focusedView}
-      {#if focusedView.parent}
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="focused-grandparent" onclick={(e) => {
-          if ((e.target as HTMLElement).closest("a, button, input, textarea, .note, .card-menu-wrap, .cite-wrap, .note-edit")) return;
-          toggleFocus(focusedView.parent!.id);
-        }}>
-          <VisitCard
-            visit={focusedView.parent}
-            onUpdateNote={handleUpdateNote}
-            onDelete={handleDeleteVisit}
-            showLanguageBadge={langSettings ? shouldShowLanguageBadge(focusedView.parent.language, langSettings) : false}
-          />
+            {#if header}{@render header(trailDisplayName)}{:else}{trailDisplayName}{/if}
+          </button>
+        </h1>
+        <div class="detail-menu-wrap">
+          <button class="detail-menu-btn" onclick={() => { detailMenuOpen = !detailMenuOpen; }} title="Actions" aria-label="Actions">⋮</button>
+          {#if detailMenuOpen}
+            <div class="detail-menu">
+              <button onclick={() => { detailMenuOpen = false; showMerge = !showMerge; }}>Merge</button>
+              <button onclick={() => handleDetailExport("json")}>Export JSON</button>
+              <button onclick={() => handleDetailExport("csv")}>Export CSV</button>
+            </div>
+          {/if}
         </div>
       {/if}
+    </div>
+    <div class="meta">
+      <span>{visits.length} page{visits.length === 1 ? "" : "s"}</span>
+      <span>·</span>
+      <span>Started {formatDate(trail.startedAt)}{#if visits.length > 0 && formatDate(trail.startedAt) !== formatDate(visits[visits.length - 1].timestamp)}{" "}&mdash; {formatDate(visits[visits.length - 1].timestamp)}{/if}</span>
+      {#if trail.status === "active"}<span class="active-badge">Active</span>{/if}
+    </div>
+    <div class="trail-note-section">
+      {#if trail.note && !editingNote}
+        <div class="trail-note" role="button" tabindex="0"
+          onclick={() => { editingNote = true; noteValue = trail.note ?? ""; }}
+          onkeydown={(e) => e.key === "Enter" && (editingNote = true)}
+          title="Click to edit"
+        >
+          {trail.note}
+        </div>
+      {:else if editingNote}
+        <!-- svelte-ignore a11y_autofocus -->
+        <textarea
+          class="trail-note-input"
+          rows="3"
+          bind:value={noteValue}
+          placeholder="Add a note about this trail…"
+          onblur={saveNote}
+          oninput={autoSaveNote}
+          autofocus
+        ></textarea>
+      {:else}
+        <button class="add-note" onclick={() => { editingNote = true; noteValue = ""; }}>+ Add trail note</button>
+      {/if}
+    </div>
+  </div>
+</div>
+
+{#if showMerge}
+  <div class="merge-picker">
+    <div class="merge-dropdown-wrap">
+      <button class="merge-dropdown-btn" onclick={() => { mergeDropdownOpen = !mergeDropdownOpen; }}>
+        <span class="merge-dropdown-label">{mergeTargetLabel}</span>
+        <span class="merge-dropdown-arrow" aria-hidden="true">▾</span>
+      </button>
+      {#if mergeDropdownOpen}
+        <div class="merge-dropdown">
+          {#each mergeCandidates as t}
+            <button class:selected={mergeTargetId === t.id} onclick={() => {
+              mergeTargetId = t.id;
+              mergeTargetLabel = trailDisplayNames[t.id] ?? "…";
+              mergeDropdownOpen = false;
+            }}>{trailDisplayNames[t.id] ?? "…"}</button>
+          {/each}
+        </div>
+      {/if}
+    </div>
+    <button class="btn-save" onclick={handleMerge} disabled={!mergeTargetId}>Merge</button>
+    <button class="btn-cancel" onclick={() => { showMerge = false; mergeTargetId = ""; mergeTargetLabel = "Select a trail…"; }}>Cancel</button>
+  </div>
+{/if}
+
+<!-- Sort bar -->
+<div class="sort-bar">
+  <div class="sort-buttons">
+    <button
+      class="sort-btn"
+      class:active={sortField === "discovery"}
+      onclick={() => {
+        if (focusedView) { focusedVisitId = null; }
+        else { setSortField("discovery"); }
+      }}
+    >
+      Discovery {focusedView ? "◎" : sortField === "discovery" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+    </button>
+    <button
+      class="sort-btn"
+      class:active={sortField === "visited"}
+      onclick={() => setSortField("visited")}
+    >
+      Visited {sortField === "visited" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+    </button>
+    <span class="sort-hint">{sortHint}</span>
+  </div>
+</div>
+
+<!-- Visit list -->
+<div class="visits">
+  {#if sortedVisits.length === 0}
+    <p class="empty">No visits in this trail.</p>
+  {:else if focusedView}
+    {#if focusedView.parent}
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="focused-current" onclick={(e) => {
+      <div class="focused-grandparent" onclick={(e) => {
         if ((e.target as HTMLElement).closest("a, button, input, textarea, .note, .card-menu-wrap, .cite-wrap, .note-edit")) return;
-        toggleFocus(focusedView.focused.id);
+        toggleFocus(focusedView.parent!.id);
       }}>
         <VisitCard
-          visit={focusedView.focused}
+          visit={focusedView.parent}
           onUpdateNote={handleUpdateNote}
           onDelete={handleDeleteVisit}
-          showLanguageBadge={langSettings ? shouldShowLanguageBadge(focusedView.focused.language, langSettings) : false}
+          onNavigate={onNavigate}
+          showLanguageBadge={langSettings ? shouldShowLanguageBadge(focusedView.parent.language, langSettings) : false}
         />
       </div>
-      {#if focusedView.children.length > 0}
-        {#each focusedView.children as child}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="focused-child" onclick={(e) => {
-            if ((e.target as HTMLElement).closest("a, button, input, textarea, .note, .card-menu-wrap, .cite-wrap, .note-edit")) return;
-            toggleFocus(child.id);
-          }}>
-            <VisitCard
-              visit={child}
-              onUpdateNote={handleUpdateNote}
-              onDelete={handleDeleteVisit}
-              showLanguageBadge={langSettings ? shouldShowLanguageBadge(child.language, langSettings) : false}
-            />
-          </div>
-        {/each}
-      {:else}
-        <p class="no-children">No pages were discovered from this page.</p>
-      {/if}
-    {:else}
-      {#each sortedVisits as visit, i (visit.id)}
+    {/if}
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="focused-current" onclick={(e) => {
+      if ((e.target as HTMLElement).closest("a, button, input, textarea, .note, .card-menu-wrap, .cite-wrap, .note-edit")) return;
+      toggleFocus(focusedView.focused.id);
+    }}>
+      <VisitCard
+        visit={focusedView.focused}
+        onUpdateNote={handleUpdateNote}
+        onDelete={handleDeleteVisit}
+        onNavigate={onNavigate}
+        showLanguageBadge={langSettings ? shouldShowLanguageBadge(focusedView.focused.language, langSettings) : false}
+      />
+    </div>
+    {#if focusedView.children.length > 0}
+      {#each focusedView.children as child}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="visit-wrapper" class:focusable={sortField === "discovery"} onclick={(e) => {
+        <div class="focused-child" onclick={(e) => {
           if ((e.target as HTMLElement).closest("a, button, input, textarea, .note, .card-menu-wrap, .cite-wrap, .note-edit")) return;
-          if (sortField === "discovery") toggleFocus(visit.id);
+          toggleFocus(child.id);
         }}>
           <VisitCard
-            {visit}
+            visit={child}
             onUpdateNote={handleUpdateNote}
             onDelete={handleDeleteVisit}
-            onSplit={showSplit && i < sortedVisits.length - 1 ? handleSplit : undefined}
-            showLanguageBadge={langSettings ? shouldShowLanguageBadge(visit.language, langSettings) : false}
+            onNavigate={onNavigate}
+            showLanguageBadge={langSettings ? shouldShowLanguageBadge(child.language, langSettings) : false}
           />
         </div>
       {/each}
+    {:else}
+      <p class="no-children">No pages were discovered from this page.</p>
     {/if}
-  </div>
-{/if}
+  {:else}
+    {#each sortedVisits as visit, i (visit.id)}
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="visit-wrapper" class:focusable={sortField === "discovery"} onclick={(e) => {
+        if ((e.target as HTMLElement).closest("a, button, input, textarea, .note, .card-menu-wrap, .cite-wrap, .note-edit")) return;
+        if (sortField === "discovery") toggleFocus(visit.id);
+      }}>
+        <VisitCard
+          {visit}
+          onUpdateNote={handleUpdateNote}
+          onDelete={handleDeleteVisit}
+          onSplit={showSplit && i < sortedVisits.length - 1 ? handleSplit : undefined}
+          onNavigate={onNavigate}
+          showLanguageBadge={langSettings ? shouldShowLanguageBadge(visit.language, langSettings) : false}
+        />
+      </div>
+    {/each}
+  {/if}
+</div>
 
 {#if confirmState}
   <ConfirmDialog
@@ -580,6 +573,7 @@
     flex-wrap: wrap;
     margin-top: 4px;
   }
+  .active-badge { background: #d4edda; color: #155724; padding: 1px 6px; border-radius: 3px; font-size: 11px; }
 
   .trail-note-section { margin-top: 8px; }
   .trail-note {
@@ -629,5 +623,4 @@
   .focused-child { margin-left: 16px; border-left: 2px solid #0066cc; padding-left: 12px; cursor: pointer; }
   .focused-child:hover { background: #fafafa; border-radius: 0 10px 10px 0; }
   .no-children { color: #999; font-size: 13px; margin: 4px 0 0 16px; }
-  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 </style>
