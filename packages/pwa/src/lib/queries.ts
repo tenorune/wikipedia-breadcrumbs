@@ -1,12 +1,7 @@
 import type { BreadcrumbsDB, Trail, Visit } from "@wikipedia-breadcrumbs/shared";
+import type { TrailSummary } from "@wikipedia-breadcrumbs/ui";
 
-export interface TrailSummary {
-  trail: Trail;
-  displayName: string;
-  visitCount: number;
-  lastDiscovered: string; // timestamp of last visit, or trail.startedAt
-  searchText: string;
-}
+export type { TrailSummary } from "@wikipedia-breadcrumbs/ui";
 
 export interface TrailData {
   summaries: TrailSummary[]; // newest startedAt first (parity with trailStore.getAll)
